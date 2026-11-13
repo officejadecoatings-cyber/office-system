@@ -1030,9 +1030,47 @@
       }
     });
 
+    function formatDisplayDate(dateStr) {
+      if (!dateStr) return '';
+      const d = String(dateStr).trim().replace(/[./]/g, '-');
+      const parts = d.split('-');
+      if (parts.length === 3) {
+        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const y = parts[0];
+        const m = parseInt(parts[1], 10);
+        const day = parseInt(parts[2], 10);
+        if (!isNaN(m) && m >= 1 && m <= 12 && !isNaN(day)) {
+          return `${day} ${months[m - 1]} ${y}`;
+        }
+      }
+      return dateStr;
+    }
+
+    let rangeText = '';
+    if (_callReportFilter.startDate && _callReportFilter.endDate) {
+      if (_callReportFilter.startDate === _callReportFilter.endDate) {
+        rangeText = formatDisplayDate(_callReportFilter.startDate);
+      } else {
+        rangeText = `From ${formatDisplayDate(_callReportFilter.startDate)} to ${formatDisplayDate(_callReportFilter.endDate)}`;
+      }
+    } else if (_callReportFilter.startDate) {
+      rangeText = `From ${formatDisplayDate(_callReportFilter.startDate)} onwards`;
+    } else if (_callReportFilter.endDate) {
+      rangeText = `Up to ${formatDisplayDate(_callReportFilter.endDate)}`;
+    } else {
+      const rowDates = filteredRows.map(r => normCallDate(getCallVal(r, { key: 'Date', label: 'Date' }))).filter(Boolean).sort();
+      if (rowDates.length > 0) {
+        const minD = rowDates[0];
+        const maxD = rowDates[rowDates.length - 1];
+        rangeText = minD === maxD ? formatDisplayDate(minD) : `From ${formatDisplayDate(minD)} to ${formatDisplayDate(maxD)}`;
+      } else {
+        rangeText = 'From 26 October to 25 November 2026';
+      }
+    }
+
     const reportTitle = isSales
-      ? 'From 26 October to 25 November 2026 - Sales Executives Call Report'
-      : "Manager's Call Report (26th October-November 25th 2026)";
+      ? `${rangeText} - Sales Executives Call Report`
+      : `Manager's Call Report (${rangeText})`;
 
     document.getElementById('mainContent').innerHTML = `
       <div class="card no-print" style="margin-bottom:16px;">
@@ -1696,13 +1734,31 @@
       return isSales ? (!d.ManagerName && !d['Manager Name']) : (!!(d.ManagerName || d['Manager Name']));
     });
 
-    const activeCols = isSales ? SALES_CALL_COLS : MANAGER_CALL_COLS;
-    const rows = subReports.map(r => {
+    const parsed = subReports.map(r => {
       let data = {};
       try { data = JSON.parse(r.DataJson || '{}'); } catch (e) {}
+      return { _id: r.CallId, ...data };
+    });
+
+    const filtered = parsed.filter(r => {
+      const rawD = getCallVal(r, { key: 'Date', label: 'Date' });
+      const d = normCallDate(rawD);
+      if (_callReportFilter.startDate && d && d < _callReportFilter.startDate) return false;
+      if (_callReportFilter.endDate && d && d > _callReportFilter.endDate) return false;
+      const p = isSales ? String(getCallVal(r, { key: 'SP', label: 'S.P' })).trim() : String(getCallVal(r, { key: 'ManagerName', label: 'Manager Name' })).trim();
+      if (_callReportFilter.person && p !== _callReportFilter.person) return false;
+      if (_callReportFilter.customer) {
+        const hw = isSales ? String(getCallVal(r, { key: 'HWNames' })).toLowerCase() : String(getCallVal(r, { key: 'HardwareName' })).toLowerCase();
+        if (!hw.includes(_callReportFilter.customer.toLowerCase())) return false;
+      }
+      return true;
+    });
+
+    const activeCols = isSales ? SALES_CALL_COLS : MANAGER_CALL_COLS;
+    const rows = filtered.map(r => {
       const row = {};
       activeCols.forEach(c => {
-        row[c.label] = getCallVal(data, c);
+        row[c.label] = getCallVal(r, c);
       });
       return row;
     });
@@ -1712,7 +1768,10 @@
       const wb = XLSX.utils.book_new();
       const sheetTitle = isSales ? 'Sales Executives' : 'Manager';
       XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
-      XLSX.writeFile(wb, `${isSales ? 'Call_Report_Sales_Executives' : 'Managers_Call_Report'}_${state.data.today || 'export'}.xlsx`);
+      const dateTag = (_callReportFilter.startDate || _callReportFilter.endDate)
+        ? `_${_callReportFilter.startDate || 'start'}_to_${_callReportFilter.endDate || 'end'}`
+        : `_${state.data.today || 'export'}`;
+      XLSX.writeFile(wb, `${isSales ? 'Call_Report_Sales_Executives' : 'Managers_Call_Report'}${dateTag}.xlsx`);
     } else {
       showToast('Export failed: XLSX library not loaded');
     }
