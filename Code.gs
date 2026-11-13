@@ -100,18 +100,26 @@ function setupDatabase() {
   return 'Database ready: ' + ss.getUrl();
 }
 
+let _cachedSS = null;
+let _dbEnsured = false;
+
 /**
  * Gets or creates the bound/Drive Spreadsheet and Drive folder, and seeds initial data.
  */
 function getSpreadsheet_() {
+  if (_cachedSS) return _cachedSS;
   const active = SpreadsheetApp.getActiveSpreadsheet();
-  if (active) return active;
+  if (active) {
+    _cachedSS = active;
+    return _cachedSS;
+  }
 
   const props = PropertiesService.getScriptProperties();
   const savedId = props.getProperty('SPREADSHEET_ID');
   if (savedId) {
     try {
-      return SpreadsheetApp.openById(savedId);
+      _cachedSS = SpreadsheetApp.openById(savedId);
+      return _cachedSS;
     } catch (e) {
       // Fallback to search/create if deleted
     }
@@ -121,12 +129,14 @@ function getSpreadsheet_() {
   if (files.hasNext()) {
     const file = files.next();
     props.setProperty('SPREADSHEET_ID', file.getId());
-    return SpreadsheetApp.openById(file.getId());
+    _cachedSS = SpreadsheetApp.openById(file.getId());
+    return _cachedSS;
   }
 
   const ss = SpreadsheetApp.create(DB_NAME);
   props.setProperty('SPREADSHEET_ID', ss.getId());
-  return ss;
+  _cachedSS = ss;
+  return _cachedSS;
 }
 
 function getOrCreateDriveFolder_() {
@@ -150,6 +160,7 @@ function getOrCreateDriveFolder_() {
 
 function ensureDatabase_() {
   const ss = getSpreadsheet_();
+  if (_dbEnsured) return ss;
   const existingSheets = {};
   ss.getSheets().forEach(s => { existingSheets[s.getName()] = s; });
 
@@ -176,13 +187,13 @@ function ensureDatabase_() {
 
   // Seed Settings if empty
   const settingsSheet = ss.getSheetByName('Settings');
-  if (settingsSheet.getLastRow() <= 1) {
+  if (settingsSheet && settingsSheet.getLastRow() <= 1) {
     const folder = getOrCreateDriveFolder_();
     settingsSheet.getRange(2, 1, 7, 2).setValues([
-      ['CompanyName', 'My Office Pvt Ltd'],
-      ['Address', 'Colombo, Sri Lanka'],
+      ['CompanyName', 'Jade Coatings (Pvt) Ltd'],
+      ['Address', 'No. 321, Colombo Road, Negombo'],
       ['Phone', '+94 11 234 5678'],
-      ['Email', 'info@myoffice.lk'],
+      ['Email', 'info@jadecoatings.lk'],
       ['Currency', 'LKR'],
       ['TaxRate', '0'],
       ['DriveFolderUrl', folder.getUrl()]
@@ -191,7 +202,7 @@ function ensureDatabase_() {
 
   // Seed 4 default users if empty
   const usersSheet = ss.getSheetByName('Users');
-  if (usersSheet.getLastRow() <= 1) {
+  if (usersSheet && usersSheet.getLastRow() <= 1) {
     usersSheet.getRange(2, 1, 4, 6).setValues([
       ['U-001', 'Admin User', 'admin@office.local', 'Admin', '1234', 'Active'],
       ['U-002', 'Staff Member 1', 'staff1@office.local', 'Staff', '1111', 'Active'],
@@ -200,6 +211,7 @@ function ensureDatabase_() {
     ]);
   }
 
+  _dbEnsured = true;
   return ss;
 }
 
@@ -329,46 +341,78 @@ function authenticateUser(userId, pin) {
   if (!user) throw new Error('User not found or inactive.');
   if (String(user.Pin) !== String(pin)) throw new Error('Invalid PIN.');
   return {
-    UserId: user.UserId,
-    Name: user.Name,
-    Email: user.Email,
-    Role: user.Role
+    user: {
+      UserId: user.UserId,
+      Name: user.Name,
+      Email: user.Email,
+      Role: user.Role
+    },
+    data: getAppData()
   };
 }
 
 function getAppData() {
-  ensureDatabase_();
-  const settingsRows = readSheetObjects_('Settings');
+  const ss = getSpreadsheet_();
+  const allSheets = ss.getSheets();
+  const sheetsMap = {};
+  allSheets.forEach(s => { sheetsMap[s.getName()] = s; });
+
+  const tz = Session.getScriptTimeZone() || 'Asia/Colombo';
+
+  function readFromSheet(sheetName) {
+    const sheet = sheetsMap[sheetName];
+    if (!sheet) return [];
+    const data = sheet.getDataRange().getValues();
+    if (!data || data.length <= 1) return [];
+    const headers = data[0];
+    const rows = [];
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      if (row.every(cell => cell === '' || cell === null)) continue;
+      const obj = {};
+      for (let j = 0; j < headers.length; j++) {
+        let val = row[j];
+        if (val instanceof Date) {
+          val = Utilities.formatDate(val, tz, 'yyyy-MM-dd');
+        }
+        obj[headers[j]] = val;
+      }
+      rows.push(obj);
+    }
+    return rows;
+  }
+
+  const settingsRows = readFromSheet('Settings');
   const settings = {};
   settingsRows.forEach(r => { settings[r.Key] = r.Value; });
 
   return {
     settings: settings,
-    users: readSheetObjects_('Users').map(u => ({
+    users: readFromSheet('Users').map(u => ({
       UserId: u.UserId,
       Name: u.Name,
       Email: u.Email,
       Role: u.Role,
       Status: u.Status
     })),
-    customers: readSheetObjects_('Customers'),
-    inventory: readSheetObjects_('Inventory'),
-    invoices: readSheetObjects_('Invoices'),
-    invoiceItems: readSheetObjects_('InvoiceItems'),
-    creditors: readSheetObjects_('Creditors'),
-    pettyCash: readSheetObjects_('PettyCash'),
-    callReports: readSheetObjects_('CallReports'),
-    projectReports: readSheetObjects_('ProjectReports'),
-    painterQuotations: readSheetObjects_('PainterQuotations'),
-    painterBillBalances: readSheetObjects_('PainterBillBalances'),
-    employees: readSheetObjects_('Employees'),
-    customTabs: readSheetObjects_('CustomTabs'),
-    customTabRows: readSheetObjects_('CustomTabRows'),
-    transactions: readSheetObjects_('Transactions'),
-    attendance: readSheetObjects_('Attendance'),
-    leaves: readSheetObjects_('Leaves'),
-    tasks: readSheetObjects_('Tasks'),
-    savedReports: readSheetObjects_('SavedReports'),
+    customers: readFromSheet('Customers'),
+    inventory: readFromSheet('Inventory'),
+    invoices: readFromSheet('Invoices'),
+    invoiceItems: readFromSheet('InvoiceItems'),
+    creditors: readFromSheet('Creditors'),
+    pettyCash: readFromSheet('PettyCash'),
+    callReports: readFromSheet('CallReports'),
+    projectReports: readFromSheet('ProjectReports'),
+    painterQuotations: readFromSheet('PainterQuotations'),
+    painterBillBalances: readFromSheet('PainterBillBalances'),
+    employees: readFromSheet('Employees'),
+    customTabs: readFromSheet('CustomTabs'),
+    customTabRows: readFromSheet('CustomTabRows'),
+    transactions: readFromSheet('Transactions'),
+    attendance: readFromSheet('Attendance'),
+    leaves: readFromSheet('Leaves'),
+    tasks: readFromSheet('Tasks'),
+    savedReports: readFromSheet('SavedReports'),
     today: todayStr_()
   };
 }

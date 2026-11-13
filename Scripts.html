@@ -31,6 +31,10 @@
     }
   };
 
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbxbtdlTd49UX0xd9WCu6gDao16cyHWZZld0bd-mx9LA9kYEc-LyqJc0Knuv1KtxuwfOnA/exec';
+  const CACHE_KEY_DATA = 'JADE_OFFICE_DATA_CACHE';
+  const CACHE_KEY_USER = 'JADE_OFFICE_USER_CACHE';
+
   /* ==========================================================================
    * Utilities & GAS Bridge
    * ======================================================================== */
@@ -38,17 +42,42 @@
   function gas(fnName, ...args) {
     document.getElementById('loadingBar').classList.remove('hidden');
     return new Promise((resolve, reject) => {
-      google.script.run
-        .withSuccessHandler(res => {
-          document.getElementById('loadingBar').classList.add('hidden');
-          resolve(res);
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(res => {
+            document.getElementById('loadingBar').classList.add('hidden');
+            resolve(res);
+          })
+          .withFailureHandler(err => {
+            document.getElementById('loadingBar').classList.add('hidden');
+            const msg = err && err.message ? err.message : String(err);
+            showToast('Error: ' + msg);
+            reject(err);
+          })[fnName](...args);
+      } else {
+        // Fallback for standalone / GitHub Pages / local: call Google Apps Script Web App via fetch POST
+        fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: fnName, args: args })
         })
-        .withFailureHandler(err => {
+        .then(r => r.json())
+        .then(res => {
           document.getElementById('loadingBar').classList.add('hidden');
-          const msg = err && err.message ? err.message : String(err);
-          showToast('Error: ' + msg);
+          if (res && res.ok) {
+            resolve(res.result !== undefined ? res.result : res.data);
+          } else {
+            const err = new Error(res && res.error ? res.error : 'Unknown backend error');
+            showToast('Error: ' + err.message);
+            reject(err);
+          }
+        })
+        .catch(err => {
+          document.getElementById('loadingBar').classList.add('hidden');
+          showToast('Network error: ' + err.message);
           reject(err);
-        })[fnName](...args);
+        });
+      }
     });
   }
 
@@ -95,47 +124,106 @@
    * ======================================================================== */
 
   window.addEventListener('DOMContentLoaded', async () => {
+    // 1. Instant cache load from localStorage (0ms load time!)
+    try {
+      const cachedUserStr = localStorage.getItem(CACHE_KEY_USER);
+      const cachedDataStr = localStorage.getItem(CACHE_KEY_DATA);
+      if (cachedUserStr && cachedDataStr) {
+        const cachedUser = JSON.parse(cachedUserStr);
+        const cachedData = JSON.parse(cachedDataStr);
+        if (cachedUser && cachedData && cachedData.settings) {
+          state.user = cachedUser;
+          state.data = cachedData;
+          document.getElementById('loginView').classList.add('hidden');
+          document.getElementById('appShell').classList.remove('hidden');
+          document.getElementById('sidebarUser').textContent = cachedUser.Name || 'User';
+          document.getElementById('sidebarRole').textContent = cachedUser.Role || 'Staff';
+          document.getElementById('brandName').textContent = cachedData.settings.CompanyName || 'Jade Coatings';
+          renderCustomSidebarTabs();
+          renderTopbarClock();
+          renderView();
+          startAutoSync();
+          // Silently refresh fresh data from backend in background without freezing
+          refreshData(false, /* silent */ true);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Cache load error:', e);
+    }
+
+    // 2. If not logged in from cache, fetch login users
     try {
       const users = await gas('getLoginUsers');
       const sel = document.getElementById('loginUser');
-      sel.innerHTML = users.map(u => `<option value="${esc(u.UserId)}">${esc(u.Name)} (${esc(u.Role)})</option>`).join('');
+      if (sel && users && users.length) {
+        sel.innerHTML = users.map(u => `<option value="${esc(u.UserId)}">${esc(u.Name)} (${esc(u.Role)})</option>`).join('');
+      }
     } catch (e) {}
 
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const userId = document.getElementById('loginUser').value;
       const pin = document.getElementById('loginPin').value;
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      const origText = submitBtn ? submitBtn.textContent : '';
+      if (submitBtn) { submitBtn.textContent = 'Logging in...'; submitBtn.disabled = true; }
+
       try {
-        const user = await gas('authenticateUser', userId, pin);
-        state.user = user;
+        const res = await gas('authenticateUser', userId, pin);
+        state.user = res.user || res;
+        try { localStorage.setItem(CACHE_KEY_USER, JSON.stringify(state.user)); } catch (e) {}
+
+        if (res.data) {
+          state.data = res.data;
+          try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+          document.getElementById('brandName').textContent = state.data.settings?.CompanyName || 'Jade Coatings';
+          renderCustomSidebarTabs();
+          renderTopbarClock();
+          renderView();
+        } else {
+          await refreshData();
+        }
+
         document.getElementById('loginView').classList.add('hidden');
         document.getElementById('appShell').classList.remove('hidden');
-        document.getElementById('sidebarUser').textContent = user.Name;
-        document.getElementById('sidebarRole').textContent = user.Role;
-        await refreshData();
+        document.getElementById('sidebarUser').textContent = state.user.Name;
+        document.getElementById('sidebarRole').textContent = state.user.Role;
         startAutoSync();
-      } catch (err) {}
+      } catch (err) {
+        showToast('Login failed: ' + (err.message || 'Invalid PIN'));
+      } finally {
+        if (submitBtn) { submitBtn.textContent = origText; submitBtn.disabled = false; }
+      }
     });
   });
 
   function logout() {
     state.user = null;
+    try { localStorage.removeItem(CACHE_KEY_USER); } catch (e) {}
     document.getElementById('loginPin').value = '';
     document.getElementById('appShell').classList.add('hidden');
     document.getElementById('loginView').classList.remove('hidden');
   }
 
-  async function refreshData(backupToDrive = false) {
+  async function refreshData(backupToDrive = false, silent = false) {
     if (backupToDrive) {
       try { await gas('autoSyncDriveBackup'); } catch (e) {}
     }
-    const data = await gas('getAppData');
-    state.data = data;
-    document.getElementById('brandName').textContent = data.settings.CompanyName || 'System Manager';
-    renderCustomSidebarTabs();
-    renderTopbarClock();
-    renderView();
-    if (backupToDrive) showToast('Synced with Google Drive!');
+    try {
+      const data = await gas('getAppData');
+      state.data = data;
+      try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(data)); } catch (e) {}
+      if (data.settings) {
+        document.getElementById('brandName').textContent = data.settings.CompanyName || 'Jade Coatings';
+      }
+      renderCustomSidebarTabs();
+      renderTopbarClock();
+      renderView();
+      if (backupToDrive) showToast('Synced with Google Drive!');
+    } catch (e) {
+      if (!silent) showToast('Error refreshing data: ' + e.message);
+    }
   }
 
   function renderCustomSidebarTabs() {
