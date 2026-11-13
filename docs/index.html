@@ -1411,10 +1411,17 @@
 
   let _callReportTab = 'sales'; // 'sales' | 'manager'
   const _callReportFilter = {
-    date: '',
+    startDate: '',
+    endDate: '',
     person: '',
+    customer: '',
     search: ''
   };
+
+  function normCallDate(d) {
+    if (!d) return '';
+    return String(d).trim().replace(/[./]/g, '-');
+  }
 
   const SALES_CALL_COLS = [
     { key: 'Date', label: 'Date' },
@@ -1473,6 +1480,7 @@
     if (k === 'TotalKM') return r['Total KM'] || 0;
     if (k === 'StartPhoto') return r['Start Photo'] || r['Start Photo '] || '';
     if (k === 'EndPhoto') return r['End Photo'] || '';
+    if (k === 'Location') return r.Location || '';
     if (k === 'ManagerName') return r['Manager Name'] || r['Manager Name '] || '';
     if (k === 'NewCustomer') return r['New Customer'] || r['New Customer '] || 0;
     if (k === 'RegularCustomer') return r['Regular Customer'] || r['Regular Customer '] || 0;
@@ -1521,12 +1529,27 @@
       return isSales ? String(getCallVal(r, { key: 'SP', label: 'S.P' })).trim() : String(getCallVal(r, { key: 'ManagerName', label: 'Manager Name' })).trim();
     }).filter(Boolean))).sort();
 
+    // Available customer/hardware names for filter dropdown
+    const customerList = Array.from(new Set([
+      ...(state.data.customers || []).map(c => c.Name).filter(Boolean),
+      ...parsedRows.map(r => isSales ? getCallVal(r, { key: 'HWNames' }) : getCallVal(r, { key: 'HardwareName' })).filter(Boolean)
+    ])).sort();
+
     // Filter rows
     const filteredRows = parsedRows.filter(r => {
-      const d = String(getCallVal(r, { key: 'Date', label: 'Date' })).trim();
-      if (_callReportFilter.date && !d.includes(_callReportFilter.date)) return false;
+      const rawD = getCallVal(r, { key: 'Date', label: 'Date' });
+      const d = normCallDate(rawD);
+      if (_callReportFilter.startDate && d && d < _callReportFilter.startDate) return false;
+      if (_callReportFilter.endDate && d && d > _callReportFilter.endDate) return false;
+
       const p = isSales ? String(getCallVal(r, { key: 'SP', label: 'S.P' })).trim() : String(getCallVal(r, { key: 'ManagerName', label: 'Manager Name' })).trim();
       if (_callReportFilter.person && p !== _callReportFilter.person) return false;
+
+      if (_callReportFilter.customer) {
+        const hw = isSales ? String(getCallVal(r, { key: 'HWNames' })).toLowerCase() : String(getCallVal(r, { key: 'HardwareName' })).toLowerCase();
+        if (!hw.includes(_callReportFilter.customer.toLowerCase())) return false;
+      }
+
       if (_callReportFilter.search) {
         const q = _callReportFilter.search.toLowerCase();
         const str = Object.values(r).join(' ').toLowerCase();
@@ -1580,14 +1603,25 @@
           </div>
         </div>
 
-        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-          <input type="text" placeholder="Filter by date (e.g. 2026.10.26)..." style="width:190px;" value="${esc(_callReportFilter.date)}" oninput="_callReportFilter.date=this.value; renderCallReportsView()">
-          <select style="width:200px;" onchange="_callReportFilter.person=this.value; renderCallReportsView()">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; background:#f8fafc; padding:10px 12px; border-radius:6px; border:1px solid #e2e8f0;">
+          <div style="display:inline-flex; align-items:center; gap:6px;">
+            <label style="font-size:12px; font-weight:600; color:var(--muted); margin:0;">From:</label>
+            <input type="date" style="width:140px; margin:0; padding:6px 8px;" value="${esc(_callReportFilter.startDate)}" onchange="_callReportFilter.startDate=this.value; renderCallReportsView()">
+          </div>
+          <div style="display:inline-flex; align-items:center; gap:6px;">
+            <label style="font-size:12px; font-weight:600; color:var(--muted); margin:0;">To:</label>
+            <input type="date" style="width:140px; margin:0; padding:6px 8px;" value="${esc(_callReportFilter.endDate)}" onchange="_callReportFilter.endDate=this.value; renderCallReportsView()">
+          </div>
+          <select style="width:180px; margin:0; padding:6px 8px;" onchange="_callReportFilter.person=this.value; renderCallReportsView()">
             <option value="">-- All ${isSales ? 'Sales Persons' : 'Managers'} --</option>
             ${persons.map(p => `<option value="${esc(p)}" ${_callReportFilter.person === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
           </select>
-          <input type="text" placeholder="Search route, hardware, remarks..." style="flex:1; min-width:180px;" value="${esc(_callReportFilter.search)}" oninput="_callReportFilter.search=this.value; renderCallReportsView()">
-          ${(_callReportFilter.date || _callReportFilter.person || _callReportFilter.search) ? `<button class="btn btn-sm btn-secondary" onclick="_callReportFilter.date=''; _callReportFilter.person=''; _callReportFilter.search=''; renderCallReportsView()">Reset</button>` : ''}
+          <select style="width:190px; margin:0; padding:6px 8px;" onchange="_callReportFilter.customer=this.value; renderCallReportsView()">
+            <option value="">-- All Customers / HW --</option>
+            ${customerList.map(c => `<option value="${esc(c)}" ${_callReportFilter.customer === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
+          </select>
+          <input type="text" placeholder="Search route, remarks, location..." style="flex:1; min-width:160px; margin:0; padding:6px 8px;" value="${esc(_callReportFilter.search)}" oninput="_callReportFilter.search=this.value; renderCallReportsView()">
+          ${(_callReportFilter.startDate || _callReportFilter.endDate || _callReportFilter.person || _callReportFilter.customer || _callReportFilter.search) ? `<button class="btn btn-sm btn-secondary" style="margin:0;" onclick="_callReportFilter.startDate=''; _callReportFilter.endDate=''; _callReportFilter.person=''; _callReportFilter.customer=''; _callReportFilter.search=''; renderCallReportsView()">Reset</button>` : ''}
         </div>
       </div>
 
@@ -1660,9 +1694,6 @@
     const today = state.data.today || new Date().toISOString().slice(0, 10);
     const dateVal = data.Date || today;
 
-    // Active employees for dropdown
-    const employees = state.data.employees || [];
-
     if (isSales) {
       const spVal = data.SP || data['S.P'] || '';
       const newCus = data.NoOfNewCus ?? data['No of new Cus'] ?? 0;
@@ -1672,6 +1703,26 @@
       const startM = data.StartM ?? data['Start M'] ?? 0;
       const endM = data.EndM ?? data['End M'] ?? 0;
       const totKm = data.TotalKM ?? data['Total KM'] ?? (endM > startM ? endM - startM : 0);
+      const callReportVal = data.CallReport || data['Call Report'] || '';
+      const locationVal = data.Location || '';
+      const photoVal = data.Photo || '';
+      const startPhotoVal = data.StartPhoto || data['Start Photo'] || '';
+      const endPhotoVal = data.EndPhoto || '';
+
+      // Filter employees by Position / Designation for 'Sales Officer' or 'Technical Officer'
+      const salesOrTechOfficers = (state.data.employees || []).filter(e => {
+        const p = ((e.Position || '') + ' ' + (e.Designation || '')).toLowerCase();
+        return (p.includes('sales') || p.includes('technical')) && e.Status !== 'Inactive';
+      });
+      const defaultSalesNames = [
+        'Mr. Sunanda', 'Mr. Damith', 'Mr. Nimesh', 'Mr. Yasas',
+        'Mr. Shehan', 'Mr. Manjula', 'Mr. Nipun', 'Mr. Pathum'
+      ];
+      const officerNames = Array.from(new Set([
+        ...salesOrTechOfficers.map(e => e.Name),
+        ...(salesOrTechOfficers.length === 0 ? defaultSalesNames : []),
+        ...(spVal ? [spVal] : [])
+      ])).filter(Boolean);
 
       const html = `
         <div class="form-row">
@@ -1680,11 +1731,11 @@
             <input id="cr_Date" value="${esc(dateVal)}">
           </div>
           <div class="form-group">
-            <label>S.P (Sales Executive) *</label>
-            <input list="cr_sp_list" id="cr_SP" value="${esc(spVal)}" placeholder="Select or type Sales Executive...">
-            <datalist id="cr_sp_list">
-              ${employees.map(e => `<option value="${esc(e.Name)}">${esc(e.Position || e.Designation || '')}</option>`).join('')}
-            </datalist>
+            <label>S.P (Sales Executive) * (Sales / Technical Officers)</label>
+            <select id="cr_SP" style="width:100%;">
+              <option value="">-- Select Sales / Technical Officer --</option>
+              ${officerNames.map(name => `<option value="${esc(name)}" ${spVal === name ? 'selected' : ''}>${esc(name)}</option>`).join('')}
+            </select>
           </div>
         </div>
         <div class="form-row">
@@ -1701,13 +1752,30 @@
             </select>
           </div>
         </div>
-        <div class="form-group">
-          <label>Call Report (Remarks / Outcomes)</label>
-          <textarea id="cr_CallReport" rows="2" placeholder="Summary of visits, discussions, collections...">${esc(data.CallReport || data['Call Report'] || '')}</textarea>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Call Report (Remarks / Outcomes) *</label>
+            <select id="cr_CallReport" style="width:100%;">
+              <option value="">-- Select Ok / No --</option>
+              <option value="Ok" ${callReportVal === 'Ok' ? 'selected' : ''}>Ok</option>
+              <option value="No" ${callReportVal === 'No' ? 'selected' : ''}>No</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Location *</label>
+            <select id="cr_Location" style="width:100%;">
+              <option value="">-- Select Yes / No --</option>
+              <option value="Yes" ${locationVal === 'Yes' ? 'selected' : ''}>Yes</option>
+              <option value="No" ${locationVal === 'No' ? 'selected' : ''}>No</option>
+            </select>
+          </div>
         </div>
         <div class="form-group">
-          <label>Hardware Names</label>
-          <input id="cr_HWNames" value="${esc(data.HWNames || data['H. W Names'] || '')}" placeholder="Hardware stores visited...">
+          <label>Hardware Names (Customer)</label>
+          <input list="cr_hw_list" id="cr_HWNames" value="${esc(data.HWNames || data['H. W Names'] || '')}" placeholder="Select or type hardware/customer name...">
+          <datalist id="cr_hw_list">
+            ${(state.data.customers || []).map(c => `<option value="${esc(c.Name)}"></option>`).join('')}
+          </datalist>
         </div>
 
         <div style="background:#f8fafc; padding:10px 12px; border-radius:6px; border:1px solid #cbd5e1; margin-bottom:12px;">
@@ -1750,24 +1818,30 @@
           </div>
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label>Location</label>
-            <input id="cr_Location" value="${esc(data.Location || '')}" placeholder="Area / City / GPS">
-          </div>
+        <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr;">
           <div class="form-group">
             <label>Photo Taken</label>
-            <input id="cr_Photo" value="${esc(data.Photo || '')}" placeholder="Yes / No / Note">
+            <select id="cr_Photo" style="width:100%;">
+              <option value="">-- Select Yes / No --</option>
+              <option value="Yes" ${photoVal === 'Yes' ? 'selected' : ''}>Yes</option>
+              <option value="No" ${photoVal === 'No' ? 'selected' : ''}>No</option>
+            </select>
           </div>
-        </div>
-        <div class="form-row">
           <div class="form-group">
             <label>Start Photo</label>
-            <input id="cr_StartPhoto" value="${esc(data.StartPhoto || data['Start Photo'] || '')}" placeholder="Yes / No">
+            <select id="cr_StartPhoto" style="width:100%;">
+              <option value="">-- Select Yes / No --</option>
+              <option value="Yes" ${startPhotoVal === 'Yes' ? 'selected' : ''}>Yes</option>
+              <option value="No" ${startPhotoVal === 'No' ? 'selected' : ''}>No</option>
+            </select>
           </div>
           <div class="form-group">
             <label>End Photo</label>
-            <input id="cr_EndPhoto" value="${esc(data.EndPhoto || '')}" placeholder="Yes / No">
+            <select id="cr_EndPhoto" style="width:100%;">
+              <option value="">-- Select Yes / No --</option>
+              <option value="Yes" ${endPhotoVal === 'Yes' ? 'selected' : ''}>Yes</option>
+              <option value="No" ${endPhotoVal === 'No' ? 'selected' : ''}>No</option>
+            </select>
           </div>
         </div>
       `;
@@ -1788,6 +1862,22 @@
       const startM = data.StartMeterReading ?? data['Sart Meeter Reading'] ?? 0;
       const endM = data.EndMeterReading ?? data['Ent  Meeter Reading'] ?? 0;
       const totM = data.TotalMeter ?? data['Total Meeter '] ?? (endM > startM ? endM - startM : 0);
+      const callReportVal = data.CallReport || data['Call Report'] || '';
+      const startLocVal = data.StartLocation || data['Start Locatio '] || '';
+      const endLocVal = data.EndLocation || data['Ent Location'] || '';
+      const startPhotoVal = data.StartPhoto || '';
+      const endPhotoVal = data.EndPhoto || '';
+
+      const managers = (state.data.employees || []).filter(e => {
+        const p = ((e.Position || '') + ' ' + (e.Designation || '')).toLowerCase();
+        return p.includes('manager') && e.Status !== 'Inactive';
+      });
+      const defaultMgrNames = ['Mr. Nishan', 'Mr. Sanjeewa', 'Mr. Nilupul'];
+      const managerNames = Array.from(new Set([
+        ...managers.map(e => e.Name),
+        ...(managers.length === 0 ? defaultMgrNames : []),
+        ...(mgrVal ? [mgrVal] : [])
+      ])).filter(Boolean);
 
       const html = `
         <div class="form-row">
@@ -1797,10 +1887,10 @@
           </div>
           <div class="form-group">
             <label>Manager Name *</label>
-            <input list="cr_mgr_list" id="cr_ManagerName" value="${esc(mgrVal)}" placeholder="Select or type Manager Name...">
-            <datalist id="cr_mgr_list">
-              ${employees.map(e => `<option value="${esc(e.Name)}">${esc(e.Position || e.Designation || '')}</option>`).join('')}
-            </datalist>
+            <select id="cr_ManagerName" style="width:100%;">
+              <option value="">-- Select Manager --</option>
+              ${managerNames.map(name => `<option value="${esc(name)}" ${mgrVal === name ? 'selected' : ''}>${esc(name)}</option>`).join('')}
+            </select>
           </div>
         </div>
         <div class="form-row">
@@ -1818,12 +1908,19 @@
           </div>
         </div>
         <div class="form-group">
-          <label>Call Report (Remarks / Outcomes)</label>
-          <textarea id="cr_CallReport" rows="2" placeholder="Summary of manager visits, dealer reviews...">${esc(data.CallReport || data['Call Report'] || '')}</textarea>
+          <label>Call Report (Remarks / Outcomes) *</label>
+          <select id="cr_CallReport" style="width:100%;">
+            <option value="">-- Select Ok / No --</option>
+            <option value="Ok" ${callReportVal === 'Ok' ? 'selected' : ''}>Ok</option>
+            <option value="No" ${callReportVal === 'No' ? 'selected' : ''}>No</option>
+          </select>
         </div>
         <div class="form-group">
-          <label>Hardware Name</label>
-          <input id="cr_HardwareName" value="${esc(data.HardwareName || data['Hardware Name'] || '')}" placeholder="Hardware / Dealer names...">
+          <label>Hardware Name (Customer)</label>
+          <input list="cr_mgr_hw_list" id="cr_HardwareName" value="${esc(data.HardwareName || data['Hardware Name'] || '')}" placeholder="Select or type hardware/dealer...">
+          <datalist id="cr_mgr_hw_list">
+            ${(state.data.customers || []).map(c => `<option value="${esc(c.Name)}"></option>`).join('')}
+          </datalist>
         </div>
 
         <div style="background:#f8fafc; padding:10px 12px; border-radius:6px; border:1px solid #cbd5e1; margin-bottom:12px;">
@@ -1869,21 +1966,37 @@
         <div class="form-row">
           <div class="form-group">
             <label>Start Location</label>
-            <input id="cr_StartLocation" value="${esc(data.StartLocation || data['Start Locatio '] || '')}" placeholder="Start location">
+            <select id="cr_StartLocation" style="width:100%;">
+              <option value="">-- Select Yes / No --</option>
+              <option value="Yes" ${startLocVal === 'Yes' ? 'selected' : ''}>Yes</option>
+              <option value="No" ${startLocVal === 'No' ? 'selected' : ''}>No</option>
+            </select>
           </div>
           <div class="form-group">
             <label>End Location</label>
-            <input id="cr_EndLocation" value="${esc(data.EndLocation || data['Ent Location'] || '')}" placeholder="End location">
+            <select id="cr_EndLocation" style="width:100%;">
+              <option value="">-- Select Yes / No --</option>
+              <option value="Yes" ${endLocVal === 'Yes' ? 'selected' : ''}>Yes</option>
+              <option value="No" ${endLocVal === 'No' ? 'selected' : ''}>No</option>
+            </select>
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
             <label>Start Photo</label>
-            <input id="cr_StartPhoto" value="${esc(data.StartPhoto || '')}" placeholder="Yes / No">
+            <select id="cr_StartPhoto" style="width:100%;">
+              <option value="">-- Select Yes / No --</option>
+              <option value="Yes" ${startPhotoVal === 'Yes' ? 'selected' : ''}>Yes</option>
+              <option value="No" ${startPhotoVal === 'No' ? 'selected' : ''}>No</option>
+            </select>
           </div>
           <div class="form-group">
             <label>End Photo</label>
-            <input id="cr_EndPhoto" value="${esc(data.EndPhoto || '')}" placeholder="Yes / No">
+            <select id="cr_EndPhoto" style="width:100%;">
+              <option value="">-- Select Yes / No --</option>
+              <option value="Yes" ${endPhotoVal === 'Yes' ? 'selected' : ''}>Yes</option>
+              <option value="No" ${endPhotoVal === 'No' ? 'selected' : ''}>No</option>
+            </select>
           </div>
         </div>
       `;
@@ -1937,15 +2050,15 @@
       obj.NoOfRegCus = parseFloat(document.getElementById('cr_NoOfRegCus')?.value || 0) || 0;
       obj.SiteVisit = parseFloat(document.getElementById('cr_SiteVisit')?.value || 0) || 0;
       obj.Total = parseFloat(document.getElementById('cr_Total')?.value || 0) || (obj.NoOfNewCus + obj.NoOfRegCus + obj.SiteVisit);
-      obj.Photo = document.getElementById('cr_Photo')?.value.trim() || '';
+      obj.Photo = document.getElementById('cr_Photo')?.value || '';
       obj.WorkedNA = document.getElementById('cr_WorkedNA')?.value || '';
       obj.HWNames = document.getElementById('cr_HWNames')?.value.trim() || '';
       obj.StartM = parseFloat(document.getElementById('cr_StartM')?.value || 0) || 0;
       obj.EndM = parseFloat(document.getElementById('cr_EndM')?.value || 0) || 0;
       obj.TotalKM = parseFloat(document.getElementById('cr_TotalKM')?.value || 0) || (obj.EndM > obj.StartM ? obj.EndM - obj.StartM : 0);
-      obj.StartPhoto = document.getElementById('cr_StartPhoto')?.value.trim() || '';
-      obj.EndPhoto = document.getElementById('cr_EndPhoto')?.value.trim() || '';
-      obj.Location = document.getElementById('cr_Location')?.value.trim() || '';
+      obj.StartPhoto = document.getElementById('cr_StartPhoto')?.value || '';
+      obj.EndPhoto = document.getElementById('cr_EndPhoto')?.value || '';
+      obj.Location = document.getElementById('cr_Location')?.value || '';
 
       if (!obj.Date || !obj.SP) {
         showToast('Please enter both Date and Sales Executive Name.');
@@ -1965,10 +2078,10 @@
       obj.StartMeterReading = parseFloat(document.getElementById('cr_StartMeterReading')?.value || 0) || 0;
       obj.EndMeterReading = parseFloat(document.getElementById('cr_EndMeterReading')?.value || 0) || 0;
       obj.TotalMeter = parseFloat(document.getElementById('cr_TotalMeter')?.value || 0) || (obj.EndMeterReading > obj.StartMeterReading ? obj.EndMeterReading - obj.StartMeterReading : 0);
-      obj.StartPhoto = document.getElementById('cr_StartPhoto')?.value.trim() || '';
-      obj.StartLocation = document.getElementById('cr_StartLocation')?.value.trim() || '';
-      obj.EndPhoto = document.getElementById('cr_EndPhoto')?.value.trim() || '';
-      obj.EndLocation = document.getElementById('cr_EndLocation')?.value.trim() || '';
+      obj.StartPhoto = document.getElementById('cr_StartPhoto')?.value || '';
+      obj.StartLocation = document.getElementById('cr_StartLocation')?.value || '';
+      obj.EndPhoto = document.getElementById('cr_EndPhoto')?.value || '';
+      obj.EndLocation = document.getElementById('cr_EndLocation')?.value || '';
 
       if (!obj.Date || !obj.ManagerName) {
         showToast('Please enter both Date and Manager Name.');
@@ -2150,8 +2263,6 @@
       showToast('Export failed: XLSX library not loaded');
     }
   }
-
-
 
   /* ==========================================================================
    * 2C. Call Report & Project Report (User-Uploaded Template Engine)
