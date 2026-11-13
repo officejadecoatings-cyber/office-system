@@ -892,8 +892,8 @@
 
     document.getElementById('mainContent').innerHTML = `
       <div class="kpi-grid">
-        <div class="card"><div class="kpi-label">Debtors Receivable (ණයගැතියන්)</div><div class="kpi-val">${fmtMoney(totalDebtors)}</div><div class="kpi-sub" style="color:var(--danger)">${overdue120Debtors} overdue &gt; 120 days</div></div>
-        <div class="card"><div class="kpi-label">Creditors Payable (ණයහිමියන්)</div><div class="kpi-val">${fmtMoney(totalCreditors)}</div><div class="kpi-sub" style="color:var(--danger)">${overdue120Creditors} overdue &gt; 120 days</div></div>
+        <div class="card"><div class="kpi-label">Debtors Receivable</div><div class="kpi-val">${fmtMoney(totalDebtors)}</div><div class="kpi-sub" style="color:var(--danger)">${overdue120Debtors} overdue &gt; 120 days</div></div>
+        <div class="card"><div class="kpi-label">Creditors Payable</div><div class="kpi-val">${fmtMoney(totalCreditors)}</div><div class="kpi-sub" style="color:var(--danger)">${overdue120Creditors} overdue &gt; 120 days</div></div>
       </div>
       <div class="tabs">
         <button class="tab-btn ${tab === 'debtors' ? 'active' : ''}" onclick="state.outTab='debtors'; renderOutstandingView()">Debtors (Receivables)</button>
@@ -2440,7 +2440,7 @@
     const modalBody = `
       <div class="form-row">
         <div class="form-group" style="flex:2;">
-          <label>QUOTATION FOR (Quotation එක යවන කෙනාගේ නම / Recipient) *</label>
+          <label>QUOTATION FOR (Recipient / To Whom) *</label>
           <input id="pq_for" value="${esc(quotForVal)}" placeholder="Type recipient name / customer...">
         </div>
         <div class="form-group" style="flex:1;">
@@ -2450,7 +2450,7 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Date (සිලෙක්ට් කරන්න) *</label>
+          <label>Date *</label>
           <input type="date" id="pq_date" value="${esc(dateVal)}">
         </div>
         <div class="form-group">
