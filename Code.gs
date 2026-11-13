@@ -17,7 +17,7 @@ const SCHEMA = {
   PettyCash: ['PcId', 'VoucherNo', 'Date', 'Type', 'Category', 'Description', 'PaidTo', 'ReceiptNo', 'Amount', 'RecordedBy'],
   CallReports: ['CallId', 'ReportType', 'DataJson', 'CreatedBy', 'CreatedAt'],
   ProjectReports: ['ProjId', 'DataJson', 'CreatedBy', 'CreatedAt'],
-  PainterQuotations: ['QuotationId', 'QuotationNo', 'Date', 'Title', 'Supplier', 'Receivers', 'Place', 'Time', 'TotalAmount', 'AdvanceAmount', 'RemainingAmount', 'ItemsJson', 'Status', 'CreatedBy', 'CreatedAt'],
+  PainterQuotations: ['QuotationId', 'QuotationNo', 'Date', 'Title', 'QuotationFor', 'Supplier', 'Receivers', 'Place', 'Time', 'TotalAmount', 'AdvanceAmount', 'RemainingAmount', 'ItemsJson', 'Status', 'CreatedBy', 'CreatedAt'],
   PainterBillBalances: ['BalanceId', 'ProgramName', 'Date', 'Description', 'Withdrawal', 'Deposit', 'Balance', 'CreatedBy', 'CreatedAt'],
   Employees: ['EmpId', 'Name', 'Designation', 'Address', 'NIC', 'EpfEtfNo', 'DOB', 'Gender', 'Position', 'Email', 'Phone', 'EmergencyContactName', 'EmergencyContactPhone', 'JoinDate', 'Status'],
   CustomTabs: ['TabId', 'Name', 'Icon', 'ColumnsJson', 'CreatedBy', 'UpdatedAt'],

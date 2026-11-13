@@ -1967,13 +1967,11 @@
   };
 
   const DEFAULT_QUOTATION_ITEMS = [
-    { no: 1, desc: 'Welcome Drink', qty: 0, price: 0, amount: 0 },
-    { no: 2, desc: 'Dinner', qty: 0, price: 0, amount: 0 },
-    { no: 3, desc: 'Deserts', qty: 0, price: 0, amount: 0 },
-    { no: 4, desc: 'Service Charge', qty: 0, price: 0, amount: 0 },
-    { no: 5, desc: 'Beer', qty: 0, price: 0, amount: 0 },
-    { no: 6, desc: 'Liqure', qty: 0, price: 0, amount: 0 },
-    { no: 7, desc: 'Other Bills', qty: 0, price: 0, amount: 0 }
+    { no: 1, desc: '', qty: 0, price: 0, amount: 0 },
+    { no: 2, desc: '', qty: 0, price: 0, amount: 0 },
+    { no: 3, desc: '', qty: 0, price: 0, amount: 0 },
+    { no: 4, desc: '', qty: 0, price: 0, amount: 0 },
+    { no: 5, desc: '', qty: 0, price: 0, amount: 0 }
   ];
 
   function renderPainterTrainingView() {
@@ -2046,15 +2044,33 @@
       items = DEFAULT_QUOTATION_ITEMS;
     }
 
+    const s = state.data.settings || {};
+    const companyName = s.CompanyName || 'Jade Coatings (Pvt) Ltd';
+    const companyAddress = s.Address || 'No. 321, Colombo Road, Negombo';
+    const companyPhone = s.Phone ? ('Tel: ' + s.Phone) : '';
+    const defaultSupplier = [companyName, companyAddress, companyPhone].filter(Boolean).join('\n');
+    const displaySupplier = (activeQ && activeQ.Supplier) ? activeQ.Supplier : defaultSupplier;
+    const displayReceivers = (activeQ && activeQ.Receivers) ? activeQ.Receivers : '';
+    const quotForName = (activeQ && (activeQ.QuotationFor || activeQ.Title)) ? (activeQ.QuotationFor || activeQ.Title) : 'PAINTER TRAINING';
+
     const totAmt = activeQ ? Number(activeQ.TotalAmount || 0) : 0;
     const advAmt = activeQ ? Number(activeQ.AdvanceAmount || 0) : 0;
-    const remAmt = activeQ ? Number(activeQ.RemainingAmount || (totAmt - advAmt)) : 0;
+    const remAmt = activeQ ? Number(activeQ.RemainingAmount !== undefined ? activeQ.RemainingAmount : (totAmt - advAmt)) : (totAmt - advAmt);
+
+    let displayItems = items.filter(it => it && ((it.desc && it.desc.trim() !== '') || it.qty > 0 || it.price > 0));
+    if (!displayItems.length) {
+      displayItems = [
+        { no: 1, desc: '', qty: '', price: '', amount: '' },
+        { no: 2, desc: '', qty: '', price: '', amount: '' },
+        { no: 3, desc: '', qty: '', price: '', amount: '' }
+      ];
+    }
 
     const selectorHtml = quotations.length > 1 ? `
       <div class="no-print" style="margin-bottom:14px; display:flex; align-items:center; gap:8px;">
         <label style="font-weight:600; font-size:12px;">Select Quotation:</label>
-        <select style="width:260px;" onchange="_selectedQuotationId=this.value; renderPainterTrainingView()">
-          ${quotations.map(q => `<option value="${esc(q.QuotationId)}" ${q.QuotationId === _selectedQuotationId ? 'selected' : ''}>${esc(q.QuotationNo || q.QuotationId)} - ${esc(q.Title || 'Workshop')}</option>`).join('')}
+        <select style="width:280px;" onchange="_selectedQuotationId=this.value; renderPainterTrainingView()">
+          ${quotations.map(q => `<option value="${esc(q.QuotationId)}" ${q.QuotationId === _selectedQuotationId ? 'selected' : ''}>${esc(q.QuotationNo || q.QuotationId)} - ${esc(q.QuotationFor || q.Title || 'Quotation')}</option>`).join('')}
         </select>
         <button class="btn btn-sm btn-secondary" onclick="openPainterQuotationModal('${esc(activeQ ? activeQ.QuotationId : '')}')">✏️ Edit</button>
         <button class="btn btn-sm btn-danger" onclick="deletePainterQuotationAction('${esc(activeQ ? activeQ.QuotationId : '')}')">🗑️ Delete</button>
@@ -2074,20 +2090,20 @@
         <table id="painterQuotationTable" class="print-excel-table">
           <thead>
             <tr>
-              <th colspan="5" class="print-title" style="padding:12px; font-size:16px; text-align:center;">
-                QUOTATION FOR ${esc((activeQ && activeQ.Title) ? activeQ.Title.toUpperCase() : 'PAINTER TRAINING')}
+              <th colspan="5" class="print-title" style="padding:12px; font-size:16px; text-align:center; font-weight:bold; letter-spacing:1px;">
+                QUOTATION FOR ${esc(quotForName.toUpperCase())}
               </th>
             </tr>
             <tr style="background:#ffffff; color:#000;">
               <td colspan="3" style="border:1px solid #000; padding:10px; vertical-align:top;">
-                <div><b>Supplier:</b> ${esc((activeQ && activeQ.Supplier) ? activeQ.Supplier : 'Hotel / Caterer')}</div>
-                <div style="margin-top:4px;"><b>Place:</b> ${esc((activeQ && activeQ.Place) ? activeQ.Place : '-')}</div>
+                <div><b>Supplier:</b><br><span style="white-space:pre-line; display:inline-block; margin-top:2px;">${esc(displaySupplier)}</span></div>
+                <div style="margin-top:6px;"><b>Place:</b> ${esc((activeQ && activeQ.Place) ? activeQ.Place : '-')}</div>
                 <div style="margin-top:4px;"><b>Time:</b> ${esc((activeQ && activeQ.Time) ? activeQ.Time : '-')}</div>
               </td>
               <td colspan="2" style="border:1px solid #000; padding:10px; vertical-align:top;">
                 <div><b>DATE:</b> ${esc((activeQ && activeQ.Date) ? activeQ.Date : (state.data.today || ''))}</div>
-                <div style="margin-top:4px;"><b>Quotation No:</b> ${esc((activeQ && activeQ.QuotationNo) ? activeQ.QuotationNo : 'PTQ-2026-01')}</div>
-                <div style="margin-top:4px;"><b>Receivers:</b> ${esc((activeQ && activeQ.Receivers) ? activeQ.Receivers : 'Jade Coatings (Pvt) Ltd')}</div>
+                <div style="margin-top:4px;"><b>Quotation No:</b> ${esc((activeQ && activeQ.QuotationNo) ? activeQ.QuotationNo : '')}</div>
+                <div style="margin-top:6px;"><b>Receivers:</b><br><span style="white-space:pre-line; display:inline-block; margin-top:2px;">${esc(displayReceivers || '-')}</span></div>
               </td>
             </tr>
             <tr>
@@ -2099,13 +2115,13 @@
             </tr>
           </thead>
           <tbody>
-            ${items.map((it, idx) => `
+            ${displayItems.map((it, idx) => `
               <tr>
                 <td style="text-align:center;">${it.no || (idx + 1)}</td>
                 <td><b>${esc(it.desc || '')}</b></td>
-                <td style="text-align:right;">${it.qty || 0}</td>
-                <td style="text-align:right;">${fmtMoney(it.price || 0)}</td>
-                <td style="text-align:right; font-weight:600;">${fmtMoney(it.amount || ((it.qty || 0) * (it.price || 0)))}</td>
+                <td style="text-align:right;">${it.qty !== '' ? (it.qty || 0) : ''}</td>
+                <td style="text-align:right;">${it.price !== '' ? fmtMoney(it.price || 0) : ''}</td>
+                <td style="text-align:right; font-weight:600;">${it.amount !== '' ? fmtMoney(it.amount || ((it.qty || 0) * (it.price || 0))) : ''}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -2270,12 +2286,19 @@
       items = JSON.parse(JSON.stringify(DEFAULT_QUOTATION_ITEMS));
     }
 
+    const s = state.data.settings || {};
+    const companyName = s.CompanyName || 'Jade Coatings (Pvt) Ltd';
+    const companyAddress = s.Address || 'No. 321, Colombo Road, Negombo';
+    const companyPhone = s.Phone ? ('Tel: ' + s.Phone) : '';
+    const defaultSupplier = [companyName, companyAddress, companyPhone].filter(Boolean).join('\n');
+
     const today = state.data.today || new Date().toISOString().slice(0, 10);
     const dateVal = q ? (q.Date || today) : today;
+    const quotForVal = q ? (q.QuotationFor || q.Title || '') : '';
     const titleVal = q ? (q.Title || '') : '';
     const qNoVal = q ? (q.QuotationNo || '') : ('PTQ-' + today.replace(/-/g, '').slice(2));
-    const suppVal = q ? (q.Supplier || '') : '';
-    const recvVal = q ? (q.Receivers || 'Jade Coatings (Pvt) Ltd') : 'Jade Coatings (Pvt) Ltd';
+    const suppVal = q ? (q.Supplier || defaultSupplier) : defaultSupplier;
+    const recvVal = q ? (q.Receivers || '') : '';
     const placeVal = q ? (q.Place || '') : '';
     const timeVal = q ? (q.Time || '') : '';
     const advVal = q ? Number(q.AdvanceAmount || 0) : 0;
@@ -2288,7 +2311,7 @@
       tb.innerHTML = window._tempQuotItems.map((it, idx) => `
         <tr>
           <td style="text-align:center; width:40px;">${idx + 1}</td>
-          <td><input style="margin:0; padding:4px 6px;" value="${esc(it.desc || '')}" oninput="window._tempQuotItems[${idx}].desc=this.value"></td>
+          <td><input style="margin:0; padding:4px 6px;" placeholder="Type item description..." value="${esc(it.desc || '')}" oninput="window._tempQuotItems[${idx}].desc=this.value"></td>
           <td style="width:90px;"><input type="number" min="0" style="margin:0; padding:4px 6px; text-align:right;" value="${it.qty || 0}" oninput="window._tempQuotItems[${idx}].qty=parseFloat(this.value)||0; updateQuotModalTotals()"></td>
           <td style="width:110px;"><input type="number" min="0" style="margin:0; padding:4px 6px; text-align:right;" value="${it.price || 0}" oninput="window._tempQuotItems[${idx}].price=parseFloat(this.value)||0; updateQuotModalTotals()"></td>
           <td style="width:120px; text-align:right; font-weight:700;" id="pq_row_amt_${idx}">${fmtMoney((it.qty || 0) * (it.price || 0))}</td>
@@ -2312,7 +2335,7 @@
     window.updateQuotModalTotals = function() {
       let tot = 0;
       window._tempQuotItems.forEach((it, idx) => {
-        const amt = (it.qty || 0) * (it.price || 0);
+        const amt = (parseFloat(it.qty) || 0) * (parseFloat(it.price) || 0);
         it.amount = amt;
         const rowEl = document.getElementById('pq_row_amt_' + idx);
         if (rowEl) rowEl.textContent = fmtMoney(amt);
@@ -2328,41 +2351,48 @@
 
     const modalBody = `
       <div class="form-row">
-        <div class="form-group">
-          <label>Quotation Title / Workshop *</label>
-          <input id="pq_title" value="${esc(titleVal)}" placeholder="e.g. 05. Mathara (2) / Kandy Painter Training">
+        <div class="form-group" style="flex:2;">
+          <label>QUOTATION FOR (Quotation එක යවන කෙනාගේ නම / Recipient) *</label>
+          <input id="pq_for" value="${esc(quotForVal)}" placeholder="Type recipient name / customer...">
         </div>
-        <div class="form-group">
+        <div class="form-group" style="flex:1;">
           <label>Quotation No *</label>
           <input id="pq_no" value="${esc(qNoVal)}">
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Date *</label>
-          <input id="pq_date" value="${esc(dateVal)}">
+          <label>Date (සිලෙක්ට් කරන්න) *</label>
+          <input type="date" id="pq_date" value="${esc(dateVal)}">
         </div>
         <div class="form-group">
-          <label>Receivers</label>
-          <input id="pq_receivers" value="${esc(recvVal)}">
+          <label>Quotation Title / Program</label>
+          <input id="pq_title" value="${esc(titleVal)}" placeholder="e.g. Painter Training Program - Mathara">
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Supplier (Hotel / Caterer / Hall)</label>
-          <input id="pq_supplier" value="${esc(suppVal)}" placeholder="Supplier name, address or contact">
+          <label>Supplier (Our Company Address)</label>
+          <textarea id="pq_supplier" rows="2" style="font-size:12px;">${esc(suppVal)}</textarea>
         </div>
         <div class="form-group">
-          <label>Place &amp; Time</label>
-          <div style="display:flex; gap:6px;">
-            <input id="pq_place" value="${esc(placeVal)}" placeholder="Place / Venue" style="flex:1;">
-            <input id="pq_time" value="${esc(timeVal)}" placeholder="Time (e.g. 6:00 PM)" style="width:130px;">
-          </div>
+          <label>Receivers (Type receiver details)</label>
+          <textarea id="pq_receivers" rows="2" placeholder="Type receiver name / address / contact details...">${esc(recvVal)}</textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Place</label>
+          <input id="pq_place" value="${esc(placeVal)}" placeholder="Type place / venue">
+        </div>
+        <div class="form-group">
+          <label>Time</label>
+          <input id="pq_time" value="${esc(timeVal)}" placeholder="Type time (e.g. 6:00 PM)">
         </div>
       </div>
 
       <div style="margin:14px 0 6px 0; display:flex; justify-content:space-between; align-items:center;">
-        <label style="font-weight:700; margin:0;">Quotation Line Items</label>
+        <label style="font-weight:700; margin:0;">Quotation Line Items (Type descriptions freely)</label>
         <button type="button" class="btn btn-sm btn-secondary" onclick="addQuotModalItem()">+ Add Item Row</button>
       </div>
 
@@ -2409,11 +2439,16 @@
   }
 
   async function submitPainterQuotation(id) {
-    const title = document.getElementById('pq_title')?.value.trim();
+    const quotFor = document.getElementById('pq_for')?.value.trim() || '';
+    const title = document.getElementById('pq_title')?.value.trim() || quotFor || 'Painter Training';
     const qNo = document.getElementById('pq_no')?.value.trim();
     const date = document.getElementById('pq_date')?.value.trim();
-    if (!title || !qNo) {
-      showToast('Please enter Quotation Title and Quotation No.');
+    if (!quotFor && !title) {
+      showToast('Please enter the recipient name in QUOTATION FOR.');
+      return;
+    }
+    if (!qNo) {
+      showToast('Please enter Quotation No.');
       return;
     }
 
@@ -2423,13 +2458,15 @@
     const time = document.getElementById('pq_time')?.value.trim() || '';
     const adv = parseFloat(document.getElementById('pq_adv')?.value || 0) || 0;
 
-    const items = (window._tempQuotItems || []).map((it, idx) => ({
-      no: idx + 1,
-      desc: it.desc || '',
-      qty: Number(it.qty || 0),
-      price: Number(it.price || 0),
-      amount: Number(it.qty || 0) * Number(it.price || 0)
-    }));
+    const items = (window._tempQuotItems || [])
+      .filter(it => it && (it.desc && it.desc.trim() !== ''))
+      .map((it, idx) => ({
+        no: idx + 1,
+        desc: it.desc.trim(),
+        qty: Number(it.qty || 0),
+        price: Number(it.price || 0),
+        amount: Number(it.qty || 0) * Number(it.price || 0)
+      }));
 
     const totalAmt = items.reduce((s, it) => s + it.amount, 0);
     const remAmt = totalAmt - adv;
@@ -2439,6 +2476,7 @@
       QuotationNo: qNo,
       Date: date,
       Title: title,
+      QuotationFor: quotFor,
       Supplier: supplier,
       Receivers: receivers,
       Place: place,
@@ -2600,6 +2638,7 @@
           QuotationNo: String(qNo).trim(),
           Date: String(date).trim(),
           Title: String(title).replace(/QUOTATION FOR /i, '').trim(),
+          QuotationFor: String(title).replace(/QUOTATION FOR /i, '').trim(),
           Supplier: String(supp).trim(),
           Receivers: String(recv).trim(),
           Place: placeTime.split('\n')[0] || '',
@@ -2683,6 +2722,7 @@
     let items = [];
     try { items = JSON.parse(activeQ.ItemsJson || '[]'); } catch (e) {}
     if (!items.length) items = DEFAULT_QUOTATION_ITEMS;
+    items = items.filter(it => it && ((it.desc && it.desc.trim() !== '') || it.qty > 0 || it.price > 0));
 
     const rows = items.map((it, idx) => ({
       'No.': it.no || (idx + 1),
