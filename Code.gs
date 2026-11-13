@@ -17,7 +17,7 @@ const SCHEMA = {
   PettyCash: ['PcId', 'VoucherNo', 'Date', 'Type', 'Category', 'Description', 'PaidTo', 'ReceiptNo', 'Amount', 'RecordedBy'],
   CallReports: ['CallId', 'DataJson', 'CreatedBy', 'CreatedAt'],
   ProjectReports: ['ProjId', 'DataJson', 'CreatedBy', 'CreatedAt'],
-  Employees: ['EmpId', 'Name', 'Designation', 'Address', 'NIC', 'DOB', 'Gender', 'Position', 'Email', 'Phone', 'EmergencyContactName', 'EmergencyContactPhone', 'JoinDate', 'Status'],
+  Employees: ['EmpId', 'Name', 'Designation', 'Address', 'NIC', 'EpfEtfNo', 'DOB', 'Gender', 'Position', 'Email', 'Phone', 'EmergencyContactName', 'EmergencyContactPhone', 'JoinDate', 'Status'],
   CustomTabs: ['TabId', 'Name', 'Icon', 'ColumnsJson', 'CreatedBy', 'UpdatedAt'],
   CustomTabRows: ['RowId', 'TabId', 'DataJson', 'CreatedBy', 'CreatedAt'],
   Transactions: ['TxId', 'Date', 'Type', 'Category', 'Description', 'Amount', 'RefId', 'RecordedBy'],

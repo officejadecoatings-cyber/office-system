@@ -1592,6 +1592,7 @@
                 <th>Designation</th>
                 <th>Position</th>
                 <th>National ID (NIC)</th>
+                <th>EPF/ETF No</th>
                 <th>Gender</th>
                 <th>Phone</th>
                 <th>Emergency Contact</th>
@@ -1611,6 +1612,7 @@
                   <td><b>${esc(e.Designation || '-')}</b></td>
                   <td><span class="badge badge-info">${esc(e.Position || 'Office Staff')}</span></td>
                   <td>${esc(e.NIC || '-')}</td>
+                  <td><b>${esc(e.EpfEtfNo || '-')}</b></td>
                   <td>${esc(e.Gender || '-')}</td>
                   <td>${esc(e.Phone || '-')}</td>
                   <td>
@@ -1624,7 +1626,7 @@
                     <button class="btn btn-sm btn-danger" onclick="removeEmployee('${esc(e.EmpId)}')">Del</button>
                   </td>
                 </tr>
-              `).join('') || '<tr><td colspan="10" style="color:var(--muted)">No employees added yet. Click "+ Add Employee" to create one.</td></tr>'}
+              `).join('') || '<tr><td colspan="11" style="color:var(--muted)">No employees added yet. Click "+ Add Employee" to create one.</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -1699,6 +1701,7 @@
       Designation: '',
       Address: '',
       NIC: '',
+      EpfEtfNo: '',
       DOB: '',
       Gender: 'Male',
       Position: 'Office Staff',
@@ -1734,9 +1737,22 @@
             <input id="fEmNic" value="${esc(e.NIC)}" placeholder="e.g. 199512345678 / 951234567V">
           </div>
           <div class="form-group">
+            <label>EPF / ETF Number</label>
+            <input id="fEmEpf" value="${esc(e.EpfEtfNo)}" placeholder="e.g. EPF-1234 / 5678">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
             <label>Position Category *</label>
             <select id="fEmPos">
               ${positionOptions.map(p => `<option value="${p}" ${e.Position === p ? 'selected' : ''}>${p}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Gender *</label>
+            <select id="fEmGender">
+              ${genderOptions.map(g => `<option value="${g}" ${e.Gender === g ? 'selected' : ''}>${g}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -1752,10 +1768,8 @@
             <input type="date" id="fEmDob" value="${esc(e.DOB)}">
           </div>
           <div class="form-group">
-            <label>Gender *</label>
-            <select id="fEmGender">
-              ${genderOptions.map(g => `<option value="${g}" ${e.Gender === g ? 'selected' : ''}>${g}</option>`).join('')}
-            </select>
+            <label>Date of Joining</label>
+            <input type="date" id="fEmJoin" value="${esc(e.JoinDate || state.data.today)}">
           </div>
         </div>
 
@@ -1767,20 +1781,14 @@
             </select>
           </div>
           <div class="form-group">
-            <label>Date of Joining</label>
-            <input type="date" id="fEmJoin" value="${esc(e.JoinDate || state.data.today)}">
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
             <label>Phone Number *</label>
             <input id="fEmPhone" value="${esc(e.Phone)}" placeholder="e.g. 077 123 4567">
           </div>
-          <div class="form-group">
-            <label>Email Address</label>
-            <input type="email" id="fEmEmail" value="${esc(e.Email)}" placeholder="e.g. kasun@jadecoatings.lk">
-          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Email Address</label>
+          <input type="email" id="fEmEmail" value="${esc(e.Email)}" placeholder="e.g. kasun@jadecoatings.lk">
         </div>
 
         <div class="form-row">
@@ -1811,6 +1819,7 @@
       Designation: document.getElementById('fEmDes').value.trim(),
       Address: document.getElementById('fEmAddr').value.trim(),
       NIC: document.getElementById('fEmNic').value.trim(),
+      EpfEtfNo: document.getElementById('fEmEpf').value.trim(),
       DOB: document.getElementById('fEmDob').value,
       Gender: document.getElementById('fEmGender').value,
       Position: document.getElementById('fEmPos').value,
@@ -1854,18 +1863,29 @@
   }
 
   function openLeaveModal() {
+    const activeEmps = (state.data.employees || []).filter(e => e.Status !== 'Inactive');
+    const empOptions = activeEmps.length
+      ? activeEmps.map(e => `<option value="${esc(e.EmpId)}" data-name="${esc(e.Name)}">${esc(e.Name)} (${esc(e.Position || e.Designation || 'Staff')})</option>`).join('')
+      : `<option value="${esc(state.user.UserId)}" data-name="${esc(state.user.Name)}">${esc(state.user.Name)}</option>`;
+
     openModal(
       'Request Leave',
       `
+        <div class="form-group">
+          <label>Employee Name *</label>
+          <select id="fLvEmp">
+            ${empOptions}
+          </select>
+        </div>
         <div class="form-row">
-          <div class="form-group"><label>Leave Type</label><select id="fLvType"><option>Annual</option><option>Casual</option><option>Sick</option></select></div>
+          <div class="form-group"><label>Leave Type</label><select id="fLvType"><option>Annual</option><option>Casual</option><option>Sick</option><option>Duty Leave</option></select></div>
           <div class="form-group"><label>Days</label><input type="number" min="0.5" step="0.5" id="fLvDays" value="1"></div>
         </div>
         <div class="form-row">
           <div class="form-group"><label>Start Date</label><input type="date" id="fLvStart" value="${state.data.today}"></div>
           <div class="form-group"><label>End Date</label><input type="date" id="fLvEnd" value="${state.data.today}"></div>
         </div>
-        <div class="form-group"><label>Reason</label><textarea id="fLvReason" rows="2"></textarea></div>
+        <div class="form-group"><label>Reason</label><textarea id="fLvReason" rows="2" placeholder="Reason for leave request..."></textarea></div>
       `,
       `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
        <button class="btn btn-primary" onclick="submitLeave()">Submit Request</button>`
@@ -1873,9 +1893,13 @@
   }
 
   async function submitLeave() {
+    const sel = document.getElementById('fLvEmp');
+    const empId = sel.value;
+    const empName = sel.options[sel.selectedIndex]?.getAttribute('data-name') || sel.options[sel.selectedIndex]?.text || state.user.Name;
+
     await gas('saveLeaveRequest', {
-      UserId: state.user.UserId,
-      UserName: state.user.Name,
+      UserId: empId,
+      UserName: empName,
       Type: document.getElementById('fLvType').value,
       Days: document.getElementById('fLvDays').value,
       StartDate: document.getElementById('fLvStart').value,
