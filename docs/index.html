@@ -1889,23 +1889,46 @@
    * ======================================================================== */
 
   function renderCustomersView() {
-    const custs = state.data.customers;
+    const custs = state.data.customers || [];
     document.getElementById('mainContent').innerHTML = `
       <div class="section-header">
-        <input class="search-input" placeholder="Search customers..." oninput="filterTable('custTable', this.value)">
-        <button class="btn btn-primary" onclick="openCustomerModal()">+ Add Customer</button>
+        <input class="search-input" placeholder="Search customers by name, code, business ID, sales officer..." oninput="filterTable('custTable', this.value)">
+        <div class="section-actions">
+          <button class="btn btn-secondary" onclick="exportCustomersExcel()">⬇ Export Excel</button>
+          <button class="btn btn-primary" onclick="openCustomerModal()">+ Add Customer</button>
+        </div>
       </div>
       <div class="card table-wrap">
         <table id="custTable">
-          <thead><tr><th>Name</th><th>Company</th><th>Phone</th><th>Credit Limit</th><th>Outstanding</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Customer Name</th>
+              <th>Business Identifier</th>
+              <th>Sales Officer</th>
+              <th>Phone / Email</th>
+              <th>Credit Limit</th>
+              <th>Outstanding</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
           <tbody>
             ${custs.map(c => {
               const info = getCustomerOverdueInfo(c.CustomerId);
               return `
                 <tr class="${info.blocked ? 'row-overdue' : ''}">
-                  <td><b>${esc(c.Name)}</b><div style="font-size:11px; color:var(--muted)">${esc(c.Email)}</div></td>
-                  <td>${esc(c.Company)}</td>
-                  <td>${esc(c.Phone)}</td>
+                  <td><b>${esc(c.CustomerCode || '-')}</b></td>
+                  <td>
+                    <b>${esc(c.Name)}</b>
+                    ${c.BillingAddress ? `<div style="font-size:11px; color:var(--muted);">${esc(c.BillingAddress)}</div>` : ''}
+                  </td>
+                  <td>${esc(c.BusinessIdentifier || '-')}</td>
+                  <td><span class="badge badge-info">${esc(c.SalesOfficerName || 'Not Assigned')}</span></td>
+                  <td>
+                    ${c.Phone ? `<div>📞 ${esc(c.Phone)}</div>` : ''}
+                    ${c.Email ? `<div style="font-size:11px; color:var(--muted);">✉️ ${esc(c.Email)}</div>` : ''}
+                  </td>
                   <td>${fmtMoney(c.CreditLimit || 0)}</td>
                   <td><b>${fmtMoney(info.balance)}</b></td>
                   <td>${info.blocked ? `<span class="badge badge-danger">BLOCKED (${info.maxDays}d)</span>` : `<span class="badge badge-success">Active</span>`}</td>
@@ -1915,7 +1938,7 @@
                   </td>
                 </tr>
               `;
-            }).join('') || '<tr><td colspan="7" style="color:var(--muted)">No customers added yet.</td></tr>'}
+            }).join('') || '<tr><td colspan="9" style="color:var(--muted)">No customers added yet. Click "+ Add Customer" to create one.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -1923,26 +1946,88 @@
   }
 
   function openCustomerModal(custId) {
-    const c = custId ? state.data.customers.find(x => x.CustomerId === custId) : {
-      Name: '', Company: '', Phone: '', Email: '', Address: '', CreditLimit: 0, PaymentTerms: 'Net 30', Notes: ''
+    const c = custId ? (state.data.customers || []).find(x => x.CustomerId === custId) : {
+      CustomerCode: '',
+      Name: '',
+      BusinessIdentifier: '',
+      BillingAddress: '',
+      DeliveryAddress: '',
+      Email: '',
+      Phone: '',
+      CreditLimit: '',
+      SalesOfficerId: '',
+      SalesOfficerName: '',
+      Notes: ''
     };
+
+    // Filter employees whose Position is 'Sales Officer'
+    const salesOfficers = (state.data.employees || []).filter(e =>
+      String(e.Position || '').trim().toLowerCase() === 'sales officer' && e.Status !== 'Inactive'
+    );
+
+    const salesOfficerOptions = salesOfficers.map(s =>
+      `<option value="${esc(s.EmpId)}" ${c.SalesOfficerId === s.EmpId ? 'selected' : ''}>${esc(s.Name)}</option>`
+    ).join('');
+
     openModal(
-      custId ? 'Edit Customer' : 'Add Customer',
+      custId ? 'Edit Customer' : 'Add New Customer',
       `
         <div class="form-row">
-          <div class="form-group"><label>Name</label><input id="fCuName" value="${esc(c.Name)}"></div>
-          <div class="form-group"><label>Company</label><input id="fCuComp" value="${esc(c.Company)}"></div>
+          <div class="form-group" style="flex:2;">
+            <label>Name *</label>
+            <input id="fCuName" value="${esc(c.Name)}" placeholder="Customer / Company Name" required>
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>Code</label>
+            <input id="fCuCode" value="${esc(c.CustomerCode)}" placeholder="Optional (e.g. C-101)">
+          </div>
         </div>
+
+        <div class="form-group">
+          <label>Business Identifier</label>
+          <input id="fCuBisId" value="${esc(c.BusinessIdentifier)}" placeholder="VAT XXX XXX XXX, TIN XXX XXX XXX, ABN XXX XXX XXX etc.">
+          <span style="font-size:11px; color:var(--muted);">VAT XXX XXX XXX, TIN XXX XXX XXX, ABN XXX XXX XXX etc.</span>
+        </div>
+
+        <div class="form-group">
+          <label>Sales Officer (Assigned Rep) *</label>
+          <select id="fCuSalesOfficer">
+            <option value="">-- Select Sales Officer --</option>
+            ${salesOfficerOptions}
+          </select>
+          ${!salesOfficers.length ? '<span style="font-size:11px; color:var(--warning);">Note: No Employees found with Position "Sales Officer". Add one in Employees tab first.</span>' : ''}
+        </div>
+
+        <div class="form-group">
+          <label>Billing address</label>
+          <textarea id="fCuBillAddr" rows="3" placeholder="Enter billing address...">${esc(c.BillingAddress || c.Address || '')}</textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Delivery address</label>
+          <textarea id="fCuDelivAddr" rows="3" placeholder="Enter delivery address...">${esc(c.DeliveryAddress || '')}</textarea>
+        </div>
+
         <div class="form-row">
-          <div class="form-group"><label>Phone</label><input id="fCuPhone" value="${esc(c.Phone)}"></div>
-          <div class="form-group"><label>Email</label><input id="fCuEmail" value="${esc(c.Email)}"></div>
+          <div class="form-group">
+            <label>Email address</label>
+            <input type="email" id="fCuEmail" value="${esc(c.Email)}" placeholder="e.g. contact@client.com">
+          </div>
+          <div class="form-group">
+            <label>Phone number</label>
+            <input id="fCuPhone" value="${esc(c.Phone)}" placeholder="e.g. 011 234 5678 / 077 123 4567">
+          </div>
         </div>
-        <div class="form-row">
-          <div class="form-group"><label>Credit Limit</label><input type="number" step="0.01" id="fCuLimit" value="${Number(c.CreditLimit || 0)}"></div>
-          <div class="form-group"><label>Payment Terms</label><input id="fCuTerms" value="${esc(c.PaymentTerms || 'Net 30')}"></div>
+
+        <div class="form-group">
+          <label>Credit limit</label>
+          <input type="number" step="0.01" id="fCuLimit" value="${c.CreditLimit !== '' && c.CreditLimit !== undefined ? c.CreditLimit : ''}" placeholder="Optional">
         </div>
-        <div class="form-group"><label>Address</label><input id="fCuAddr" value="${esc(c.Address)}"></div>
-        <div class="form-group"><label>Notes</label><textarea id="fCuNotes" rows="2">${esc(c.Notes)}</textarea></div>
+
+        <div class="form-group">
+          <label>Notes / Terms</label>
+          <textarea id="fCuNotes" rows="2" placeholder="Internal notes...">${esc(c.Notes)}</textarea>
+        </div>
       `,
       `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
        <button class="btn btn-primary" onclick="submitCustomer('${esc(custId || '')}')">Save Customer</button>`
@@ -1950,20 +2035,41 @@
   }
 
   async function submitCustomer(custId) {
+    const name = document.getElementById('fCuName').value.trim();
+    if (!name) {
+      showToast('Please enter Customer Name.');
+      return;
+    }
+    const soSelect = document.getElementById('fCuSalesOfficer');
+    const soId = soSelect.value;
+    const soName = soId ? soSelect.options[soSelect.selectedIndex].text : '';
+
     await gas('saveCustomer', {
       CustomerId: custId,
-      Name: document.getElementById('fCuName').value,
-      Company: document.getElementById('fCuComp').value,
-      Phone: document.getElementById('fCuPhone').value,
-      Email: document.getElementById('fCuEmail').value,
+      CustomerCode: document.getElementById('fCuCode').value.trim(),
+      Name: name,
+      BusinessIdentifier: document.getElementById('fCuBisId').value.trim(),
+      SalesOfficerId: soId,
+      SalesOfficerName: soName,
+      BillingAddress: document.getElementById('fCuBillAddr').value.trim(),
+      DeliveryAddress: document.getElementById('fCuDelivAddr').value.trim(),
+      Email: document.getElementById('fCuEmail').value.trim(),
+      Phone: document.getElementById('fCuPhone').value.trim(),
       CreditLimit: document.getElementById('fCuLimit').value,
-      PaymentTerms: document.getElementById('fCuTerms').value,
-      Address: document.getElementById('fCuAddr').value,
-      Notes: document.getElementById('fCuNotes').value
+      Notes: document.getElementById('fCuNotes').value.trim()
     });
     closeModal();
-    showToast('Customer saved!');
+    showToast('Customer saved successfully!');
     await refreshData();
+  }
+
+  function exportCustomersExcel() {
+    if (typeof XLSX === 'undefined') return;
+    const custs = state.data.customers || [];
+    const ws = XLSX.utils.json_to_sheet(custs);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Customers');
+    XLSX.writeFile(wb, `Customers_${state.data.today || new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
   async function removeCustomer(id) {

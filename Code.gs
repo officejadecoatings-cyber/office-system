@@ -9,7 +9,7 @@ const DRIVE_FOLDER_NAME = 'Office System Files';
 const SCHEMA = {
   Settings: ['Key', 'Value'],
   Users: ['UserId', 'Name', 'Email', 'Role', 'Pin', 'Status'],
-  Customers: ['CustomerId', 'Name', 'Company', 'Phone', 'Email', 'Address', 'CreditLimit', 'PaymentTerms', 'Notes', 'CreatedAt'],
+  Customers: ['CustomerId', 'CustomerCode', 'Name', 'BusinessIdentifier', 'BillingAddress', 'DeliveryAddress', 'Email', 'Phone', 'CreditLimit', 'SalesOfficerId', 'SalesOfficerName', 'Notes', 'CreatedAt'],
   Inventory: ['ItemId', 'SKU', 'Name', 'Category', 'UnitPrice', 'StockQty', 'ReorderLevel', 'Unit', 'UpdatedAt'],
   Invoices: ['InvoiceId', 'InvoiceNo', 'CustomerId', 'CustomerName', 'Date', 'DueDate', 'Status', 'Subtotal', 'Discount', 'TaxAmount', 'Total', 'PaidAmount', 'Notes', 'CreatedBy'],
   InvoiceItems: ['LineId', 'InvoiceId', 'ItemId', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal'],
@@ -365,11 +365,13 @@ function getAppData() {
 
 function saveCustomer(customer) {
   return withLock_(() => {
+    customer.CreditLimit = Number(customer.CreditLimit) || 0;
     if (customer.CustomerId) {
       updateRowByKey_('Customers', 'CustomerId', customer.CustomerId, customer);
       return customer;
     }
     customer.CustomerId = nextId_('CUS');
+    customer.CustomerCode = customer.CustomerCode || ('C-' + Math.floor(1000 + Math.random() * 9000));
     customer.CreatedAt = todayStr_();
     return appendRowObject_('Customers', customer);
   });
