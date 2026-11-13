@@ -228,7 +228,7 @@
       dashboard: renderDashboard,
       invoices: renderInvoicesView,
       outstanding: renderOutstandingView,
-      callReport: () => renderTemplateReportView('CallReports'),
+      callReport: renderCallReportsView,
       projectReport: () => renderTemplateReportView('ProjectReports'),
       pettyCash: renderPettyCashView,
       customers: renderCustomersView,
@@ -858,6 +858,745 @@
     await gas('deleteCreditor', id);
     await refreshData();
   }
+
+    /* ==========================================================================
+   * 2C. Specialized Call Reports (Sales Executives & Manager's Call Report)
+   * ======================================================================== */
+
+  let _callReportTab = 'sales'; // 'sales' | 'manager'
+  const _callReportFilter = {
+    date: '',
+    person: '',
+    search: ''
+  };
+
+  const SALES_CALL_COLS = [
+    { key: 'Date', label: 'Date' },
+    { key: 'SP', label: 'S.P' },
+    { key: 'Route', label: 'Route' },
+    { key: 'CallReport', label: 'Call Report' },
+    { key: 'NoOfNewCus', label: 'No of new Cus', isNum: true },
+    { key: 'NoOfRegCus', label: 'No of Reg Cus', isNum: true },
+    { key: 'SiteVisit', label: 'Site Visit', isNum: true },
+    { key: 'Total', label: 'Total', isNum: true, isHighlight: true },
+    { key: 'Photo', label: 'Photo' },
+    { key: 'WorkedNA', label: 'WORKED/N.A' },
+    { key: 'HWNames', label: 'H. W Names' },
+    { key: 'EndM', label: 'End M', isNum: true },
+    { key: 'StartM', label: 'Start M', isNum: true },
+    { key: 'TotalKM', label: 'Total KM', isNum: true, isHighlight: true },
+    { key: 'StartPhoto', label: 'Start Photo' },
+    { key: 'EndPhoto', label: 'End Photo' },
+    { key: 'Location', label: 'Location' }
+  ];
+
+  const MANAGER_CALL_COLS = [
+    { key: 'Date', label: 'Date' },
+    { key: 'ManagerName', label: 'Manager Name' },
+    { key: 'Route', label: 'Route' },
+    { key: 'CallReport', label: 'Call Report' },
+    { key: 'NewCustomer', label: 'New Customer', isNum: true },
+    { key: 'RegularCustomer', label: 'Regular Customer', isNum: true },
+    { key: 'SiteVisit', label: 'Site Visit', isNum: true },
+    { key: 'TotalAmount', label: 'Total Amount', isNum: true, isHighlight: true },
+    { key: 'WorkedNA', label: 'Worked / N.A' },
+    { key: 'HardwareName', label: 'Hardware Name' },
+    { key: 'StartMeterReading', label: 'Start Meter Reading', isNum: true },
+    { key: 'EndMeterReading', label: 'End Meter Reading', isNum: true },
+    { key: 'TotalMeter', label: 'Total Meter', isNum: true, isHighlight: true },
+    { key: 'StartPhoto', label: 'Start Photo' },
+    { key: 'StartLocation', label: 'Start Location' },
+    { key: 'EndPhoto', label: 'End Photo' },
+    { key: 'EndLocation', label: 'End Location' }
+  ];
+
+  function getCallVal(r, col) {
+    const k = col.key;
+    if (r[k] !== undefined && r[k] !== null && String(r[k]).trim() !== '') return r[k];
+    if (r[col.label] !== undefined && r[col.label] !== null && String(r[col.label]).trim() !== '') return r[col.label];
+    // Aliases
+    if (k === 'SP') return r['S.P'] || r.sp || '';
+    if (k === 'CallReport') return r['Call Report'] || r['Call \nReport'] || '';
+    if (k === 'NoOfNewCus') return r['No of new Cus'] || r['No of \nnew Cus '] || 0;
+    if (k === 'NoOfRegCus') return r['No of Reg Cus'] || r['No of \nReg Cus'] || 0;
+    if (k === 'SiteVisit') return r['Site Visit'] || r['Site \nVisit '] || 0;
+    if (k === 'WorkedNA') return r['WORKED/N.A'] || r['Worked / N.A'] || r.worked || '';
+    if (k === 'HWNames') return r['H. W Names'] || r.HardwareName || '';
+    if (k === 'EndM') return r['End M'] || 0;
+    if (k === 'StartM') return r['Start M'] || 0;
+    if (k === 'TotalKM') return r['Total KM'] || 0;
+    if (k === 'StartPhoto') return r['Start Photo'] || r['Start Photo '] || '';
+    if (k === 'EndPhoto') return r['End Photo'] || '';
+    if (k === 'ManagerName') return r['Manager Name'] || r['Manager Name '] || '';
+    if (k === 'NewCustomer') return r['New Customer'] || r['New Customer '] || 0;
+    if (k === 'RegularCustomer') return r['Regular Customer'] || r['Regular Customer '] || 0;
+    if (k === 'TotalAmount') return r['Total Amount'] || r['Total Amount '] || r.Total || 0;
+    if (k === 'HardwareName') return r['Hardware Name'] || r['Hardware Name '] || '';
+    if (k === 'StartMeterReading') return r['Sart Meeter Reading'] || r['Start Meeter Reading'] || 0;
+    if (k === 'EndMeterReading') return r['Ent  Meeter Reading'] || r['Ent Meeter Reading'] || 0;
+    if (k === 'TotalMeter') return r['Total Meeter '] || r['Total Meeter'] || r['Total Meter'] || 0;
+    if (k === 'StartLocation') return r['Start Locatio '] || r['Start Location'] || '';
+    if (k === 'EndLocation') return r['Ent Location'] || r['End Location'] || '';
+    return col.isNum ? 0 : '';
+  }
+
+  function renderCallReportsView() {
+    const isSales = _callReportTab === 'sales';
+    const reportType = isSales ? 'SalesExecutive' : 'Manager';
+    const allReports = state.data.callReports || [];
+
+    // Filter by sub-tab reportType
+    const subReports = allReports.filter(r => {
+      if (r.ReportType) return r.ReportType === reportType;
+      let d = {};
+      try { d = JSON.parse(r.DataJson || '{}'); } catch (e) {}
+      if (isSales) {
+        return !d.ManagerName && !d['Manager Name'] && !d['Manager Name '];
+      } else {
+        return !!(d.ManagerName || d['Manager Name'] || d['Manager Name ']);
+      }
+    });
+
+    const activeCols = isSales ? SALES_CALL_COLS : MANAGER_CALL_COLS;
+
+    // Parse data objects
+    const parsedRows = subReports.map(r => {
+      let data = {};
+      try { data = JSON.parse(r.DataJson || '{}'); } catch (e) {}
+      return {
+        _id: r.CallId,
+        _by: r.CreatedBy,
+        ...data
+      };
+    });
+
+    // Populate person list for filter
+    const persons = Array.from(new Set(parsedRows.map(r => {
+      return isSales ? String(getCallVal(r, { key: 'SP', label: 'S.P' })).trim() : String(getCallVal(r, { key: 'ManagerName', label: 'Manager Name' })).trim();
+    }).filter(Boolean))).sort();
+
+    // Filter rows
+    const filteredRows = parsedRows.filter(r => {
+      const d = String(getCallVal(r, { key: 'Date', label: 'Date' })).trim();
+      if (_callReportFilter.date && !d.includes(_callReportFilter.date)) return false;
+      const p = isSales ? String(getCallVal(r, { key: 'SP', label: 'S.P' })).trim() : String(getCallVal(r, { key: 'ManagerName', label: 'Manager Name' })).trim();
+      if (_callReportFilter.person && p !== _callReportFilter.person) return false;
+      if (_callReportFilter.search) {
+        const q = _callReportFilter.search.toLowerCase();
+        const str = Object.values(r).join(' ').toLowerCase();
+        if (!str.includes(q)) return false;
+      }
+      return true;
+    });
+
+    // Totals
+    let sumNew = 0, sumReg = 0, sumSite = 0, sumTotal = 0, sumDist = 0;
+    filteredRows.forEach(r => {
+      if (isSales) {
+        sumNew += Number(getCallVal(r, { key: 'NoOfNewCus', isNum: true })) || 0;
+        sumReg += Number(getCallVal(r, { key: 'NoOfRegCus', isNum: true })) || 0;
+        sumSite += Number(getCallVal(r, { key: 'SiteVisit', isNum: true })) || 0;
+        sumTotal += Number(getCallVal(r, { key: 'Total', isNum: true })) || 0;
+        sumDist += Number(getCallVal(r, { key: 'TotalKM', isNum: true })) || 0;
+      } else {
+        sumNew += Number(getCallVal(r, { key: 'NewCustomer', isNum: true })) || 0;
+        sumReg += Number(getCallVal(r, { key: 'RegularCustomer', isNum: true })) || 0;
+        sumSite += Number(getCallVal(r, { key: 'SiteVisit', isNum: true })) || 0;
+        sumTotal += Number(getCallVal(r, { key: 'TotalAmount', isNum: true })) || 0;
+        sumDist += Number(getCallVal(r, { key: 'TotalMeter', isNum: true })) || 0;
+      }
+    });
+
+    const reportTitle = isSales
+      ? 'From 26 October to 25 November 2026 - Sales Executives Call Report'
+      : "Manager's Call Report (26th October-November 25th 2026)";
+
+    document.getElementById('mainContent').innerHTML = `
+      <div class="card no-print" style="margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
+          <div class="btn-group" style="display:inline-flex;">
+            <button class="btn ${isSales ? 'btn-primary' : 'btn-secondary'}" onclick="_callReportTab='sales'; renderCallReportsView()">
+              👥 Sales Executives Call Report
+            </button>
+            <button class="btn ${!isSales ? 'btn-primary' : 'btn-secondary'}" onclick="_callReportTab='manager'; renderCallReportsView()">
+              👔 Manager's Call Report
+            </button>
+          </div>
+          <div class="section-actions" style="margin:0;">
+            <label class="btn btn-sm btn-secondary" style="cursor:pointer; margin:0;">
+              📤 Upload / Import Excel
+              <input type="file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importCallReportExcel(this.files[0])">
+            </label>
+            <button class="btn btn-sm btn-secondary" onclick="exportCallReportExcel()">⬇ Export Excel</button>
+            <button class="btn btn-sm btn-secondary" onclick="window.print()">🖨 Print</button>
+            <button class="btn btn-sm btn-primary" onclick="openCallReportModal()">+ New Entry</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <input type="text" placeholder="Filter by date (e.g. 2026.10.26)..." style="width:190px;" value="${esc(_callReportFilter.date)}" oninput="_callReportFilter.date=this.value; renderCallReportsView()">
+          <select style="width:200px;" onchange="_callReportFilter.person=this.value; renderCallReportsView()">
+            <option value="">-- All ${isSales ? 'Sales Persons' : 'Managers'} --</option>
+            ${persons.map(p => `<option value="${esc(p)}" ${_callReportFilter.person === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+          </select>
+          <input type="text" placeholder="Search route, hardware, remarks..." style="flex:1; min-width:180px;" value="${esc(_callReportFilter.search)}" oninput="_callReportFilter.search=this.value; renderCallReportsView()">
+          ${(_callReportFilter.date || _callReportFilter.person || _callReportFilter.search) ? `<button class="btn btn-sm btn-secondary" onclick="_callReportFilter.date=''; _callReportFilter.person=''; _callReportFilter.search=''; renderCallReportsView()">Reset</button>` : ''}
+        </div>
+      </div>
+
+      <div class="kpi-grid no-print" style="margin-bottom:16px;">
+        <div class="card"><div class="kpi-label">Total Records</div><div class="kpi-val">${filteredRows.length}</div></div>
+        <div class="card"><div class="kpi-label">Total Customer Visits</div><div class="kpi-val" style="color:var(--primary);">${sumTotal}</div></div>
+        <div class="card"><div class="kpi-label">New Customers</div><div class="kpi-val" style="color:var(--success);">${sumNew}</div></div>
+        <div class="card"><div class="kpi-label">Regular Customers</div><div class="kpi-val">${sumReg}</div></div>
+        <div class="card"><div class="kpi-label">Site Visits</div><div class="kpi-val">${sumSite}</div></div>
+        <div class="card"><div class="kpi-label">Total Distance (${isSales ? 'KM' : 'Meter'})</div><div class="kpi-val" style="color:#0284c7;">${sumDist}</div></div>
+      </div>
+
+      <div class="card table-wrap" style="padding:0; overflow-x:auto;">
+        <table id="callReportTable" class="print-excel-table">
+          <thead>
+            <tr>
+              <th colspan="${activeCols.length + 1}" class="print-title" style="padding:10px; font-size:14px; text-align:center;">
+                ${esc(reportTitle)}
+              </th>
+            </tr>
+            <tr>
+              ${activeCols.map(c => `<th>${esc(c.label)}</th>`).join('')}
+              <th class="no-print" style="width:90px; text-align:center;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filteredRows.map(r => `
+              <tr>
+                ${activeCols.map(c => {
+                  const val = getCallVal(r, c);
+                  const isN = c.isNum;
+                  const hl = c.isHighlight;
+                  return `<td style="${isN ? 'text-align:right;' : ''} ${hl ? 'font-weight:700;' : ''}">${esc(val !== '' ? val : '')}</td>`;
+                }).join('')}
+                <td class="no-print" style="text-align:center; white-space:nowrap;">
+                  <button class="btn btn-sm btn-secondary" style="padding:2px 6px; font-size:11px;" onclick="openCallReportModal('${esc(r._id)}')">Edit</button>
+                  <button class="btn btn-sm btn-danger" style="padding:2px 6px; font-size:11px;" onclick="removeCallReport('${esc(r._id)}')">Del</button>
+                </td>
+              </tr>
+            `).join('') || `<tr><td colspan="${activeCols.length + 1}" style="text-align:center; color:var(--muted); padding:20px;">No call report entries found. Click "+ New Entry" or "Upload / Import Excel".</td></tr>`}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="4" style="text-align:right; font-weight:700;">TOTAL:</td>
+              <td style="text-align:right; font-weight:700;">${sumNew}</td>
+              <td style="text-align:right; font-weight:700;">${sumReg}</td>
+              <td style="text-align:right; font-weight:700;">${sumSite}</td>
+              <td style="text-align:right; font-weight:700; background:#e2e8f0;">${sumTotal}</td>
+              <td colspan="3"></td>
+              <td colspan="2"></td>
+              <td style="text-align:right; font-weight:700; background:#e2e8f0;">${sumDist}</td>
+              <td colspan="${isSales ? 3 : 4}"></td>
+              <td class="no-print"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    `;
+  }
+
+  function openCallReportModal(id) {
+    const isSales = _callReportTab === 'sales';
+    const allReports = state.data.callReports || [];
+    const existing = id ? allReports.find(x => x.CallId === id) : null;
+    let data = {};
+    if (existing) {
+      try { data = JSON.parse(existing.DataJson || '{}'); } catch (e) {}
+    }
+
+    const today = state.data.today || new Date().toISOString().slice(0, 10);
+    const dateVal = data.Date || today;
+
+    // Active employees for dropdown
+    const employees = state.data.employees || [];
+
+    if (isSales) {
+      const spVal = data.SP || data['S.P'] || '';
+      const newCus = data.NoOfNewCus ?? data['No of new Cus'] ?? 0;
+      const regCus = data.NoOfRegCus ?? data['No of Reg Cus'] ?? 0;
+      const siteVisit = data.SiteVisit ?? data['Site Visit'] ?? 0;
+      const total = data.Total ?? (Number(newCus) + Number(regCus) + Number(siteVisit));
+      const startM = data.StartM ?? data['Start M'] ?? 0;
+      const endM = data.EndM ?? data['End M'] ?? 0;
+      const totKm = data.TotalKM ?? data['Total KM'] ?? (endM > startM ? endM - startM : 0);
+
+      const html = `
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date *</label>
+            <input id="cr_Date" value="${esc(dateVal)}">
+          </div>
+          <div class="form-group">
+            <label>S.P (Sales Executive) *</label>
+            <input list="cr_sp_list" id="cr_SP" value="${esc(spVal)}" placeholder="Select or type Sales Executive...">
+            <datalist id="cr_sp_list">
+              ${employees.map(e => `<option value="${esc(e.Name)}">${esc(e.Position || e.Designation || '')}</option>`).join('')}
+            </datalist>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Route</label>
+            <input id="cr_Route" value="${esc(data.Route || '')}" placeholder="e.g. Negombo, Kurunegala...">
+          </div>
+          <div class="form-group">
+            <label>WORKED / N.A</label>
+            <select id="cr_WorkedNA">
+              <option value="">-- Select --</option>
+              <option value="WORKED" ${(data.WorkedNA || data['WORKED/N.A']) === 'WORKED' ? 'selected' : ''}>WORKED</option>
+              <option value="N.A" ${(data.WorkedNA || data['WORKED/N.A']) === 'N.A' ? 'selected' : ''}>N.A</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Call Report (Remarks / Outcomes)</label>
+          <textarea id="cr_CallReport" rows="2" placeholder="Summary of visits, discussions, collections...">${esc(data.CallReport || data['Call Report'] || '')}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Hardware Names</label>
+          <input id="cr_HWNames" value="${esc(data.HWNames || data['H. W Names'] || '')}" placeholder="Hardware stores visited...">
+        </div>
+
+        <div style="background:#f8fafc; padding:10px 12px; border-radius:6px; border:1px solid #cbd5e1; margin-bottom:12px;">
+          <div style="font-weight:700; font-size:12px; margin-bottom:8px; color:var(--primary);">Customer Visits &amp; Calls (Auto-Calculated Total)</div>
+          <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:11px;">New Customers</label>
+              <input type="number" id="cr_NoOfNewCus" min="0" value="${esc(newCus)}" oninput="calcSalesTotals()">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:11px;">Regular Customers</label>
+              <input type="number" id="cr_NoOfRegCus" min="0" value="${esc(regCus)}" oninput="calcSalesTotals()">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:11px;">Site Visits</label>
+              <input type="number" id="cr_SiteVisit" min="0" value="${esc(siteVisit)}" oninput="calcSalesTotals()">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:11px; font-weight:700;">TOTAL</label>
+              <input type="number" id="cr_Total" value="${esc(total)}" readonly style="background:#e2e8f0; font-weight:700;">
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#f8fafc; padding:10px 12px; border-radius:6px; border:1px solid #cbd5e1; margin-bottom:12px;">
+          <div style="font-weight:700; font-size:12px; margin-bottom:8px; color:#0284c7;">Vehicle Meter Reading (Auto-Calculated KM)</div>
+          <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr;">
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:11px;">Start Meter</label>
+              <input type="number" id="cr_StartM" value="${esc(startM)}" oninput="calcSalesTotals()">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:11px;">End Meter</label>
+              <input type="number" id="cr_EndM" value="${esc(endM)}" oninput="calcSalesTotals()">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:11px; font-weight:700;">Total KM</label>
+              <input type="number" id="cr_TotalKM" value="${esc(totKm)}" readonly style="background:#e2e8f0; font-weight:700;">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Location</label>
+            <input id="cr_Location" value="${esc(data.Location || '')}" placeholder="Area / City / GPS">
+          </div>
+          <div class="form-group">
+            <label>Photo Taken</label>
+            <input id="cr_Photo" value="${esc(data.Photo || '')}" placeholder="Yes / No / Note">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Start Photo</label>
+            <input id="cr_StartPhoto" value="${esc(data.StartPhoto || data['Start Photo'] || '')}" placeholder="Yes / No">
+          </div>
+          <div class="form-group">
+            <label>End Photo</label>
+            <input id="cr_EndPhoto" value="${esc(data.EndPhoto || '')}" placeholder="Yes / No">
+          </div>
+        </div>
+      `;
+
+      openModal(
+        (id ? 'Edit ' : 'New ') + 'Sales Executive Call Report',
+        html,
+        `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+         <button class="btn btn-primary" onclick="submitCallReport('${esc(id || '')}')">Save Entry</button>`
+      );
+    } else {
+      // Manager Modal
+      const mgrVal = data.ManagerName || data['Manager Name'] || '';
+      const newCus = data.NewCustomer ?? data['New Customer'] ?? 0;
+      const regCus = data.RegularCustomer ?? data['Regular Customer'] ?? 0;
+      const siteVisit = data.SiteVisit ?? data['Site Visit'] ?? 0;
+      const total = data.TotalAmount ?? data['Total Amount'] ?? (Number(newCus) + Number(regCus) + Number(siteVisit));
+      const startM = data.StartMeterReading ?? data['Sart Meeter Reading'] ?? 0;
+      const endM = data.EndMeterReading ?? data['Ent  Meeter Reading'] ?? 0;
+      const totM = data.TotalMeter ?? data['Total Meeter '] ?? (endM > startM ? endM - startM : 0);
+
+      const html = `
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date *</label>
+            <input id="cr_Date" value="${esc(dateVal)}">
+          </div>
+          <div class="form-group">
+            <label>Manager Name *</label>
+            <input list="cr_mgr_list" id="cr_ManagerName" value="${esc(mgrVal)}" placeholder="Select or type Manager Name...">
+            <datalist id="cr_mgr_list">
+              ${employees.map(e => `<option value="${esc(e.Name)}">${esc(e.Position || e.Designation || '')}</option>`).join('')}
+            </datalist>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Route</label>
+            <input id="cr_Route" value="${esc(data.Route || '')}" placeholder="e.g. Kandy, Colombo...">
+          </div>
+          <div class="form-group">
+            <label>Worked / N.A</label>
+            <select id="cr_WorkedNA">
+              <option value="">-- Select --</option>
+              <option value="Worked" ${(data.WorkedNA || data['Worked / N.A']) === 'Worked' ? 'selected' : ''}>Worked</option>
+              <option value="N.A" ${(data.WorkedNA || data['Worked / N.A']) === 'N.A' ? 'selected' : ''}>N.A</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Call Report (Remarks / Outcomes)</label>
+          <textarea id="cr_CallReport" rows="2" placeholder="Summary of manager visits, dealer reviews...">${esc(data.CallReport || data['Call Report'] || '')}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Hardware Name</label>
+          <input id="cr_HardwareName" value="${esc(data.HardwareName || data['Hardware Name'] || '')}" placeholder="Hardware / Dealer names...">
+        </div>
+
+        <div style="background:#f8fafc; padding:10px 12px; border-radius:6px; border:1px solid #cbd5e1; margin-bottom:12px;">
+          <div style="font-weight:700; font-size:12px; margin-bottom:8px; color:var(--primary);">Customer Visits &amp; Calls (Auto-Calculated Total)</div>
+          <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:11px;">New Customer</label>
+              <input type="number" id="cr_NewCustomer" min="0" value="${esc(newCus)}" oninput="calcManagerTotals()">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:11px;">Regular Customer</label>
+              <input type="number" id="cr_RegularCustomer" min="0" value="${esc(regCus)}" oninput="calcManagerTotals()">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:11px;">Site Visit</label>
+              <input type="number" id="cr_SiteVisit" min="0" value="${esc(siteVisit)}" oninput="calcManagerTotals()">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:11px; font-weight:700;">TOTAL AMOUNT</label>
+              <input type="number" id="cr_TotalAmount" value="${esc(total)}" readonly style="background:#e2e8f0; font-weight:700;">
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#f8fafc; padding:10px 12px; border-radius:6px; border:1px solid #cbd5e1; margin-bottom:12px;">
+          <div style="font-weight:700; font-size:12px; margin-bottom:8px; color:#0284c7;">Vehicle Meter Reading (Auto-Calculated Meter)</div>
+          <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr;">
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:11px;">Start Meter</label>
+              <input type="number" id="cr_StartMeterReading" value="${esc(startM)}" oninput="calcManagerTotals()">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:11px;">End Meter</label>
+              <input type="number" id="cr_EndMeterReading" value="${esc(endM)}" oninput="calcManagerTotals()">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:11px; font-weight:700;">Total Meter</label>
+              <input type="number" id="cr_TotalMeter" value="${esc(totM)}" readonly style="background:#e2e8f0; font-weight:700;">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Start Location</label>
+            <input id="cr_StartLocation" value="${esc(data.StartLocation || data['Start Locatio '] || '')}" placeholder="Start location">
+          </div>
+          <div class="form-group">
+            <label>End Location</label>
+            <input id="cr_EndLocation" value="${esc(data.EndLocation || data['Ent Location'] || '')}" placeholder="End location">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Start Photo</label>
+            <input id="cr_StartPhoto" value="${esc(data.StartPhoto || '')}" placeholder="Yes / No">
+          </div>
+          <div class="form-group">
+            <label>End Photo</label>
+            <input id="cr_EndPhoto" value="${esc(data.EndPhoto || '')}" placeholder="Yes / No">
+          </div>
+        </div>
+      `;
+
+      openModal(
+        (id ? 'Edit ' : 'New ') + "Manager's Call Report",
+        html,
+        `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+         <button class="btn btn-primary" onclick="submitCallReport('${esc(id || '')}')">Save Entry</button>`
+      );
+    }
+  }
+
+  window.calcSalesTotals = function() {
+    const n1 = parseFloat(document.getElementById('cr_NoOfNewCus')?.value || 0) || 0;
+    const n2 = parseFloat(document.getElementById('cr_NoOfRegCus')?.value || 0) || 0;
+    const n3 = parseFloat(document.getElementById('cr_SiteVisit')?.value || 0) || 0;
+    const totEl = document.getElementById('cr_Total');
+    if (totEl) totEl.value = n1 + n2 + n3;
+
+    const m1 = parseFloat(document.getElementById('cr_StartM')?.value || 0) || 0;
+    const m2 = parseFloat(document.getElementById('cr_EndM')?.value || 0) || 0;
+    const kmEl = document.getElementById('cr_TotalKM');
+    if (kmEl) kmEl.value = (m2 > m1 ? m2 - m1 : 0);
+  };
+
+  window.calcManagerTotals = function() {
+    const n1 = parseFloat(document.getElementById('cr_NewCustomer')?.value || 0) || 0;
+    const n2 = parseFloat(document.getElementById('cr_RegularCustomer')?.value || 0) || 0;
+    const n3 = parseFloat(document.getElementById('cr_SiteVisit')?.value || 0) || 0;
+    const totEl = document.getElementById('cr_TotalAmount');
+    if (totEl) totEl.value = n1 + n2 + n3;
+
+    const m1 = parseFloat(document.getElementById('cr_StartMeterReading')?.value || 0) || 0;
+    const m2 = parseFloat(document.getElementById('cr_EndMeterReading')?.value || 0) || 0;
+    const mEl = document.getElementById('cr_TotalMeter');
+    if (mEl) mEl.value = (m2 > m1 ? m2 - m1 : 0);
+  };
+
+  async function submitCallReport(id) {
+    const isSales = _callReportTab === 'sales';
+    const reportType = isSales ? 'SalesExecutive' : 'Manager';
+    const obj = {};
+
+    if (isSales) {
+      obj.Date = document.getElementById('cr_Date')?.value.trim() || '';
+      obj.SP = document.getElementById('cr_SP')?.value.trim() || '';
+      obj.Route = document.getElementById('cr_Route')?.value.trim() || '';
+      obj.CallReport = document.getElementById('cr_CallReport')?.value.trim() || '';
+      obj.NoOfNewCus = parseFloat(document.getElementById('cr_NoOfNewCus')?.value || 0) || 0;
+      obj.NoOfRegCus = parseFloat(document.getElementById('cr_NoOfRegCus')?.value || 0) || 0;
+      obj.SiteVisit = parseFloat(document.getElementById('cr_SiteVisit')?.value || 0) || 0;
+      obj.Total = parseFloat(document.getElementById('cr_Total')?.value || 0) || (obj.NoOfNewCus + obj.NoOfRegCus + obj.SiteVisit);
+      obj.Photo = document.getElementById('cr_Photo')?.value.trim() || '';
+      obj.WorkedNA = document.getElementById('cr_WorkedNA')?.value || '';
+      obj.HWNames = document.getElementById('cr_HWNames')?.value.trim() || '';
+      obj.StartM = parseFloat(document.getElementById('cr_StartM')?.value || 0) || 0;
+      obj.EndM = parseFloat(document.getElementById('cr_EndM')?.value || 0) || 0;
+      obj.TotalKM = parseFloat(document.getElementById('cr_TotalKM')?.value || 0) || (obj.EndM > obj.StartM ? obj.EndM - obj.StartM : 0);
+      obj.StartPhoto = document.getElementById('cr_StartPhoto')?.value.trim() || '';
+      obj.EndPhoto = document.getElementById('cr_EndPhoto')?.value.trim() || '';
+      obj.Location = document.getElementById('cr_Location')?.value.trim() || '';
+
+      if (!obj.Date || !obj.SP) {
+        showToast('Please enter both Date and Sales Executive Name.');
+        return;
+      }
+    } else {
+      obj.Date = document.getElementById('cr_Date')?.value.trim() || '';
+      obj.ManagerName = document.getElementById('cr_ManagerName')?.value.trim() || '';
+      obj.Route = document.getElementById('cr_Route')?.value.trim() || '';
+      obj.CallReport = document.getElementById('cr_CallReport')?.value.trim() || '';
+      obj.NewCustomer = parseFloat(document.getElementById('cr_NewCustomer')?.value || 0) || 0;
+      obj.RegularCustomer = parseFloat(document.getElementById('cr_RegularCustomer')?.value || 0) || 0;
+      obj.SiteVisit = parseFloat(document.getElementById('cr_SiteVisit')?.value || 0) || 0;
+      obj.TotalAmount = parseFloat(document.getElementById('cr_TotalAmount')?.value || 0) || (obj.NewCustomer + obj.RegularCustomer + obj.SiteVisit);
+      obj.WorkedNA = document.getElementById('cr_WorkedNA')?.value || '';
+      obj.HardwareName = document.getElementById('cr_HardwareName')?.value.trim() || '';
+      obj.StartMeterReading = parseFloat(document.getElementById('cr_StartMeterReading')?.value || 0) || 0;
+      obj.EndMeterReading = parseFloat(document.getElementById('cr_EndMeterReading')?.value || 0) || 0;
+      obj.TotalMeter = parseFloat(document.getElementById('cr_TotalMeter')?.value || 0) || (obj.EndMeterReading > obj.StartMeterReading ? obj.EndMeterReading - obj.StartMeterReading : 0);
+      obj.StartPhoto = document.getElementById('cr_StartPhoto')?.value.trim() || '';
+      obj.StartLocation = document.getElementById('cr_StartLocation')?.value.trim() || '';
+      obj.EndPhoto = document.getElementById('cr_EndPhoto')?.value.trim() || '';
+      obj.EndLocation = document.getElementById('cr_EndLocation')?.value.trim() || '';
+
+      if (!obj.Date || !obj.ManagerName) {
+        showToast('Please enter both Date and Manager Name.');
+        return;
+      }
+    }
+
+    await gas('saveReportEntry', 'CallReports', {
+      CallId: id || undefined,
+      ReportType: reportType,
+      DataJson: JSON.stringify(obj),
+      CreatedBy: state.user.Name
+    });
+
+    closeModal();
+    showToast('Call Report saved successfully!');
+    await refreshData();
+  }
+
+  async function removeCallReport(id) {
+    if (!confirm('Are you sure you want to delete this call report entry?')) return;
+    await gas('deleteReportEntry', 'CallReports', id);
+    showToast('Deleted entry.');
+    await refreshData();
+  }
+
+  async function importCallReportExcel(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        if (typeof XLSX === 'undefined') {
+          showToast('Excel parser library not loaded.');
+          return;
+        }
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        const sheetName = wb.SheetNames.includes('November 26') ? 'November 26' : wb.SheetNames[0];
+        const ws = wb.Sheets[sheetName];
+        const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+        // Auto-detect format or use current tab
+        let isSales = _callReportTab === 'sales';
+        const strAll = JSON.stringify(rawRows.slice(0, 4));
+        if (strAll.includes('Sales') || strAll.includes('S.P')) isSales = true;
+        else if (strAll.includes('Manager')) isSales = false;
+
+        const toNum = (v) => {
+          if (v === undefined || v === null) return 0;
+          const s = String(v).trim();
+          if (!s) return 0;
+          const n = parseFloat(s);
+          return isNaN(n) ? 0 : n;
+        };
+
+        const entries = [];
+        if (isSales) {
+          // Headers at row index 1, data starts at index 2
+          for (let r = 2; r < rawRows.length; r++) {
+            const row = rawRows[r] || [];
+            const d = String(row[0] || '').trim();
+            const sp = String(row[1] || '').trim();
+            const route = String(row[2] || '').trim();
+            const callRep = String(row[3] || '').trim();
+            const newCus = toNum(row[4]);
+            const regCus = toNum(row[5]);
+            const siteVisit = toNum(row[6]);
+            const total = toNum(row[7]) || (newCus + regCus + siteVisit);
+            const photo = String(row[8] || '').trim();
+            const worked = String(row[9] || '').trim();
+            const hw = String(row[10] || '').trim();
+            const endM = toNum(row[11]);
+            const startM = toNum(row[12]);
+            const totKm = toNum(row[13]) || (endM && startM ? endM - startM : 0);
+            const sPhoto = String(row[14] || '').trim();
+            const ePhoto = String(row[15] || '').trim();
+            const loc = String(row[16] || '').trim();
+
+            if (!d && !sp && !route && !hw) continue;
+            entries.push({
+              Date: d, SP: sp, Route: route, CallReport: callRep,
+              NoOfNewCus: newCus, NoOfRegCus: regCus, SiteVisit: siteVisit, Total: total,
+              Photo: photo, WorkedNA: worked, HWNames: hw,
+              EndM: endM, StartM: startM, TotalKM: totKm,
+              StartPhoto: sPhoto, EndPhoto: ePhoto, Location: loc
+            });
+          }
+        } else {
+          // Headers at row index 2, data starts at index 3 (starts at col B: index 1)
+          for (let r = 3; r < rawRows.length; r++) {
+            const row = rawRows[r] || [];
+            const d = String(row[1] || '').trim();
+            const mgr = String(row[2] || '').trim();
+            const route = String(row[3] || '').trim();
+            const callRep = String(row[4] || '').trim();
+            const newCus = toNum(row[5]);
+            const regCus = toNum(row[6]);
+            const siteVisit = toNum(row[7]);
+            const total = toNum(row[8]) || (newCus + regCus + siteVisit);
+            const worked = String(row[9] || '').trim();
+            const hw = String(row[10] || '').trim();
+            const startM = toNum(row[11]);
+            const endM = toNum(row[12]);
+            const totM = toNum(row[13]) || (endM && startM ? endM - startM : 0);
+            const sPhoto = String(row[14] || '').trim();
+            const sLoc = String(row[15] || '').trim();
+            const ePhoto = String(row[16] || '').trim();
+            const eLoc = String(row[17] || '').trim();
+
+            if (!d && !mgr && !route && !hw) continue;
+            entries.push({
+              Date: d, ManagerName: mgr, Route: route, CallReport: callRep,
+              NewCustomer: newCus, RegularCustomer: regCus, SiteVisit: siteVisit, TotalAmount: total,
+              WorkedNA: worked, HardwareName: hw,
+              StartMeterReading: startM, EndMeterReading: endM, TotalMeter: totM,
+              StartPhoto: sPhoto, StartLocation: sLoc, EndPhoto: ePhoto, EndLocation: eLoc
+            });
+          }
+        }
+
+        if (!entries.length) {
+          showToast('No valid rows found in selected file.');
+          return;
+        }
+
+        const reportType = isSales ? 'SalesExecutive' : 'Manager';
+        const label = isSales ? 'Sales Executives' : 'Manager';
+        if (confirm(`Detected ${entries.length} valid rows for ${label} Call Report. Import now?`)) {
+          showToast('Importing ' + entries.length + ' entries...');
+          await gas('importReportEntries', 'CallReports', entries, state.user.Name, reportType);
+          showToast('Successfully imported ' + entries.length + ' entries!');
+          _callReportTab = isSales ? 'sales' : 'manager';
+          await refreshData();
+        }
+      } catch (err) {
+        showToast('Error importing Excel: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function exportCallReportExcel() {
+    const isSales = _callReportTab === 'sales';
+    const reportType = isSales ? 'SalesExecutive' : 'Manager';
+    const allReports = state.data.callReports || [];
+    const subReports = allReports.filter(r => {
+      if (r.ReportType) return r.ReportType === reportType;
+      let d = {};
+      try { d = JSON.parse(r.DataJson || '{}'); } catch (e) {}
+      return isSales ? (!d.ManagerName && !d['Manager Name']) : (!!(d.ManagerName || d['Manager Name']));
+    });
+
+    const activeCols = isSales ? SALES_CALL_COLS : MANAGER_CALL_COLS;
+    const rows = subReports.map(r => {
+      let data = {};
+      try { data = JSON.parse(r.DataJson || '{}'); } catch (e) {}
+      const row = {};
+      activeCols.forEach(c => {
+        row[c.label] = getCallVal(data, c);
+      });
+      return row;
+    });
+
+    if (typeof XLSX !== 'undefined') {
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      const sheetTitle = isSales ? 'Sales Executives' : 'Manager';
+      XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
+      XLSX.writeFile(wb, `${isSales ? 'Call_Report_Sales_Executives' : 'Managers_Call_Report'}_${state.data.today || 'export'}.xlsx`);
+    } else {
+      showToast('Export failed: XLSX library not loaded');
+    }
+  }
+
+
 
   /* ==========================================================================
    * 2C. Call Report & Project Report (User-Uploaded Template Engine)

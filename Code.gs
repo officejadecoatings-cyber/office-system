@@ -15,7 +15,7 @@ const SCHEMA = {
   InvoiceItems: ['LineId', 'InvoiceId', 'ItemId', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal'],
   Creditors: ['CreditorId', 'SupplierName', 'BillNo', 'Date', 'DueDate', 'TotalAmount', 'PaidAmount', 'Status', 'Notes'],
   PettyCash: ['PcId', 'VoucherNo', 'Date', 'Type', 'Category', 'Description', 'PaidTo', 'ReceiptNo', 'Amount', 'RecordedBy'],
-  CallReports: ['CallId', 'DataJson', 'CreatedBy', 'CreatedAt'],
+  CallReports: ['CallId', 'ReportType', 'DataJson', 'CreatedBy', 'CreatedAt'],
   ProjectReports: ['ProjId', 'DataJson', 'CreatedBy', 'CreatedAt'],
   Employees: ['EmpId', 'Name', 'Designation', 'Address', 'NIC', 'EpfEtfNo', 'DOB', 'Gender', 'Position', 'Email', 'Phone', 'EmergencyContactName', 'EmergencyContactPhone', 'JoinDate', 'Status'],
   CustomTabs: ['TabId', 'Name', 'Icon', 'ColumnsJson', 'CreatedBy', 'UpdatedAt'],
@@ -593,7 +593,7 @@ function deleteReportEntry(sheetName, id) {
   return withLock_(() => deleteRowByKey_(sheetName, keyField, id));
 }
 
-function importReportEntries(sheetName, rows, createdBy) {
+function importReportEntries(sheetName, rows, createdBy, reportType) {
   const keyField = sheetName === 'CallReports' ? 'CallId' : 'ProjId';
   const prefix = sheetName === 'CallReports' ? 'CALL' : 'PRJ';
   return withLock_(() => {
@@ -601,14 +601,19 @@ function importReportEntries(sheetName, rows, createdBy) {
     const sheet = ss.getSheetByName(sheetName);
     const today = todayStr_();
     const stamp = Utilities.formatDate(new Date(), 'Asia/Colombo', 'yyMMddHHmmss');
-    const values = rows.map((r, idx) => [
-      prefix + '-' + stamp + '-' + (idx + 1),
-      JSON.stringify(r),
-      createdBy || 'System',
-      today
-    ]);
+    const headers = SCHEMA[sheetName];
+    const values = rows.map((r, idx) => {
+      const obj = {
+        [keyField]: prefix + '-' + stamp + '-' + (idx + 1),
+        ReportType: reportType || r.ReportType || '',
+        DataJson: JSON.stringify(r),
+        CreatedBy: createdBy || 'System',
+        CreatedAt: today
+      };
+      return headers.map(h => (obj[h] !== undefined && obj[h] !== null ? obj[h] : ''));
+    });
     if (values.length) {
-      sheet.getRange(sheet.getLastRow() + 1, 1, values.length, 4).setValues(values);
+      sheet.getRange(sheet.getLastRow() + 1, 1, values.length, headers.length).setValues(values);
     }
     return { imported: values.length };
   });
