@@ -58,7 +58,7 @@ function doPost(e) {
       saveInvoice, deleteInvoice,
       saveCreditor, deleteCreditor,
       savePettyCash, deletePettyCash,
-      saveReportEntry, deleteReportEntry, importReportEntries,
+      saveReportEntry, deleteReportEntry, importReportEntries, clearReportEntries,
       saveEmployee, deleteEmployee,
       saveCustomTab, deleteCustomTab, saveCustomTabRow, deleteCustomTabRow, importCustomTabRows,
       saveTransaction, deleteTransaction,
@@ -591,6 +591,19 @@ function saveReportEntry(sheetName, entry) {
 function deleteReportEntry(sheetName, id) {
   const keyField = sheetName === 'CallReports' ? 'CallId' : 'ProjId';
   return withLock_(() => deleteRowByKey_(sheetName, keyField, id));
+}
+
+function clearReportEntries(sheetName) {
+  return withLock_(() => {
+    const ss = getSpreadsheet_();
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) return { cleared: 0 };
+    const lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      sheet.deleteRows(2, lastRow - 1);
+    }
+    return { cleared: lastRow > 1 ? lastRow - 1 : 0 };
+  });
 }
 
 function importReportEntries(sheetName, rows, createdBy, reportType) {

@@ -1575,6 +1575,7 @@
             </label>
             <button class="btn btn-sm btn-secondary" onclick="exportCallReportExcel()">⬇ Export Excel</button>
             <button class="btn btn-sm btn-secondary" onclick="window.print()">🖨 Print</button>
+            <button class="btn btn-sm btn-danger" onclick="clearAllCallReports()">🗑️ Clear All</button>
             <button class="btn btn-sm btn-primary" onclick="openCallReportModal()">+ New Entry</button>
           </div>
         </div>
@@ -1991,6 +1992,14 @@
     if (!confirm('Are you sure you want to delete this call report entry?')) return;
     await gas('deleteReportEntry', 'CallReports', id);
     showToast('Deleted entry.');
+    await refreshData();
+  }
+
+  async function clearAllCallReports() {
+    if (!confirm('Are you sure you want to delete ALL Call Report entries? This cannot be undone.')) return;
+    showToast('Clearing all call reports...');
+    await gas('clearReportEntries', 'CallReports');
+    showToast('All call reports cleared.');
     await refreshData();
   }
 
