@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Office System</title>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <?!= include('Styles'); ?>
+</head>
+<body>
+  <div id="loadingBar" class="loading-bar hidden"></div>
+
+  <!-- Login Screen -->
+  <div id="loginView" class="login-wrap">
+    <div class="login-card">
+      <img src="logo.jpg" onerror="this.src='https://jade-office-system-app.netlify.app/logo.jpg'" alt="Logo" class="login-logo">
+      <h1 style="text-align:center;">System Manager</h1>
+      <p style="text-align:center;">Sign in with your team profile and PIN</p>
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="loginUser">Team Member</label>
+          <select id="loginUser" required>
+            <option value="">Loading users...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="loginPin">PIN</label>
+          <input type="password" id="loginPin" placeholder="Enter 4-digit PIN" required maxlength="10">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Sign In</button>
+      </form>
+      <p style="margin-top:14px; font-size:11px; color:#94a3b8; text-align:center;">
+        Default Admin PIN: 1234 (Change in Settings)
+      </p>
+    </div>
+  </div>
+
+  <!-- Main App Shell -->
+  <div id="appShell" class="app-shell hidden">
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-brand">
+        <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+          <img src="logo.jpg" onerror="this.src='https://jade-office-system-app.netlify.app/logo.jpg'" alt="Logo" class="sidebar-logo">
+          <span id="brandName" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">System Manager</span>
+        </div>
+        <button class="btn btn-sm btn-secondary hidden" id="closeSidebarBtn" onclick="toggleSidebar(false)">✕</button>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="dashboard" onclick="navigate('dashboard')">📊 Dashboard</button>
+        <button class="nav-item" data-view="invoices" onclick="navigate('invoices')">🧾 Invoices</button>
+        <button class="nav-item" data-view="outstanding" onclick="navigate('outstanding')">⏳ Outstanding</button>
+        <button class="nav-item" data-view="inventory" onclick="navigate('inventory')">📦 Stock</button>
+        <button class="nav-item" data-view="callReport" onclick="navigate('callReport')">📞 Call Report</button>
+        <button class="nav-item" data-view="projectReport" onclick="navigate('projectReport')">🏗️ Project Report</button>
+        <button class="nav-item" data-view="pettyCash" onclick="navigate('pettyCash')">💵 Petty Cash</button>
+        <button class="nav-item" data-view="customers" onclick="navigate('customers')">👥 Customers</button>
+        <button class="nav-item" data-view="employees" onclick="navigate('employees')">🧑‍💼 Employees</button>
+        <button class="nav-item" data-view="painterTraining" onclick="navigate('painterTraining')">🎨 Painter Training</button>
+        <div id="customSidebarTabs"></div>
+        <div class="nav-divider"></div>
+        <button class="nav-item" data-view="reports" onclick="navigate('reports')">📈 Custom Reports</button>
+        <button class="nav-item" data-view="import" onclick="navigate('import')">📥 Import Excel / CSV</button>
+        <button class="nav-item" data-view="settings" onclick="navigate('settings')">⚙️ Settings &amp; Customize</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="sidebarUser" style="font-weight:600; color:#fff;"></div>
+        <div id="sidebarRole" style="color:#94a3b8; margin-bottom:8px;"></div>
+        <button class="btn btn-sm btn-secondary" style="width:100%;" onclick="logout()">Sign Out</button>
+      </div>
+    </aside>
+
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="menu-btn" onclick="toggleSidebar(true)">☰</button>
+          <div class="topbar-title" id="pageTitle">Dashboard</div>
+        </div>
+        <div class="topbar-right">
+          <span id="autoSyncBadge" class="badge badge-info" title="Auto-syncs with Google Drive every 5 minutes">Auto-Sync: 5m</span>
+          <button class="btn btn-sm btn-secondary" onclick="refreshData(true)" title="Sync with Google Sheets & Drive">↻ Sync Now</button>
+          <span id="clockActionArea"></span>
+        </div>
+      </header>
+
+      <main class="content" id="mainContent"></main>
+    </div>
+  </div>
+
+  <!-- Reusable Modal -->
+  <div id="modalBackdrop" class="modal-backdrop hidden">
+    <div id="modalBox" class="modal">
+      <div class="modal-header">
+        <h3 id="modalTitle">Modal</h3>
+        <button class="btn btn-sm btn-secondary close-btn" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer" id="modalFooter"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <?!= include('Scripts'); ?>
+</body>
+</html>

@@ -17,6 +17,8 @@ const SCHEMA = {
   PettyCash: ['PcId', 'VoucherNo', 'Date', 'Type', 'Category', 'Description', 'PaidTo', 'ReceiptNo', 'Amount', 'RecordedBy'],
   CallReports: ['CallId', 'ReportType', 'DataJson', 'CreatedBy', 'CreatedAt'],
   ProjectReports: ['ProjId', 'DataJson', 'CreatedBy', 'CreatedAt'],
+  PainterQuotations: ['QuotationId', 'QuotationNo', 'Date', 'Title', 'Supplier', 'Receivers', 'Place', 'Time', 'TotalAmount', 'AdvanceAmount', 'RemainingAmount', 'ItemsJson', 'Status', 'CreatedBy', 'CreatedAt'],
+  PainterBillBalances: ['BalanceId', 'ProgramName', 'Date', 'Description', 'Withdrawal', 'Deposit', 'Balance', 'CreatedBy', 'CreatedAt'],
   Employees: ['EmpId', 'Name', 'Designation', 'Address', 'NIC', 'EpfEtfNo', 'DOB', 'Gender', 'Position', 'Email', 'Phone', 'EmergencyContactName', 'EmergencyContactPhone', 'JoinDate', 'Status'],
   CustomTabs: ['TabId', 'Name', 'Icon', 'ColumnsJson', 'CreatedBy', 'UpdatedAt'],
   CustomTabRows: ['RowId', 'TabId', 'DataJson', 'CreatedBy', 'CreatedAt'],
@@ -59,6 +61,8 @@ function doPost(e) {
       saveCreditor, deleteCreditor,
       savePettyCash, deletePettyCash,
       saveReportEntry, deleteReportEntry, importReportEntries, clearReportEntries,
+      savePainterQuotation, deletePainterQuotation,
+      savePainterBillBalance, deletePainterBillBalance, importPainterBillBalances,
       saveEmployee, deleteEmployee,
       saveCustomTab, deleteCustomTab, saveCustomTabRow, deleteCustomTabRow, importCustomTabRows,
       saveTransaction, deleteTransaction,
@@ -228,7 +232,11 @@ function readSheetObjects_(sheetName) {
 
 function appendRowObject_(sheetName, obj) {
   const ss = getSpreadsheet_();
-  const sheet = ss.getSheetByName(sheetName);
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    ensureDatabase_();
+    sheet = ss.getSheetByName(sheetName);
+  }
   const headers = SCHEMA[sheetName];
   const row = headers.map(h => (obj[h] !== undefined && obj[h] !== null ? obj[h] : ''));
   sheet.appendRow(row);
@@ -237,7 +245,11 @@ function appendRowObject_(sheetName, obj) {
 
 function updateRowByKey_(sheetName, keyField, keyValue, updates) {
   const ss = getSpreadsheet_();
-  const sheet = ss.getSheetByName(sheetName);
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    ensureDatabase_();
+    sheet = ss.getSheetByName(sheetName);
+  }
   const data = sheet.getDataRange().getValues();
   if (data.length <= 1) return false;
   const headers = data[0];
@@ -347,6 +359,8 @@ function getAppData() {
     pettyCash: readSheetObjects_('PettyCash'),
     callReports: readSheetObjects_('CallReports'),
     projectReports: readSheetObjects_('ProjectReports'),
+    painterQuotations: readSheetObjects_('PainterQuotations'),
+    painterBillBalances: readSheetObjects_('PainterBillBalances'),
     employees: readSheetObjects_('Employees'),
     customTabs: readSheetObjects_('CustomTabs'),
     customTabRows: readSheetObjects_('CustomTabRows'),
@@ -620,6 +634,67 @@ function importReportEntries(sheetName, rows, createdBy, reportType) {
         [keyField]: prefix + '-' + stamp + '-' + (idx + 1),
         ReportType: reportType || r.ReportType || '',
         DataJson: JSON.stringify(r),
+        CreatedBy: createdBy || 'System',
+        CreatedAt: today
+      };
+      return headers.map(h => (obj[h] !== undefined && obj[h] !== null ? obj[h] : ''));
+    });
+    if (values.length) {
+      sheet.getRange(sheet.getLastRow() + 1, 1, values.length, headers.length).setValues(values);
+    }
+    return { imported: values.length };
+  });
+}
+
+function savePainterQuotation(entry) {
+  return withLock_(() => {
+    if (entry.QuotationId) {
+      updateRowByKey_('PainterQuotations', 'QuotationId', entry.QuotationId, entry);
+      return entry;
+    }
+    entry.QuotationId = nextId_('PTQ');
+    if (!entry.QuotationNo) entry.QuotationNo = entry.QuotationId;
+    entry.CreatedAt = todayStr_();
+    return appendRowObject_('PainterQuotations', entry);
+  });
+}
+
+function deletePainterQuotation(id) {
+  return withLock_(() => deleteRowByKey_('PainterQuotations', 'QuotationId', id));
+}
+
+function savePainterBillBalance(entry) {
+  return withLock_(() => {
+    if (entry.BalanceId) {
+      updateRowByKey_('PainterBillBalances', 'BalanceId', entry.BalanceId, entry);
+      return entry;
+    }
+    entry.BalanceId = nextId_('PBB');
+    entry.CreatedAt = todayStr_();
+    return appendRowObject_('PainterBillBalances', entry);
+  });
+}
+
+function deletePainterBillBalance(id) {
+  return withLock_(() => deleteRowByKey_('PainterBillBalances', 'BalanceId', id));
+}
+
+function importPainterBillBalances(rows, createdBy) {
+  return withLock_(() => {
+    const ss = getSpreadsheet_();
+    const sheet = ss.getSheetByName('PainterBillBalances');
+    const today = todayStr_();
+    const stamp = Utilities.formatDate(new Date(), 'Asia/Colombo', 'yyMMddHHmmss');
+    const headers = SCHEMA.PainterBillBalances;
+    const values = rows.map((r, idx) => {
+      const obj = {
+        BalanceId: 'PBB-' + stamp + '-' + (idx + 1),
+        ProgramName: r.ProgramName || '',
+        Date: r.Date || today,
+        Description: r.Description || '',
+        Withdrawal: Number(r.Withdrawal || 0),
+        Deposit: Number(r.Deposit || 0),
+        Balance: Number(r.Balance || 0),
         CreatedBy: createdBy || 'System',
         CreatedAt: today
       };
