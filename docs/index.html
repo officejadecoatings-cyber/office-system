@@ -1,0 +1,3315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Office System</title>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <style>
+  :root {
+    --bg: #f7fbf9;
+    --surface: #ffffff;
+    --border: #d1fae5;
+    --text: #231f20;
+    --muted: #4b5563;
+    --primary: #00a651;
+    --primary-hover: #008f45;
+    --primary-light: #ebf8f2;
+    --brand-dark: #074626;
+    --success: #00a651;
+    --success-bg: #ebf8f2;
+    --warning: #d97706;
+    --warning-bg: #fef3c7;
+    --danger: #dc2626;
+    --danger-bg: #fee2e2;
+    --sidebar-w: 245px;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .hidden { display: none !important; }
+
+  /* Login Screen */
+  .login-wrap {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: linear-gradient(135deg, #ebf8f2 0%, #ffffff 55%, #e6f4ec 100%);
+  }
+  .login-logo {
+    display: block;
+    max-width: 180px;
+    max-height: 80px;
+    object-fit: contain;
+    margin: 0 auto 14px auto;
+    border-radius: 8px;
+  }
+  .sidebar-logo {
+    width: 34px;
+    height: 34px;
+    object-fit: cover;
+    border-radius: 6px;
+    background: #fff;
+    flex-shrink: 0;
+  }
+  .login-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+  }
+  .login-card h1 { font-size: 20px; margin-bottom: 4px; }
+  .login-card p { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+
+  /* App Shell */
+  .app-shell { display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: var(--sidebar-w);
+    background: #231f20;
+    color: #e5e7eb;
+    border-right: 2px solid var(--brand-dark);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0; bottom: 0; left: 0;
+    z-index: 40;
+    transition: transform 0.2s ease;
+  }
+  .sidebar-brand {
+    padding: 16px 18px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    border-bottom: 1px solid var(--brand-dark);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .sidebar-nav { flex: 1; padding: 12px 10px; overflow-y: auto; }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    margin-bottom: 4px;
+    transition: all 0.15s;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
+  .nav-item.active { background: var(--primary); color: #fff; }
+  .sidebar-footer {
+    padding: 14px 16px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    font-size: 12px;
+  }
+
+  .main-wrap {
+    flex: 1;
+    margin-left: var(--sidebar-w);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .topbar-title { font-size: 17px; font-weight: 600; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .menu-btn {
+    display: none;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+
+  .content { padding: 24px; max-width: 1320px; width: 100%; margin: 0 auto; }
+
+  /* Cards & Grid */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.03);
+  }
+  .kpi-label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+  .kpi-val { font-size: 24px; font-weight: 700; margin-top: 6px; }
+  .kpi-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .section-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .section-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 8px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .tab-btn {
+    padding: 8px 14px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+  /* Forms & Buttons */
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  input, select, textarea {
+    width: 100%;
+    padding: 8px 11px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    font-size: 14px;
+    font-family: inherit;
+    background: #fff;
+    color: var(--text);
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+  }
+  .search-input { width: 240px; max-width: 100%; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+  }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-secondary { background: #fff; border-color: var(--border); color: var(--text); }
+  .btn-secondary:hover { background: #f8fafc; }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  /* Tables */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); background: #f8fafc; font-weight: 600; }
+  tr:hover td { background: #f8fafc; }
+
+  /* Badges */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-success { background: var(--success-bg); color: var(--success); }
+  .badge-warning { background: var(--warning-bg); color: var(--warning); }
+  .badge-danger { background: var(--danger-bg); color: var(--danger); }
+  .badge-info { background: var(--primary-light); color: var(--primary); }
+  .badge-muted { background: #e2e8f0; color: #475569; }
+  .row-overdue td { background: #fef2f2 !important; color: #991b1b; }
+  .alert-danger {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    padding: 12px 14px;
+    border-radius: 8px;
+    margin-bottom: 14px;
+    font-size: 13px;
+  }
+  .nav-divider { border-top: 1px solid rgba(255,255,255,0.08); margin: 10px 8px; }
+
+  /* Kanban / Tasks */
+  .kanban { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .kanban-col { background: #eef2f6; border-radius: var(--radius); padding: 12px; min-height: 300px; }
+  .kanban-col h4 { font-size: 13px; margin-bottom: 10px; display: flex; justify-content: space-between; }
+  .task-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .task-title { font-weight: 600; margin-bottom: 4px; }
+  .task-meta { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; margin-top: 8px; }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    z-index: 60;
+  }
+  .modal {
+    background: #fff;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 620px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+  }
+  .modal-lg { max-width: 820px; }
+  .modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .modal-body { padding: 20px; overflow-y: auto; }
+  .modal-footer {
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  /* Toast & Loader */
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #0f172a;
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    z-index: 80;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+  }
+  .loading-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--primary);
+    z-index: 90;
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  @media (max-width: 860px) {
+    .sidebar { transform: translateX(-100%); }
+    .sidebar.open { transform: translateX(0); }
+    .main-wrap { margin-left: 0; }
+    .menu-btn { display: inline-flex; }
+    .two-col, .kanban, .form-row { grid-template-columns: 1fr; }
+  }
+
+  @media print {
+    @page { size: A4 landscape; margin: 10mm; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .sidebar, .topbar, .no-print, .modal-footer, .modal-header .close-btn { display: none !important; }
+    body, .main-wrap, .content, .card, .modal-backdrop, .modal { position: static; background: #fff; box-shadow: none; border: none; margin: 0; padding: 0; max-width: 100%; max-height: none; }
+    #pcTable { border-collapse: collapse; width: 100%; border: 1px solid #000 !important; }
+    #pcTable th, #pcTable td { border: 1px solid #000 !important; font-size: 13px; }
+    #pcTable .pc-title { background: #b9d2e6 !important; color: #000 !important; border: 1px solid #000 !important; font-weight: 700; }
+    #pcTable .pc-group-in, #pcTable .pc-group-out { background: #ffffff !important; color: #000 !important; border: 1px solid #000 !important; font-weight: 700; }
+    #pcTable .pc-sub { background: #9bc2e3 !important; color: #000 !important; border: 1px solid #000 !important; font-weight: 700; }
+    #pcTable .pc-balance-prev { background: #cfdce4 !important; color: #000 !important; border: 1px solid #000 !important; }
+    #pcTable .pc-total, #pcTable .pc-total td { background: #ffffff !important; color: #000 !important; border: 1px solid #000 !important; font-weight: 700; }
+    #pcTable .pc-cf-empty { background: transparent !important; border: none !important; }
+    #pcTable .pc-cf-label { background: #ffffff !important; color: #000 !important; border-top: none !important; border-left: 1px solid #000 !important; border-right: 1px solid #000 !important; border-bottom: 1px solid #000 !important; font-weight: 700; text-align: right; }
+    #pcTable .pc-cf-val { background: #ffffff !important; color: #000 !important; border-top: none !important; border-left: 1px solid #000 !important; border-right: 1px solid #000 !important; border-bottom: 1px solid #000 !important; font-weight: 700; text-align: right; text-decoration: underline; }
+    #pcTable .pc-divider { border-right: 1px solid #000 !important; }
+    #pcTable .pc-amt-in, #pcTable .pc-amt-out, #pcTable .pc-amt-cf { color: #000 !important; }
+  }
+</style>
+
+</head>
+<body>
+  <div id="loadingBar" class="loading-bar hidden"></div>
+
+  <!-- Login Screen -->
+  <div id="loginView" class="login-wrap">
+    <div class="login-card">
+      <img src="logo.jpg" onerror="this.src='https://jade-office-system-app.netlify.app/logo.jpg'" alt="Logo" class="login-logo">
+      <h1 style="text-align:center;">System Manager</h1>
+      <p style="text-align:center;">Sign in with your team profile and PIN</p>
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="loginUser">Team Member</label>
+          <select id="loginUser" required>
+            <option value="">Loading users...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="loginPin">PIN</label>
+          <input type="password" id="loginPin" placeholder="Enter 4-digit PIN" required maxlength="10">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Sign In</button>
+      </form>
+      <p style="margin-top:14px; font-size:11px; color:#94a3b8; text-align:center;">
+        Default Admin PIN: 1234 (Change in Settings)
+      </p>
+    </div>
+  </div>
+
+  <!-- Main App Shell -->
+  <div id="appShell" class="app-shell hidden">
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-brand">
+        <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+          <img src="logo.jpg" onerror="this.src='https://jade-office-system-app.netlify.app/logo.jpg'" alt="Logo" class="sidebar-logo">
+          <span id="brandName" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">System Manager</span>
+        </div>
+        <button class="btn btn-sm btn-secondary hidden" id="closeSidebarBtn" onclick="toggleSidebar(false)">✕</button>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="dashboard" onclick="navigate('dashboard')">📊 Dashboard</button>
+        <button class="nav-item" data-view="invoices" onclick="navigate('invoices')">🧾 Invoices</button>
+        <button class="nav-item" data-view="outstanding" onclick="navigate('outstanding')">⏳ Outstanding</button>
+        <button class="nav-item" data-view="inventory" onclick="navigate('inventory')">📦 Stock</button>
+        <button class="nav-item" data-view="callReport" onclick="navigate('callReport')">📞 Call Report</button>
+        <button class="nav-item" data-view="projectReport" onclick="navigate('projectReport')">🏗️ Project Report</button>
+        <button class="nav-item" data-view="pettyCash" onclick="navigate('pettyCash')">💵 Petty Cash</button>
+        <button class="nav-item" data-view="customers" onclick="navigate('customers')">👥 Customers</button>
+        <button class="nav-item" data-view="employees" onclick="navigate('employees')">🧑‍💼 Employees</button>
+        <div id="customSidebarTabs"></div>
+        <div class="nav-divider"></div>
+        <button class="nav-item" data-view="reports" onclick="navigate('reports')">📈 Custom Reports</button>
+        <button class="nav-item" data-view="import" onclick="navigate('import')">📥 Import Excel / CSV</button>
+        <button class="nav-item" data-view="settings" onclick="navigate('settings')">⚙️ Settings &amp; Customize</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="sidebarUser" style="font-weight:600; color:#fff;"></div>
+        <div id="sidebarRole" style="color:#94a3b8; margin-bottom:8px;"></div>
+        <button class="btn btn-sm btn-secondary" style="width:100%;" onclick="logout()">Sign Out</button>
+      </div>
+    </aside>
+
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="menu-btn" onclick="toggleSidebar(true)">☰</button>
+          <div class="topbar-title" id="pageTitle">Dashboard</div>
+        </div>
+        <div class="topbar-right">
+          <span id="autoSyncBadge" class="badge badge-info" title="Auto-syncs with Google Drive every 5 minutes">Auto-Sync: 5m</span>
+          <button class="btn btn-sm btn-secondary" onclick="refreshData(true)" title="Sync with Google Sheets & Drive">↻ Sync Now</button>
+          <span id="clockActionArea"></span>
+        </div>
+      </header>
+
+      <main class="content" id="mainContent"></main>
+    </div>
+  </div>
+
+  <!-- Reusable Modal -->
+  <div id="modalBackdrop" class="modal-backdrop hidden">
+    <div id="modalBox" class="modal">
+      <div class="modal-header">
+        <h3 id="modalTitle">Modal</h3>
+        <button class="btn btn-sm btn-secondary close-btn" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer" id="modalFooter"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script>
+(function() {
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbzfn1m3mHHvNp4gRIPzVND721AsWGp0YbJzos2ziJ_jzrLweDGO4oMnJyaghFI_zlNnJQ/exec';
+  function makeRunner(ok, err) {
+    return new Proxy({}, {
+      get(_, prop) {
+        if (prop === 'withSuccessHandler') return (fn) => makeRunner(fn, err);
+        if (prop === 'withFailureHandler') return (fn) => makeRunner(ok, fn);
+        return (...args) => {
+          fetch(GAS_URL, {
+            method: 'POST',
+            redirect: 'follow',
+            body: JSON.stringify({ action: prop, args: args })
+          })
+          .then(r => r.json())
+          .then(data => {
+            if (data && data.ok) {
+              if (ok) ok(data.result);
+            } else {
+              const e = new Error((data && data.error) || 'API Error');
+              if (err) err(e);
+            }
+          })
+          .catch(e => {
+            if (err) err(e);
+          });
+        };
+      }
+    });
+  }
+  window.google = { script: { run: makeRunner(null, null) } };
+})();
+</script>
+<script>
+  const state = {
+    user: null,
+    view: 'dashboard',
+    invTab: 'invoices',
+    outTab: 'debtors',
+    empTab: 'directory',
+    attTab: 'attendance',
+    data: {
+      settings: {},
+      users: [],
+      customers: [],
+      inventory: [],
+      invoices: [],
+      invoiceItems: [],
+      creditors: [],
+      pettyCash: [],
+      callReports: [],
+      projectReports: [],
+      employees: [],
+      customTabs: [],
+      customTabRows: [],
+      transactions: [],
+      attendance: [],
+      leaves: [],
+      tasks: [],
+      savedReports: [],
+      today: ''
+    }
+  };
+
+  /* ==========================================================================
+   * Utilities & GAS Bridge
+   * ======================================================================== */
+
+  function gas(fnName, ...args) {
+    document.getElementById('loadingBar').classList.remove('hidden');
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(res => {
+          document.getElementById('loadingBar').classList.add('hidden');
+          resolve(res);
+        })
+        .withFailureHandler(err => {
+          document.getElementById('loadingBar').classList.add('hidden');
+          const msg = err && err.message ? err.message : String(err);
+          showToast('Error: ' + msg);
+          reject(err);
+        })[fnName](...args);
+    });
+  }
+
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => el.classList.add('hidden'), 3200);
+  }
+
+  function esc(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function fmtMoney(num) {
+    const cur = state.data.settings.Currency || 'LKR';
+    const val = Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return cur + ' ' + val;
+  }
+
+  function toggleSidebar(open) {
+    document.getElementById('sidebar').classList.toggle('open', open);
+  }
+
+  function openModal(title, bodyHtml, footerHtml, large = false) {
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalBody').innerHTML = bodyHtml;
+    document.getElementById('modalFooter').innerHTML = footerHtml || '';
+    document.getElementById('modalBox').classList.toggle('modal-lg', large);
+    document.getElementById('modalBackdrop').classList.remove('hidden');
+  }
+
+  function closeModal() {
+    document.getElementById('modalBackdrop').classList.add('hidden');
+  }
+
+  /* ==========================================================================
+   * Auth & Init
+   * ======================================================================== */
+
+  window.addEventListener('DOMContentLoaded', async () => {
+    try {
+      const users = await gas('getLoginUsers');
+      const sel = document.getElementById('loginUser');
+      sel.innerHTML = users.map(u => `<option value="${esc(u.UserId)}">${esc(u.Name)} (${esc(u.Role)})</option>`).join('');
+    } catch (e) {}
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const userId = document.getElementById('loginUser').value;
+      const pin = document.getElementById('loginPin').value;
+      try {
+        const user = await gas('authenticateUser', userId, pin);
+        state.user = user;
+        document.getElementById('loginView').classList.add('hidden');
+        document.getElementById('appShell').classList.remove('hidden');
+        document.getElementById('sidebarUser').textContent = user.Name;
+        document.getElementById('sidebarRole').textContent = user.Role;
+        await refreshData();
+        startAutoSync();
+      } catch (err) {}
+    });
+  });
+
+  function logout() {
+    state.user = null;
+    document.getElementById('loginPin').value = '';
+    document.getElementById('appShell').classList.add('hidden');
+    document.getElementById('loginView').classList.remove('hidden');
+  }
+
+  async function refreshData(backupToDrive = false) {
+    if (backupToDrive) {
+      try { await gas('autoSyncDriveBackup'); } catch (e) {}
+    }
+    const data = await gas('getAppData');
+    state.data = data;
+    document.getElementById('brandName').textContent = data.settings.CompanyName || 'System Manager';
+    renderCustomSidebarTabs();
+    renderTopbarClock();
+    renderView();
+    if (backupToDrive) showToast('Synced with Google Drive!');
+  }
+
+  function renderCustomSidebarTabs() {
+    const el = document.getElementById('customSidebarTabs');
+    if (!el) return;
+    el.innerHTML = (state.data.customTabs || []).map(t => `
+      <button class="nav-item ${state.view === 'customTab:' + t.TabId ? 'active' : ''}" data-view="customTab:${esc(t.TabId)}" onclick="navigate('customTab:${esc(t.TabId)}')">
+        ${esc(t.Icon || '📋')} ${esc(t.Name)}
+      </button>
+    `).join('');
+  }
+
+  let _syncSecondsLeft = 300;
+  function startAutoSync() {
+    clearInterval(window._autoSyncTimer);
+    _syncSecondsLeft = 300;
+    window._autoSyncTimer = setInterval(async () => {
+      _syncSecondsLeft--;
+      if (_syncSecondsLeft <= 0) {
+        _syncSecondsLeft = 300;
+        if (state.user) {
+          await refreshData(true);
+        }
+      }
+      const m = Math.floor(_syncSecondsLeft / 60);
+      const s = String(_syncSecondsLeft % 60).padStart(2, '0');
+      const badge = document.getElementById('autoSyncBadge');
+      if (badge) badge.textContent = `Auto-Sync: ${m}:${s}`;
+    }, 1000);
+  }
+
+  function navigate(view) {
+    state.view = view;
+    document.querySelectorAll('.nav-item').forEach(b => {
+      b.classList.toggle('active', b.dataset.view === view);
+    });
+    toggleSidebar(false);
+    renderView();
+  }
+
+  function renderTopbarClock() {
+    const todayAtt = state.data.attendance.find(a => a.UserId === state.user.UserId && a.Date === state.data.today);
+    const el = document.getElementById('clockActionArea');
+    if (!todayAtt) {
+      el.innerHTML = `<button class="btn btn-sm btn-success" onclick="handleClockIn()">Clock In</button>`;
+    } else if (!todayAtt.ClockOut) {
+      el.innerHTML = `<button class="btn btn-sm btn-danger" onclick="handleClockOut()">Clock Out (${esc(todayAtt.ClockIn)})</button>`;
+    } else {
+      el.innerHTML = `<span class="badge badge-success">Done ${esc(todayAtt.ClockIn)} - ${esc(todayAtt.ClockOut)}</span>`;
+    }
+  }
+
+  async function handleClockIn() {
+    await gas('clockInUser', state.user.UserId, state.user.Name);
+    showToast('Clocked in!');
+    await refreshData();
+  }
+
+  async function handleClockOut() {
+    await gas('clockOutUser', state.user.UserId);
+    showToast('Clocked out!');
+    await refreshData();
+  }
+
+  function renderView() {
+    if (state.view.startsWith('customTab:')) {
+      const tabId = state.view.split(':')[1];
+      const tab = (state.data.customTabs || []).find(t => t.TabId === tabId);
+      document.getElementById('pageTitle').textContent = tab ? tab.Name : 'Custom Tab';
+      renderCustomTabView(tabId);
+      return;
+    }
+
+    const titles = {
+      dashboard: 'Dashboard',
+      invoices: 'Invoices & Billing',
+      outstanding: 'Outstanding (Debtors & Creditors)',
+      callReport: 'Call Report',
+      projectReport: 'Project Report',
+      pettyCash: 'Petty Cash Book',
+      customers: 'Customers',
+      employees: 'Employees, Attendance & Leave',
+      inventory: 'Stock Management',
+      tasks: 'Tasks & Projects',
+      reports: 'Custom Reports & Analytics',
+      import: 'Import Excel / CSV Data',
+      settings: 'Settings & Customize System'
+    };
+    document.getElementById('pageTitle').textContent = titles[state.view] || 'Office System';
+
+    const handlers = {
+      dashboard: renderDashboard,
+      invoices: renderInvoicesView,
+      outstanding: renderOutstandingView,
+      callReport: () => renderTemplateReportView('CallReports'),
+      projectReport: () => renderTemplateReportView('ProjectReports'),
+      pettyCash: renderPettyCashView,
+      customers: renderCustomersView,
+      employees: renderEmployeesView,
+      inventory: renderInventoryView,
+      tasks: renderTasksView,
+      reports: renderReportsView,
+      import: renderImportView,
+      settings: renderSettingsView
+    };
+    (handlers[state.view] || renderDashboard)();
+  }
+
+  function daysBetween(dateStr, refDateStr) {
+    if (!dateStr) return 0;
+    const d1 = new Date(dateStr);
+    const d2 = new Date(refDateStr || state.data.today || new Date().toISOString().slice(0, 10));
+    if (isNaN(d1) || isNaN(d2)) return 0;
+    return Math.floor((d2 - d1) / (1000 * 60 * 60 * 24));
+  }
+
+  function getCustomerOverdueInfo(customerId) {
+    if (!customerId) return { blocked: false, maxDays: 0, balance: 0 };
+    const unpaid = state.data.invoices.filter(i =>
+      i.CustomerId === customerId &&
+      i.Status !== 'Paid' && i.Status !== 'Cancelled' && i.Status !== 'Draft' &&
+      (Number(i.Total || 0) - Number(i.PaidAmount || 0)) > 0
+    );
+    let maxDays = 0;
+    let balance = 0;
+    unpaid.forEach(i => {
+      const bal = Number(i.Total || 0) - Number(i.PaidAmount || 0);
+      balance += bal;
+      const d = daysBetween(i.DueDate || i.Date, state.data.today);
+      if (d > maxDays) maxDays = d;
+    });
+    return { blocked: maxDays > 120, maxDays, balance };
+  }
+
+  /* ==========================================================================
+   * 1. Dashboard
+   * ======================================================================== */
+
+  function renderDashboard() {
+    const { invoices, transactions, inventory, tasks, attendance, today } = state.data;
+    const totalIncome = transactions.filter(t => t.Type === 'Income').reduce((s, t) => s + Number(t.Amount || 0), 0);
+    const totalExpense = transactions.filter(t => t.Type === 'Expense').reduce((s, t) => s + Number(t.Amount || 0), 0);
+    const pendingInv = invoices.filter(i => i.Status === 'Pending');
+    const pendingSum = pendingInv.reduce((s, i) => s + Number(i.Total || 0), 0);
+    const lowStock = inventory.filter(i => Number(i.StockQty) <= Number(i.ReorderLevel));
+    const openTasks = tasks.filter(t => t.Status !== 'Done');
+    const todayAtt = attendance.filter(a => a.Date === today);
+
+    document.getElementById('mainContent').innerHTML = `
+      <div class="kpi-grid">
+        <div class="card">
+          <div class="kpi-label">Net Balance</div>
+          <div class="kpi-val">${fmtMoney(totalIncome - totalExpense)}</div>
+          <div class="kpi-sub">Income: ${fmtMoney(totalIncome)}</div>
+        </div>
+        <div class="card">
+          <div class="kpi-label">Pending Invoices</div>
+          <div class="kpi-val">${fmtMoney(pendingSum)}</div>
+          <div class="kpi-sub">${pendingInv.length} unpaid invoice(s)</div>
+        </div>
+        <div class="card">
+          <div class="kpi-label">Low Stock Alerts</div>
+          <div class="kpi-val" style="color:${lowStock.length ? 'var(--danger)' : 'var(--success)'}">${lowStock.length}</div>
+          <div class="kpi-sub">${inventory.length} total items tracked</div>
+        </div>
+        <div class="card">
+          <div class="kpi-label">Open Tasks</div>
+          <div class="kpi-val">${openTasks.length}</div>
+          <div class="kpi-sub">${todayAtt.length} / ${state.data.users.length} clocked in today</div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="section-header">
+            <h3>Recent Invoices</h3>
+            <button class="btn btn-sm btn-primary" onclick="navigate('invoices'); openInvoiceModal()">+ New Invoice</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>No</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead>
+              <tbody>
+                ${invoices.slice(-5).reverse().map(i => `
+                  <tr>
+                    <td><b>${esc(i.InvoiceNo)}</b></td>
+                    <td>${esc(i.CustomerName)}</td>
+                    <td>${fmtMoney(i.Total)}</td>
+                    <td>${statusBadge(i.Status)}</td>
+                  </tr>
+                `).join('') || '<tr><td colspan="4" style="color:var(--muted)">No invoices yet.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-header">
+            <h3>Low Stock Items</h3>
+            <button class="btn btn-sm btn-secondary" onclick="navigate('inventory')">View All</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>SKU</th><th>Item</th><th>Stock</th><th>Reorder</th></tr></thead>
+              <tbody>
+                ${lowStock.slice(0, 6).map(i => `
+                  <tr>
+                    <td>${esc(i.SKU)}</td>
+                    <td>${esc(i.Name)}</td>
+                    <td><span class="badge badge-danger">${i.StockQty} ${esc(i.Unit)}</span></td>
+                    <td>${i.ReorderLevel}</td>
+                  </tr>
+                `).join('') || '<tr><td colspan="4" style="color:var(--muted)">All stock levels are healthy.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function statusBadge(status) {
+    const map = {
+      Paid: 'badge-success', Approved: 'badge-success', Done: 'badge-success', Present: 'badge-success',
+      Pending: 'badge-warning', 'In Progress': 'badge-warning', Late: 'badge-warning',
+      Cancelled: 'badge-danger', Rejected: 'badge-danger', High: 'badge-danger',
+      Draft: 'badge-muted', 'To Do': 'badge-info', Medium: 'badge-info', Low: 'badge-muted'
+    };
+    return `<span class="badge ${map[status] || 'badge-muted'}">${esc(status)}</span>`;
+  }
+
+  /* ==========================================================================
+   * 2. Invoicing, Orders & Accounts
+   * ======================================================================== */
+
+  function renderInvoicesView() {
+    const tab = state.invTab;
+    let body = '';
+    if (tab === 'invoices') {
+      const rows = [...state.data.invoices].reverse();
+      body = `
+        <div class="section-header">
+          <input class="search-input" id="invSearch" placeholder="Search invoices..." oninput="filterTable('invTable', this.value)">
+          <button class="btn btn-primary" onclick="openInvoiceModal()">+ New Invoice / Order</button>
+        </div>
+        <div class="card table-wrap">
+          <table id="invTable">
+            <thead><tr><th>Invoice #</th><th>Date</th><th>Customer</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${rows.map(i => `
+                <tr>
+                  <td><b>${esc(i.InvoiceNo)}</b></td>
+                  <td>${esc(i.Date)}</td>
+                  <td>${esc(i.CustomerName)}</td>
+                  <td>${fmtMoney(i.Total)}</td>
+                  <td>${statusBadge(i.Status)}</td>
+                  <td>
+                    <button class="btn btn-sm btn-secondary" onclick="printInvoice('${esc(i.InvoiceId)}')">Print</button>
+                    <button class="btn btn-sm btn-secondary" onclick="openInvoiceModal('${esc(i.InvoiceId)}')">Edit</button>
+                    <button class="btn btn-sm btn-danger" onclick="removeInvoice('${esc(i.InvoiceId)}')">Del</button>
+                  </td>
+                </tr>
+              `).join('') || '<tr><td colspan="6" style="color:var(--muted)">No invoices created yet.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      `;
+    } else {
+      const txs = [...state.data.transactions].reverse();
+      const inc = txs.filter(t => t.Type === 'Income').reduce((s, t) => s + Number(t.Amount || 0), 0);
+      const exp = txs.filter(t => t.Type === 'Expense').reduce((s, t) => s + Number(t.Amount || 0), 0);
+      body = `
+        <div class="kpi-grid">
+          <div class="card"><div class="kpi-label">Total Income</div><div class="kpi-val" style="color:var(--success)">${fmtMoney(inc)}</div></div>
+          <div class="card"><div class="kpi-label">Total Expenses</div><div class="kpi-val" style="color:var(--danger)">${fmtMoney(exp)}</div></div>
+          <div class="card"><div class="kpi-label">Net Profit</div><div class="kpi-val">${fmtMoney(inc - exp)}</div></div>
+        </div>
+        <div class="section-header">
+          <input class="search-input" placeholder="Search transactions..." oninput="filterTable('txTable', this.value)">
+          <button class="btn btn-primary" onclick="openTxModal()">+ Record Income / Expense</button>
+        </div>
+        <div class="card table-wrap">
+          <table id="txTable">
+            <thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Description</th><th>Amount</th><th>By</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${txs.map(t => `
+                <tr>
+                  <td>${esc(t.Date)}</td>
+                  <td><span class="badge ${t.Type === 'Income' ? 'badge-success' : 'badge-danger'}">${esc(t.Type)}</span></td>
+                  <td>${esc(t.Category)}</td>
+                  <td>${esc(t.Description)}</td>
+                  <td><b>${fmtMoney(t.Amount)}</b></td>
+                  <td>${esc(t.RecordedBy)}</td>
+                  <td><button class="btn btn-sm btn-danger" onclick="removeTx('${esc(t.TxId)}')">Del</button></td>
+                </tr>
+              `).join('') || '<tr><td colspan="7" style="color:var(--muted)">No transactions recorded.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    document.getElementById('mainContent').innerHTML = `
+      <div class="tabs">
+        <button class="tab-btn ${tab === 'invoices' ? 'active' : ''}" onclick="state.invTab='invoices'; renderInvoicesView()">Invoices & Orders</button>
+        <button class="tab-btn ${tab === 'accounts' ? 'active' : ''}" onclick="state.invTab='accounts'; renderInvoicesView()">Income & Expenses</button>
+      </div>
+      ${body}
+    `;
+  }
+
+  let _invLines = [];
+
+  function openInvoiceModal(invoiceId) {
+    const inv = invoiceId ? state.data.invoices.find(i => i.InvoiceId === invoiceId) : {
+      InvoiceNo: '', CustomerId: '', CustomerName: '', Date: state.data.today, DueDate: state.data.today, Status: 'Pending', Discount: 0, PaidAmount: 0, Notes: ''
+    };
+    _invLines = invoiceId
+      ? state.data.invoiceItems.filter(li => li.InvoiceId === invoiceId).map(x => ({ ...x }))
+      : [{ ItemId: '', ItemName: '', Qty: 1, UnitPrice: 0 }];
+
+    const custOpts = state.data.customers.map(c =>
+      `<option value="${esc(c.CustomerId)}" ${inv.CustomerId === c.CustomerId ? 'selected' : ''}>${esc(c.Name)}${c.Company ? ' - ' + esc(c.Company) : ''}</option>`
+    ).join('');
+
+    openModal(
+      invoiceId ? 'Edit Invoice ' + inv.InvoiceNo : 'New Standard Invoice',
+      `
+        <div id="invOverdueAlert" class="alert-danger hidden">
+          <b>⛔ BLOCKED (&gt; 120 Days Overdue):</b> <span id="invOverdueMsg"></span>
+          <div class="form-group" style="margin-top:8px; margin-bottom:0;">
+            <label style="color:#991b1b;">Enter Your Login PIN/Password to Override &amp; Issue Invoice</label>
+            <input type="password" id="fInvOverridePin" placeholder="Enter your Login PIN (${esc(state.user.Name)})">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Customer</label>
+            <select id="fInvCust" onchange="checkInvCustomerBlock()">
+              <option value="">-- Walk-in / Select Customer --</option>
+              ${custOpts}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="fInvStatus">
+              ${['Draft', 'Pending', 'Partial', 'Paid', 'Cancelled'].map(s => `<option ${inv.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Invoice Date</label><input type="date" id="fInvDate" value="${esc(inv.Date)}"></div>
+          <div class="form-group"><label>Due Date</label><input type="date" id="fInvDue" value="${esc(inv.DueDate)}"></div>
+        </div>
+        <div style="margin:12px 0;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <b>Line Items</b>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="addInvLine()">+ Add Line</button>
+          </div>
+          <div id="invLinesContainer"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Discount Amount</label><input type="number" step="0.01" id="fInvDisc" value="${Number(inv.Discount || 0)}" oninput="updateInvTotals()"></div>
+          <div class="form-group"><label>Paid Amount</label><input type="number" step="0.01" id="fInvPaid" value="${Number(inv.PaidAmount || 0)}" oninput="updateInvTotals()"></div>
+        </div>
+        <div style="text-align:right; font-size:15px; margin-top:6px;" id="invTotalsPreview"></div>
+        <div class="form-group" style="margin-top:10px;"><label>Terms &amp; Notes</label><textarea id="fInvNotes" rows="2">${esc(inv.Notes)}</textarea></div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="submitInvoice('${esc(invoiceId || '')}')">Save Invoice</button>`,
+      true
+    );
+    renderInvLines();
+    checkInvCustomerBlock();
+  }
+
+  function checkInvCustomerBlock() {
+    const custId = document.getElementById('fInvCust').value;
+    const info = getCustomerOverdueInfo(custId);
+    const alertEl = document.getElementById('invOverdueAlert');
+    if (info.blocked) {
+      document.getElementById('invOverdueMsg').textContent =
+        `This customer has unpaid invoices overdue by ${info.maxDays} days (Balance: ${fmtMoney(info.balance)}).`;
+      alertEl.classList.remove('hidden');
+    } else {
+      alertEl.classList.add('hidden');
+    }
+  }
+
+  function renderInvLines() {
+    const invOpts = state.data.inventory.map(it => `<option value="${esc(it.ItemId)}">${esc(it.Name)} (${it.StockQty} ${esc(it.Unit)})</option>`).join('');
+    document.getElementById('invLinesContainer').innerHTML = _invLines.map((ln, idx) => `
+      <div style="display:grid; grid-template-columns:2fr 1.5fr 70px 100px 36px; gap:6px; margin-bottom:6px; align-items:center;">
+        <select onchange="pickInvItem(${idx}, this.value)">
+          <option value="">-- Custom Item --</option>
+          ${invOpts}
+        </select>
+        <input placeholder="Item name" value="${esc(ln.ItemName)}" oninput="_invLines[${idx}].ItemName=this.value">
+        <input type="number" min="1" value="${ln.Qty}" oninput="_invLines[${idx}].Qty=Number(this.value); updateInvTotals()">
+        <input type="number" step="0.01" value="${ln.UnitPrice}" oninput="_invLines[${idx}].UnitPrice=Number(this.value); updateInvTotals()">
+        <button type="button" class="btn btn-sm btn-danger" onclick="_invLines.splice(${idx},1); renderInvLines()">✕</button>
+      </div>
+    `).join('');
+
+    // Set selected dropdown values
+    const selects = document.querySelectorAll('#invLinesContainer select');
+    _invLines.forEach((ln, idx) => { if (selects[idx]) selects[idx].value = ln.ItemId || ''; });
+    updateInvTotals();
+  }
+
+  function pickInvItem(idx, itemId) {
+    const item = state.data.inventory.find(x => x.ItemId === itemId);
+    _invLines[idx].ItemId = itemId;
+    if (item) {
+      _invLines[idx].ItemName = item.Name;
+      _invLines[idx].UnitPrice = Number(item.UnitPrice) || 0;
+    }
+    renderInvLines();
+  }
+
+  function addInvLine() {
+    _invLines.push({ ItemId: '', ItemName: '', Qty: 1, UnitPrice: 0 });
+    renderInvLines();
+  }
+
+  function updateInvTotals() {
+    const sub = _invLines.reduce((s, l) => s + (Number(l.Qty || 0) * Number(l.UnitPrice || 0)), 0);
+    const disc = Number(document.getElementById('fInvDisc')?.value || 0);
+    const taxable = Math.max(0, sub - disc);
+    const taxRate = Number(state.data.settings.TaxRate || 0);
+    const tax = taxable * (taxRate / 100);
+    const total = taxable + tax;
+    const paid = Number(document.getElementById('fInvPaid')?.value || 0);
+    const bal = Math.max(0, total - paid);
+    document.getElementById('invTotalsPreview').innerHTML =
+      `Subtotal: <b>${fmtMoney(sub)}</b> | Discount: <b>${fmtMoney(disc)}</b> | Tax (${taxRate}%): <b>${fmtMoney(tax)}</b> | Total: <b>${fmtMoney(total)}</b> | Balance: <b style="color:var(--danger)">${fmtMoney(bal)}</b>`;
+    return { sub, disc, tax, total, paid };
+  }
+
+  async function submitInvoice(invoiceId) {
+    const custId = document.getElementById('fInvCust').value;
+    const status = document.getElementById('fInvStatus').value;
+    const info = getCustomerOverdueInfo(custId);
+
+    // Block >120 day overdue customers unless Login PIN override is verified
+    if (info.blocked && status !== 'Draft' && status !== 'Cancelled') {
+      const pin = document.getElementById('fInvOverridePin')?.value || '';
+      if (!pin) {
+        showToast('Blocked: Customer is >120 days overdue. Enter your Login PIN to issue!');
+        return;
+      }
+      try {
+        await gas('authenticateUser', state.user.UserId, pin);
+      } catch (e) {
+        showToast('Invalid Login PIN! Invoice blocked.');
+        return;
+      }
+    }
+
+    const cust = state.data.customers.find(c => c.CustomerId === custId);
+    const { sub, disc, tax, total, paid } = updateInvTotals();
+    const existing = invoiceId ? state.data.invoices.find(i => i.InvoiceId === invoiceId) : null;
+    const finalPaid = status === 'Paid' ? total : paid;
+
+    const payload = {
+      invoice: {
+        InvoiceId: invoiceId || '',
+        InvoiceNo: existing ? existing.InvoiceNo : '',
+        CustomerId: custId,
+        CustomerName: cust ? cust.Name : 'Walk-in Customer',
+        Date: document.getElementById('fInvDate').value,
+        DueDate: document.getElementById('fInvDue').value,
+        Status: status,
+        Subtotal: sub,
+        Discount: disc,
+        TaxAmount: tax,
+        Total: total,
+        PaidAmount: finalPaid,
+        Notes: document.getElementById('fInvNotes').value,
+        CreatedBy: state.user.Name
+      },
+      items: _invLines.filter(l => l.ItemName.trim() !== '')
+    };
+
+    await gas('saveInvoice', payload);
+    closeModal();
+    showToast('Invoice saved!');
+    await refreshData();
+  }
+
+  async function removeInvoice(id) {
+    if (!confirm('Delete this invoice? Stock will be restored.')) return;
+    await gas('deleteInvoice', id);
+    showToast('Invoice deleted.');
+    await refreshData();
+  }
+
+  function printInvoice(invoiceId) {
+    const inv = state.data.invoices.find(i => i.InvoiceId === invoiceId);
+    const items = state.data.invoiceItems.filter(li => li.InvoiceId === invoiceId);
+    const s = state.data.settings;
+    openModal(
+      'Invoice ' + inv.InvoiceNo,
+      `
+        <div style="padding:10px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
+            <div>
+              <h2>${esc(s.CompanyName)}</h2>
+              <div>${esc(s.Address)}</div>
+              <div>${esc(s.Phone)} | ${esc(s.Email)}</div>
+            </div>
+            <div style="text-align:right;">
+              <h3>INVOICE</h3>
+              <div><b>#${esc(inv.InvoiceNo)}</b></div>
+              <div>Date: ${esc(inv.Date)}</div>
+              <div>Due: ${esc(inv.DueDate)}</div>
+            </div>
+          </div>
+          <div style="margin-bottom:16px;"><b>Bill To:</b> ${esc(inv.CustomerName)}</div>
+          <table>
+            <thead><tr><th>Item</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead>
+            <tbody>
+              ${items.map(li => `<tr><td>${esc(li.ItemName)}</td><td>${li.Qty}</td><td>${fmtMoney(li.UnitPrice)}</td><td>${fmtMoney(li.LineTotal)}</td></tr>`).join('')}
+            </tbody>
+          </table>
+          <div style="text-align:right; margin-top:16px;">
+            <div>Subtotal: ${fmtMoney(inv.Subtotal)}</div>
+            <div>Tax: ${fmtMoney(inv.TaxAmount)}</div>
+            <div style="font-size:18px; font-weight:700; margin-top:4px;">Total: ${fmtMoney(inv.Total)}</div>
+          </div>
+          ${inv.Notes ? `<div style="margin-top:16px; font-size:12px; color:var(--muted)">Notes: ${esc(inv.Notes)}</div>` : ''}
+        </div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Close</button>
+       <button class="btn btn-primary" onclick="window.print()">Print / Save PDF</button>`,
+      true
+    );
+  }
+
+  function openTxModal() {
+    openModal(
+      'Record Income / Expense',
+      `
+        <div class="form-row">
+          <div class="form-group"><label>Date</label><input type="date" id="fTxDate" value="${state.data.today}"></div>
+          <div class="form-group"><label>Type</label><select id="fTxType"><option>Expense</option><option>Income</option></select></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Category</label><input id="fTxCat" placeholder="e.g. Utilities, Rent, Sales"></div>
+          <div class="form-group"><label>Amount</label><input type="number" step="0.01" id="fTxAmt"></div>
+        </div>
+        <div class="form-group"><label>Description</label><input id="fTxDesc" placeholder="Details"></div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="submitTx()">Save</button>`
+    );
+  }
+
+  async function submitTx() {
+    await gas('saveTransaction', {
+      Date: document.getElementById('fTxDate').value,
+      Type: document.getElementById('fTxType').value,
+      Category: document.getElementById('fTxCat').value,
+      Amount: document.getElementById('fTxAmt').value,
+      Description: document.getElementById('fTxDesc').value,
+      RecordedBy: state.user.Name
+    });
+    closeModal();
+    showToast('Transaction saved!');
+    await refreshData();
+  }
+
+  async function removeTx(id) {
+    if (!confirm('Delete this transaction?')) return;
+    await gas('deleteTransaction', id);
+    await refreshData();
+  }
+
+  /* ==========================================================================
+   * 2B. Outstanding (Debtors & Creditors + >120 Days Red Highlight)
+   * ======================================================================== */
+
+  function renderOutstandingView() {
+    const tab = state.outTab;
+    const debtors = state.data.invoices.filter(i =>
+      i.Status !== 'Paid' && i.Status !== 'Cancelled' && i.Status !== 'Draft' &&
+      (Number(i.Total || 0) - Number(i.PaidAmount || 0)) > 0
+    );
+    const totalDebtors = debtors.reduce((s, i) => s + (Number(i.Total || 0) - Number(i.PaidAmount || 0)), 0);
+    const overdue120Debtors = debtors.filter(i => daysBetween(i.DueDate || i.Date, state.data.today) > 120).length;
+
+    const creditors = state.data.creditors.filter(c =>
+      c.Status !== 'Paid' && (Number(c.TotalAmount || 0) - Number(c.PaidAmount || 0)) > 0
+    );
+    const totalCreditors = creditors.reduce((s, c) => s + (Number(c.TotalAmount || 0) - Number(c.PaidAmount || 0)), 0);
+    const overdue120Creditors = creditors.filter(c => daysBetween(c.DueDate || c.Date, state.data.today) > 120).length;
+
+    let body = '';
+    if (tab === 'debtors') {
+      body = `
+        <div class="section-header">
+          <input class="search-input" placeholder="Search debtors..." oninput="filterTable('debtorsTable', this.value)">
+          <span style="font-size:12px; color:var(--danger); font-weight:600;">Red rows = Overdue &gt; 120 days (New invoices blocked)</span>
+        </div>
+        <div class="card table-wrap">
+          <table id="debtorsTable">
+            <thead><tr><th>Invoice #</th><th>Customer</th><th>Due Date</th><th>Days Overdue</th><th>Total</th><th>Paid</th><th>Balance Due</th><th>Action</th></tr></thead>
+            <tbody>
+              ${debtors.map(i => {
+                const bal = Number(i.Total || 0) - Number(i.PaidAmount || 0);
+                const days = daysBetween(i.DueDate || i.Date, state.data.today);
+                const isOver120 = days > 120;
+                return `
+                  <tr class="${isOver120 ? 'row-overdue' : ''}">
+                    <td><b>${esc(i.InvoiceNo)}</b></td>
+                    <td>${esc(i.CustomerName)}</td>
+                    <td>${esc(i.DueDate || i.Date)}</td>
+                    <td>${days > 0 ? `<span class="badge ${isOver120 ? 'badge-danger' : 'badge-warning'}">${days} days</span>` : '<span class="badge badge-success">Current</span>'}</td>
+                    <td>${fmtMoney(i.Total)}</td>
+                    <td>${fmtMoney(i.PaidAmount || 0)}</td>
+                    <td><b>${fmtMoney(bal)}</b></td>
+                    <td><button class="btn btn-sm btn-success" onclick="openInvoiceModal('${esc(i.InvoiceId)}')">Update / Pay</button></td>
+                  </tr>
+                `;
+              }).join('') || '<tr><td colspan="8" style="color:var(--muted)">No outstanding debtors.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      `;
+    } else {
+      body = `
+        <div class="section-header">
+          <input class="search-input" placeholder="Search creditors..." oninput="filterTable('creditorsTable', this.value)">
+          <button class="btn btn-primary" onclick="openCreditorModal()">+ Add Creditor Bill</button>
+        </div>
+        <div class="card table-wrap">
+          <table id="creditorsTable">
+            <thead><tr><th>Bill #</th><th>Supplier / Creditor</th><th>Due Date</th><th>Days Overdue</th><th>Total</th><th>Paid</th><th>Balance Due</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${creditors.map(c => {
+                const bal = Number(c.TotalAmount || 0) - Number(c.PaidAmount || 0);
+                const days = daysBetween(c.DueDate || c.Date, state.data.today);
+                const isOver120 = days > 120;
+                return `
+                  <tr class="${isOver120 ? 'row-overdue' : ''}">
+                    <td><b>${esc(c.BillNo)}</b></td>
+                    <td>${esc(c.SupplierName)}</td>
+                    <td>${esc(c.DueDate || c.Date)}</td>
+                    <td>${days > 0 ? `<span class="badge ${isOver120 ? 'badge-danger' : 'badge-warning'}">${days} days</span>` : '<span class="badge badge-success">Current</span>'}</td>
+                    <td>${fmtMoney(c.TotalAmount)}</td>
+                    <td>${fmtMoney(c.PaidAmount || 0)}</td>
+                    <td><b>${fmtMoney(bal)}</b></td>
+                    <td>
+                      <button class="btn btn-sm btn-secondary" onclick="openCreditorModal('${esc(c.CreditorId)}')">Pay / Edit</button>
+                      <button class="btn btn-sm btn-danger" onclick="removeCreditor('${esc(c.CreditorId)}')">Del</button>
+                    </td>
+                  </tr>
+                `;
+              }).join('') || '<tr><td colspan="8" style="color:var(--muted)">No outstanding creditors.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    document.getElementById('mainContent').innerHTML = `
+      <div class="kpi-grid">
+        <div class="card"><div class="kpi-label">Debtors Receivable (ණයගැතියන්)</div><div class="kpi-val">${fmtMoney(totalDebtors)}</div><div class="kpi-sub" style="color:var(--danger)">${overdue120Debtors} overdue &gt; 120 days</div></div>
+        <div class="card"><div class="kpi-label">Creditors Payable (ණයහිමියන්)</div><div class="kpi-val">${fmtMoney(totalCreditors)}</div><div class="kpi-sub" style="color:var(--danger)">${overdue120Creditors} overdue &gt; 120 days</div></div>
+      </div>
+      <div class="tabs">
+        <button class="tab-btn ${tab === 'debtors' ? 'active' : ''}" onclick="state.outTab='debtors'; renderOutstandingView()">Debtors (Receivables)</button>
+        <button class="tab-btn ${tab === 'creditors' ? 'active' : ''}" onclick="state.outTab='creditors'; renderOutstandingView()">Creditors (Payables)</button>
+      </div>
+      ${body}
+    `;
+  }
+
+  function openCreditorModal(id) {
+    const c = id ? state.data.creditors.find(x => x.CreditorId === id) : {
+      SupplierName: '', BillNo: '', Date: state.data.today, DueDate: state.data.today, TotalAmount: 0, PaidAmount: 0, Notes: ''
+    };
+    openModal(
+      id ? 'Edit Creditor Bill' : 'Add Creditor / Supplier Bill',
+      `
+        <div class="form-row">
+          <div class="form-group"><label>Supplier / Creditor Name</label><input id="fCrSup" value="${esc(c.SupplierName)}"></div>
+          <div class="form-group"><label>Bill / Reference No</label><input id="fCrBill" value="${esc(c.BillNo)}"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Bill Date</label><input type="date" id="fCrDate" value="${esc(c.Date)}"></div>
+          <div class="form-group"><label>Due Date</label><input type="date" id="fCrDue" value="${esc(c.DueDate)}"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Total Amount</label><input type="number" step="0.01" id="fCrTot" value="${c.TotalAmount}"></div>
+          <div class="form-group"><label>Paid Amount</label><input type="number" step="0.01" id="fCrPaid" value="${c.PaidAmount}"></div>
+        </div>
+        <div class="form-group"><label>Notes</label><textarea id="fCrNotes" rows="2">${esc(c.Notes)}</textarea></div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="submitCreditor('${esc(id || '')}')">Save Bill</button>`
+    );
+  }
+
+  async function submitCreditor(id) {
+    await gas('saveCreditor', {
+      CreditorId: id,
+      SupplierName: document.getElementById('fCrSup').value,
+      BillNo: document.getElementById('fCrBill').value,
+      Date: document.getElementById('fCrDate').value,
+      DueDate: document.getElementById('fCrDue').value,
+      TotalAmount: document.getElementById('fCrTot').value,
+      PaidAmount: document.getElementById('fCrPaid').value,
+      Notes: document.getElementById('fCrNotes').value
+    });
+    closeModal();
+    showToast('Creditor bill saved!');
+    await refreshData();
+  }
+
+  async function removeCreditor(id) {
+    if (!confirm('Delete this creditor bill?')) return;
+    await gas('deleteCreditor', id);
+    await refreshData();
+  }
+
+  /* ==========================================================================
+   * 2C. Call Report & Project Report (User-Uploaded Template Engine)
+   * ======================================================================== */
+
+  const DEFAULT_TEMPLATES = {
+    CallReports: ['Date', 'Customer', 'ContactPerson', 'Phone', 'Purpose', 'Outcome', 'NextFollowUp', 'Staff'],
+    ProjectReports: ['ProjectName', 'Client', 'StartDate', 'EndDate', 'Budget', 'Spent', 'Status', 'Progress%', 'Manager', 'Remarks']
+  };
+
+  function getTemplateCols(sheetName) {
+    const key = sheetName === 'CallReports' ? 'CallReportTemplate' : 'ProjectReportTemplate';
+    const raw = state.data.settings[key];
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) return parsed;
+      } catch (e) {}
+    }
+    return DEFAULT_TEMPLATES[sheetName];
+  }
+
+  function renderTemplateReportView(sheetName) {
+    const isCall = sheetName === 'CallReports';
+    const cols = getTemplateCols(sheetName);
+    const idField = isCall ? 'CallId' : 'ProjId';
+    const rawList = isCall ? state.data.callReports : state.data.projectReports;
+    const rows = rawList.map(r => {
+      let data = {};
+      try { data = JSON.parse(r.DataJson || '{}'); } catch (e) {}
+      return { _id: r[idField], _by: r.CreatedBy, ...data };
+    }).reverse();
+
+    document.getElementById('mainContent').innerHTML = `
+      <div class="card no-print" style="margin-bottom:16px;">
+        <div class="section-header">
+          <div>
+            <h3>${isCall ? 'Call Report' : 'Project Report'} (Template-Based)</h3>
+            <p style="font-size:12px; color:var(--muted);">Upload your own Excel/CSV file to set the exact columns and import existing rows automatically.</p>
+          </div>
+          <div class="section-actions">
+            <label class="btn btn-sm btn-secondary" style="cursor:pointer; margin:0;">
+              📤 Upload Template &amp; Data (.xlsx/.csv)
+              <input type="file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="uploadTemplateFile('${sheetName}', this.files[0])">
+            </label>
+            <button class="btn btn-sm btn-secondary" onclick="exportTemplateRows('${sheetName}')">⬇ Export Excel</button>
+            <button class="btn btn-sm btn-primary" onclick="openTemplateRowModal('${sheetName}')">+ New Entry</button>
+          </div>
+        </div>
+        <div style="font-size:12px; color:var(--muted);">
+          <b>Active Columns:</b> ${cols.map(c => `<span class="badge badge-muted" style="margin-right:4px;">${esc(c)}</span>`).join('')}
+        </div>
+      </div>
+
+      <div class="card table-wrap">
+        <div class="section-header no-print">
+          <input class="search-input" placeholder="Search ${isCall ? 'call reports' : 'project reports'}..." oninput="filterTable('tplTable', this.value)">
+        </div>
+        <table id="tplTable">
+          <thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join('')}<th>Actions</th></tr></thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                ${cols.map(c => `<td>${esc(r[c] ?? '')}</td>`).join('')}
+                <td>
+                  <button class="btn btn-sm btn-secondary" onclick="openTemplateRowModal('${sheetName}', '${esc(r._id)}')">Edit</button>
+                  <button class="btn btn-sm btn-danger" onclick="removeTemplateRow('${sheetName}', '${esc(r._id)}')">Del</button>
+                </td>
+              </tr>
+            `).join('') || `<tr><td colspan="${cols.length + 1}" style="color:var(--muted)">No entries yet. Upload your Excel/CSV template or click "+ New Entry".</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function uploadTemplateFile(sheetName, file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        let json = [];
+        if (typeof XLSX !== 'undefined') {
+          const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          json = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+        } else {
+          const text = new TextDecoder().decode(e.target.result);
+          const lines = text.split(/\r?\n/).filter(l => l.trim());
+          const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+          json = lines.slice(1).map(l => {
+            const cols = l.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+            const obj = {};
+            headers.forEach((h, i) => { obj[h] = cols[i] || ''; });
+            return obj;
+          });
+        }
+        if (!json.length) { showToast('Uploaded file is empty.'); return; }
+        const cols = Object.keys(json[0]);
+        const settingKey = sheetName === 'CallReports' ? 'CallReportTemplate' : 'ProjectReportTemplate';
+        await gas('saveSettings', { [settingKey]: JSON.stringify(cols) });
+        if (confirm(`Detected ${cols.length} columns and ${json.length} rows. Import all ${json.length} rows now?`)) {
+          await gas('importReportEntries', sheetName, json, state.user.Name);
+        }
+        showToast('Template & data updated!');
+        await refreshData();
+      } catch (err) {
+        showToast('Error reading file: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function openTemplateRowModal(sheetName, id) {
+    const cols = getTemplateCols(sheetName);
+    const idField = sheetName === 'CallReports' ? 'CallId' : 'ProjId';
+    const rawList = sheetName === 'CallReports' ? state.data.callReports : state.data.projectReports;
+    const existing = id ? rawList.find(x => x[idField] === id) : null;
+    let data = {};
+    if (existing) {
+      try { data = JSON.parse(existing.DataJson || '{}'); } catch (e) {}
+    }
+
+    openModal(
+      (id ? 'Edit ' : 'New ') + (sheetName === 'CallReports' ? 'Call Report' : 'Project Report'),
+      cols.map((c, idx) => `
+        <div class="form-group">
+          <label>${esc(c)}</label>
+          <input id="fTpl_${idx}" value="${esc(data[c] ?? (/date/i.test(c) && !id ? state.data.today : ''))}">
+        </div>
+      `).join(''),
+      `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="submitTemplateRow('${sheetName}', '${esc(id || '')}')">Save</button>`
+    );
+  }
+
+  async function submitTemplateRow(sheetName, id) {
+    const cols = getTemplateCols(sheetName);
+    const idField = sheetName === 'CallReports' ? 'CallId' : 'ProjId';
+    const obj = {};
+    cols.forEach((c, idx) => {
+      obj[c] = document.getElementById('fTpl_' + idx).value;
+    });
+    await gas('saveReportEntry', sheetName, {
+      [idField]: id,
+      DataJson: JSON.stringify(obj),
+      CreatedBy: state.user.Name
+    });
+    closeModal();
+    showToast('Saved!');
+    await refreshData();
+  }
+
+  async function removeTemplateRow(sheetName, id) {
+    if (!confirm('Delete this entry?')) return;
+    await gas('deleteReportEntry', sheetName, id);
+    await refreshData();
+  }
+
+  function exportTemplateRows(sheetName) {
+    const cols = getTemplateCols(sheetName);
+    const rawList = sheetName === 'CallReports' ? state.data.callReports : state.data.projectReports;
+    const rows = rawList.map(r => {
+      try { return JSON.parse(r.DataJson || '{}'); } catch (e) { return {}; }
+    });
+    if (typeof XLSX !== 'undefined') {
+      const ws = XLSX.utils.json_to_sheet(rows, { header: cols });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      XLSX.writeFile(wb, `${sheetName}_${state.data.today}.xlsx`);
+    }
+  }
+
+  /* ==========================================================================
+   * 2D. Petty Cash Book (Exact Petty cash format.xlsx Layout: In | Out)
+   * ======================================================================== */
+
+  const _pcState = {
+    mode: 'daily', // 'daily' | 'monthly'
+    date: '',
+    month: ''
+  };
+
+  function renderPettyCashView() {
+    const today = state.data.today || new Date().toISOString().slice(0, 10);
+    if (!_pcState.date) _pcState.date = today;
+    if (!_pcState.month) _pcState.month = today.slice(0, 7);
+
+    const all = state.data.pettyCash || [];
+    const isIn = (p) => p.Type === 'In' || p.Type === 'Cash In';
+    const isOut = (p) => p.Type === 'Out' || p.Type === 'Cash Out';
+
+    const periodStart = _pcState.mode === 'daily' ? _pcState.date : (_pcState.month + '-01');
+    const prevRows = all.filter(p => String(p.Date) < periodStart);
+    const prevBalance = prevRows.reduce((s, p) => s + (isIn(p) ? Number(p.Amount || 0) : -Number(p.Amount || 0)), 0);
+
+    const currentRows = all.filter(p =>
+      _pcState.mode === 'daily'
+        ? String(p.Date) === _pcState.date
+        : String(p.Date).startsWith(_pcState.month)
+    );
+
+    const inRows = currentRows.filter(isIn);
+    const outRows = currentRows.filter(isOut);
+
+    const periodInSum = inRows.reduce((s, p) => s + Number(p.Amount || 0), 0);
+    const totalInWithBF = prevBalance + periodInSum;
+    const totalOut = outRows.reduce((s, p) => s + Number(p.Amount || 0), 0);
+    const balanceCF = totalInWithBF - totalOut;
+
+    const maxLen = Math.max(inRows.length + 1, outRows.length, 5);
+    const prevLabel = _pcState.mode === 'daily'
+      ? `Balance from previous day`
+      : `Balance from previous month`;
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const [yy, mm] = _pcState.month.split('-');
+    const monthTitle = `${monthNames[Number(mm) - 1] || mm} ${yy}`;
+    const reportTitle = _pcState.mode === 'daily'
+      ? `Daily Petty Cash Report - Office - ${_pcState.date.replace(/-/g, '.')}`
+      : `Petty Cash Collection Report - Office - ${monthTitle}`;
+
+    let bodyRows = '';
+    for (let i = 0; i < maxLen; i++) {
+      let inCells = '';
+      if (i === 0) {
+        inCells = `<td class="pc-balance-prev"></td><td class="pc-balance-prev"><b>${esc(prevLabel)}</b></td><td class="pc-balance-prev pc-divider" style="text-align:right;"><b>${fmtMoney(prevBalance)}</b></td>`;
+      } else {
+        const inItem = inRows[i - 1];
+        inCells = inItem
+          ? `<td>${esc(inItem.Date)}</td><td>${esc(inItem.ReceiptNo || inItem.VoucherNo)} <button class="btn btn-sm btn-danger no-print" style="padding:1px 5px;font-size:10px;" onclick="removePettyCash('${esc(inItem.PcId)}')">✕</button></td><td style="text-align:right;">${fmtMoney(inItem.Amount)}</td>`
+          : `<td>&nbsp;</td><td></td><td></td>`;
+      }
+
+      const outItem = outRows[i];
+      const outCells = outItem
+        ? `<td>${esc(outItem.Date)}</td><td>${esc(outItem.ReceiptNo || outItem.VoucherNo)}</td><td>${esc(outItem.PaidTo)}</td><td>${esc(outItem.Description)} <button class="btn btn-sm btn-danger no-print" style="padding:1px 5px;font-size:10px;" onclick="removePettyCash('${esc(outItem.PcId)}')">✕</button></td><td style="text-align:right;">${fmtMoney(outItem.Amount)}</td>`
+        : `<td>&nbsp;</td><td></td><td></td><td></td><td></td>`;
+
+      bodyRows += `<tr>${inCells}${outCells}</tr>`;
+    }
+
+    document.getElementById('mainContent').innerHTML = `
+      <div class="tabs no-print">
+        <button class="tab-btn ${_pcState.mode === 'daily' ? 'active' : ''}" onclick="_pcState.mode='daily'; renderPettyCashView()">Daily Petty Cash Report</button>
+        <button class="tab-btn ${_pcState.mode === 'monthly' ? 'active' : ''}" onclick="_pcState.mode='monthly'; renderPettyCashView()">Monthly Collection Report</button>
+      </div>
+
+      <div class="kpi-grid no-print">
+        <div class="card"><div class="kpi-label">Balance B/F</div><div class="kpi-val">${fmtMoney(prevBalance)}</div></div>
+        <div class="card"><div class="kpi-label">Total In (incl. B/F)</div><div class="kpi-val" style="color:var(--success)">${fmtMoney(totalInWithBF)}</div></div>
+        <div class="card"><div class="kpi-label">Total Out</div><div class="kpi-val" style="color:var(--danger)">${fmtMoney(totalOut)}</div></div>
+        <div class="card"><div class="kpi-label">Balance Carry Forward</div><div class="kpi-val" style="color:var(--primary)">${fmtMoney(balanceCF)}</div></div>
+      </div>
+
+      <div class="section-header no-print">
+        <div class="section-actions">
+          ${_pcState.mode === 'daily'
+            ? `<input type="date" style="width:auto;" value="${esc(_pcState.date)}" onchange="_pcState.date=this.value; renderPettyCashView()">`
+            : `<input type="month" style="width:auto;" value="${esc(_pcState.month)}" onchange="_pcState.month=this.value; renderPettyCashView()">`
+          }
+          <label class="btn btn-sm btn-secondary" style="cursor:pointer; margin:0;">
+            📤 Import Excel
+            <input type="file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importPettyCashFormat(this.files[0])">
+          </label>
+          <button class="btn btn-sm btn-secondary" onclick="exportPettyCashExcel()">⬇ Export Excel</button>
+          <button class="btn btn-sm btn-secondary" onclick="window.print()">🖨 Print</button>
+        </div>
+        <div class="section-actions">
+          <button class="btn btn-success" onclick="openPettyCashModal('In')">+ Add In (Cash/Invoice)</button>
+          <button class="btn btn-primary" onclick="openPettyCashModal('Out')">+ Add Out (Expense)</button>
+        </div>
+      </div>
+
+      <div class="card table-wrap">
+        <table id="pcTable" style="border:1px solid #cbd5e1; border-collapse:collapse;">
+          <thead>
+            <tr>
+              <th colspan="8" class="pc-title" style="text-align:center; font-size:16px; font-weight:700; padding:12px; background:#231f20; color:#ffffff; border-bottom:3px solid #00a651;">
+                ${esc(reportTitle)}
+              </th>
+            </tr>
+            <tr>
+              <th colspan="3" class="pc-group-in pc-divider" style="text-align:center; font-size:13px; font-weight:700; background:#00a651; color:#ffffff; border-right:2px solid #074626;">IN (Receipts)</th>
+              <th colspan="5" class="pc-group-out" style="text-align:center; font-size:13px; font-weight:700; background:#dc2626; color:#ffffff;">OUT (Payments)</th>
+            </tr>
+            <tr>
+              <th class="pc-sub" style="background:#ebf8f2; color:#074626;">Date</th>
+              <th class="pc-sub" style="background:#ebf8f2; color:#074626;">Invoice no</th>
+              <th class="pc-sub pc-divider" style="text-align:right; background:#ebf8f2; color:#074626; border-right:2px solid #074626;">Amount</th>
+              <th class="pc-sub" style="background:#fef2f2; color:#991b1b;">Date:</th>
+              <th class="pc-sub" style="background:#fef2f2; color:#991b1b;">Bill No:</th>
+              <th class="pc-sub" style="background:#fef2f2; color:#991b1b;">Received By</th>
+              <th class="pc-sub" style="background:#fef2f2; color:#991b1b;">Description</th>
+              <th class="pc-sub" style="text-align:right; background:#fef2f2; color:#991b1b;">Amount:</th>
+            </tr>
+          </thead>
+          <tbody>${bodyRows}</tbody>
+          <tfoot>
+            <tr class="pc-total" style="background:#f1f5f9; font-weight:700; color:#231f20;">
+              <td></td><td>Total</td><td class="pc-divider pc-amt-in" style="text-align:right; color:#00a651; border-right:2px solid #074626;">${fmtMoney(periodInSum)}</td>
+              <td colspan="4" style="text-align:right;">Total</td><td class="pc-amt-out" style="text-align:right; color:#dc2626;">${fmtMoney(totalOut)}</td>
+            </tr>
+            <tr class="pc-cf" style="background:#ebf8f2; font-weight:700; font-size:14px;">
+              <td colspan="3" class="pc-divider pc-cf-empty" style="border-right:2px solid #074626; background:#ebf8f2;"></td>
+              <td colspan="4" class="pc-cf-label" style="text-align:right; color:#074626; background:#ebf8f2;">Balance carry forward</td>
+              <td class="pc-amt-cf pc-cf-val" style="text-align:right; color:#00a651; background:#ebf8f2; font-size:15px;">${fmtMoney(balanceCF)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    `;
+  }
+
+  function openPettyCashModal(defaultType = 'Out') {
+    const isIn = defaultType === 'In';
+    openModal(
+      isIn ? 'Add Petty Cash IN (Receipt / Invoice)' : 'Add Petty Cash OUT (Expense)',
+      `
+        <div class="form-row">
+          <div class="form-group"><label>Date</label><input type="date" id="fPcDate" value="${esc(_pcState.date || state.data.today)}"></div>
+          <div class="form-group"><label>Type</label><select id="fPcType"><option value="In" ${isIn ? 'selected' : ''}>In</option><option value="Out" ${!isIn ? 'selected' : ''}>Out</option></select></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>${isIn ? 'Invoice No / Balance Note' : 'Bill No'}</label><input id="fPcRec" placeholder="${isIn ? 'e.g. INV-1005' : 'e.g. B-204'}"></div>
+          <div class="form-group"><label>Amount</label><input type="number" step="0.01" id="fPcAmt" required></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Received By</label><input id="fPcTo" value="${esc(state.user.Name)}"></div>
+          <div class="form-group"><label>Description</label><input id="fPcDesc" placeholder="Details..."></div>
+        </div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="submitPettyCash()">Save Entry</button>`
+    );
+  }
+
+  async function submitPettyCash() {
+    await gas('savePettyCash', {
+      Date: document.getElementById('fPcDate').value,
+      Type: document.getElementById('fPcType').value,
+      Category: document.getElementById('fPcType').value === 'In' ? 'Petty Cash In' : 'Petty Cash Out',
+      Amount: document.getElementById('fPcAmt').value,
+      PaidTo: document.getElementById('fPcTo').value,
+      ReceiptNo: document.getElementById('fPcRec').value,
+      Description: document.getElementById('fPcDesc').value,
+      RecordedBy: state.user.Name
+    });
+    closeModal();
+    showToast('Petty cash entry saved!');
+    await refreshData();
+  }
+
+  function exportPettyCashExcel() {
+    if (typeof XLSX === 'undefined') return;
+    const table = document.getElementById('pcTable');
+    const wb = XLSX.utils.table_to_book(table, { sheet: _pcState.mode === 'daily' ? 'Daily Petty Cash' : 'Monthly Petty Cash' });
+    XLSX.writeFile(wb, `Petty_Cash_${_pcState.mode === 'daily' ? _pcState.date : _pcState.month}.xlsx`);
+  }
+
+  function importPettyCashFormat(file) {
+    if (!file || typeof XLSX === 'undefined') return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      const toImport = [];
+      rows.forEach(r => {
+        // Check In side (Cols B,C,D -> idx 1,2,3) and Out side (Cols E,F,G,H,I -> idx 4,5,6,7,8)
+        const inAmt = Number(r[3]);
+        if (r[1] && !isNaN(inAmt) && inAmt > 0 && !/date/i.test(String(r[1]))) {
+          toImport.push({ Date: String(r[1]).slice(0, 10), Type: 'In', ReceiptNo: String(r[2]), Amount: inAmt, Description: 'Imported In', RecordedBy: state.user.Name });
+        }
+        const outAmt = Number(r[8]);
+        if (r[4] && !isNaN(outAmt) && outAmt > 0 && !/date/i.test(String(r[4]))) {
+          toImport.push({ Date: String(r[4]).slice(0, 10), Type: 'Out', ReceiptNo: String(r[5]), PaidTo: String(r[6]), Description: String(r[7]), Amount: outAmt, RecordedBy: state.user.Name });
+        }
+      });
+      if (toImport.length) {
+        await gas('importRecords', 'PettyCash', toImport);
+        showToast(`Imported ${toImport.length} petty cash entries!`);
+        await refreshData();
+      } else {
+        showToast('No valid In/Out entries found in file.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  async function removePettyCash(id) {
+    if (!confirm('Delete this petty cash voucher?')) return;
+    await gas('deletePettyCash', id);
+    await refreshData();
+  }
+
+  /* ==========================================================================
+   * 3. Inventory & Stock
+   * ======================================================================== */
+
+  function renderInventoryView() {
+    const items = state.data.inventory;
+    const totalVal = items.reduce((s, it) => s + ((Number(it.UnitPrice) || 0) * (Number(it.StockQty) || 0)), 0);
+    const lowCount = items.filter(it => Number(it.StockQty) <= Number(it.ReorderLevel)).length;
+
+    document.getElementById('mainContent').innerHTML = `
+      <div class="kpi-grid">
+        <div class="card"><div class="kpi-label">Total Stock Items</div><div class="kpi-val">${items.length}</div></div>
+        <div class="card"><div class="kpi-label">Total Stock Value</div><div class="kpi-val">${fmtMoney(totalVal)}</div></div>
+        <div class="card"><div class="kpi-label">Low / Out of Stock</div><div class="kpi-val" style="color:${lowCount ? 'var(--danger)' : 'var(--success)'}">${lowCount}</div></div>
+      </div>
+      <div class="section-header">
+        <input class="search-input" placeholder="Search stock by SKU, name, category..." oninput="filterTable('stockTable', this.value)">
+        <div class="section-actions">
+          <button class="btn btn-secondary" onclick="exportStockExcel()">⬇ Export Stock</button>
+          <button class="btn btn-primary" onclick="openInventoryModal()">+ Add Stock Item</button>
+        </div>
+      </div>
+      <div class="card table-wrap">
+        <table id="stockTable">
+          <thead><tr><th>SKU</th><th>Item Name</th><th>Category</th><th>Unit Price</th><th>Stock Qty</th><th>Stock Value</th><th>Status</th><th>Quick Adjust</th><th>Actions</th></tr></thead>
+          <tbody>
+            ${items.map(it => {
+              const qty = Number(it.StockQty) || 0;
+              const val = qty * (Number(it.UnitPrice) || 0);
+              const low = qty <= Number(it.ReorderLevel);
+              const badge = qty <= 0 ? 'badge-danger">Out of Stock' : (low ? 'badge-warning">Low Stock' : 'badge-success">In Stock');
+              return `
+                <tr class="${qty <= 0 ? 'row-overdue' : ''}">
+                  <td>${esc(it.SKU)}</td>
+                  <td><b>${esc(it.Name)}</b></td>
+                  <td>${esc(it.Category)}</td>
+                  <td>${fmtMoney(it.UnitPrice)}</td>
+                  <td><b>${qty}</b> ${esc(it.Unit)}</td>
+                  <td>${fmtMoney(val)}</td>
+                  <td><span class="badge ${badge}</span></td>
+                  <td>
+                    <button class="btn btn-sm btn-secondary" onclick="adjustStockQuick('${esc(it.ItemId)}', 1)">+1</button>
+                    <button class="btn btn-sm btn-secondary" onclick="adjustStockQuick('${esc(it.ItemId)}', -1)">-1</button>
+                  </td>
+                  <td>
+                    <button class="btn btn-sm btn-secondary" onclick="openInventoryModal('${esc(it.ItemId)}')">Edit</button>
+                    <button class="btn btn-sm btn-danger" onclick="removeInventory('${esc(it.ItemId)}')">Del</button>
+                  </td>
+                </tr>
+              `;
+            }).join('') || '<tr><td colspan="9" style="color:var(--muted)">No stock items yet.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  async function adjustStockQuick(itemId, delta) {
+    const it = state.data.inventory.find(x => x.ItemId === itemId);
+    if (!it) return;
+    await gas('saveInventoryItem', { ...it, StockQty: Math.max(0, (Number(it.StockQty) || 0) + delta) });
+    await refreshData();
+  }
+
+  function exportStockExcel() {
+    if (typeof XLSX === 'undefined') return;
+    const ws = XLSX.utils.json_to_sheet(state.data.inventory);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Stock');
+    XLSX.writeFile(wb, `Stock_${state.data.today}.xlsx`);
+  }
+
+  function openInventoryModal(itemId) {
+    const it = itemId ? state.data.inventory.find(x => x.ItemId === itemId) : {
+      SKU: '', Name: '', Category: 'General', UnitPrice: 0, StockQty: 0, ReorderLevel: 5, Unit: 'pcs'
+    };
+    openModal(
+      itemId ? 'Edit Item' : 'Add Inventory Item',
+      `
+        <div class="form-row">
+          <div class="form-group"><label>SKU / Code</label><input id="fItSku" value="${esc(it.SKU)}"></div>
+          <div class="form-group"><label>Category</label><input id="fItCat" value="${esc(it.Category)}"></div>
+        </div>
+        <div class="form-group"><label>Item Name</label><input id="fItName" value="${esc(it.Name)}"></div>
+        <div class="form-row">
+          <div class="form-group"><label>Unit Price</label><input type="number" step="0.01" id="fItPrice" value="${it.UnitPrice}"></div>
+          <div class="form-group"><label>Unit (pcs, kg, L)</label><input id="fItUnit" value="${esc(it.Unit)}"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Current Stock Qty</label><input type="number" id="fItQty" value="${it.StockQty}"></div>
+          <div class="form-group"><label>Reorder Alert Level</label><input type="number" id="fItReo" value="${it.ReorderLevel}"></div>
+        </div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="submitInventory('${esc(itemId || '')}')">Save Item</button>`
+    );
+  }
+
+  async function submitInventory(itemId) {
+    await gas('saveInventoryItem', {
+      ItemId: itemId,
+      SKU: document.getElementById('fItSku').value,
+      Name: document.getElementById('fItName').value,
+      Category: document.getElementById('fItCat').value,
+      UnitPrice: document.getElementById('fItPrice').value,
+      Unit: document.getElementById('fItUnit').value,
+      StockQty: document.getElementById('fItQty').value,
+      ReorderLevel: document.getElementById('fItReo').value
+    });
+    closeModal();
+    showToast('Inventory updated!');
+    await refreshData();
+  }
+
+  async function removeInventory(id) {
+    if (!confirm('Delete this item?')) return;
+    await gas('deleteInventoryItem', id);
+    await refreshData();
+  }
+
+  /* ==========================================================================
+   * 4. Customers (CRM)
+   * ======================================================================== */
+
+  function renderCustomersView() {
+    const custs = state.data.customers;
+    document.getElementById('mainContent').innerHTML = `
+      <div class="section-header">
+        <input class="search-input" placeholder="Search customers..." oninput="filterTable('custTable', this.value)">
+        <button class="btn btn-primary" onclick="openCustomerModal()">+ Add Customer</button>
+      </div>
+      <div class="card table-wrap">
+        <table id="custTable">
+          <thead><tr><th>Name</th><th>Company</th><th>Phone</th><th>Credit Limit</th><th>Outstanding</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>
+            ${custs.map(c => {
+              const info = getCustomerOverdueInfo(c.CustomerId);
+              return `
+                <tr class="${info.blocked ? 'row-overdue' : ''}">
+                  <td><b>${esc(c.Name)}</b><div style="font-size:11px; color:var(--muted)">${esc(c.Email)}</div></td>
+                  <td>${esc(c.Company)}</td>
+                  <td>${esc(c.Phone)}</td>
+                  <td>${fmtMoney(c.CreditLimit || 0)}</td>
+                  <td><b>${fmtMoney(info.balance)}</b></td>
+                  <td>${info.blocked ? `<span class="badge badge-danger">BLOCKED (${info.maxDays}d)</span>` : `<span class="badge badge-success">Active</span>`}</td>
+                  <td>
+                    <button class="btn btn-sm btn-secondary" onclick="openCustomerModal('${esc(c.CustomerId)}')">Edit</button>
+                    <button class="btn btn-sm btn-danger" onclick="removeCustomer('${esc(c.CustomerId)}')">Del</button>
+                  </td>
+                </tr>
+              `;
+            }).join('') || '<tr><td colspan="7" style="color:var(--muted)">No customers added yet.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function openCustomerModal(custId) {
+    const c = custId ? state.data.customers.find(x => x.CustomerId === custId) : {
+      Name: '', Company: '', Phone: '', Email: '', Address: '', CreditLimit: 0, PaymentTerms: 'Net 30', Notes: ''
+    };
+    openModal(
+      custId ? 'Edit Customer' : 'Add Customer',
+      `
+        <div class="form-row">
+          <div class="form-group"><label>Name</label><input id="fCuName" value="${esc(c.Name)}"></div>
+          <div class="form-group"><label>Company</label><input id="fCuComp" value="${esc(c.Company)}"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Phone</label><input id="fCuPhone" value="${esc(c.Phone)}"></div>
+          <div class="form-group"><label>Email</label><input id="fCuEmail" value="${esc(c.Email)}"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Credit Limit</label><input type="number" step="0.01" id="fCuLimit" value="${Number(c.CreditLimit || 0)}"></div>
+          <div class="form-group"><label>Payment Terms</label><input id="fCuTerms" value="${esc(c.PaymentTerms || 'Net 30')}"></div>
+        </div>
+        <div class="form-group"><label>Address</label><input id="fCuAddr" value="${esc(c.Address)}"></div>
+        <div class="form-group"><label>Notes</label><textarea id="fCuNotes" rows="2">${esc(c.Notes)}</textarea></div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="submitCustomer('${esc(custId || '')}')">Save Customer</button>`
+    );
+  }
+
+  async function submitCustomer(custId) {
+    await gas('saveCustomer', {
+      CustomerId: custId,
+      Name: document.getElementById('fCuName').value,
+      Company: document.getElementById('fCuComp').value,
+      Phone: document.getElementById('fCuPhone').value,
+      Email: document.getElementById('fCuEmail').value,
+      CreditLimit: document.getElementById('fCuLimit').value,
+      PaymentTerms: document.getElementById('fCuTerms').value,
+      Address: document.getElementById('fCuAddr').value,
+      Notes: document.getElementById('fCuNotes').value
+    });
+    closeModal();
+    showToast('Customer saved!');
+    await refreshData();
+  }
+
+  async function removeCustomer(id) {
+    if (!confirm('Delete this customer?')) return;
+    await gas('deleteCustomer', id);
+    await refreshData();
+  }
+
+  /* ==========================================================================
+   * 5. Employees, Attendance & Leave
+   * ======================================================================== */
+
+  function renderEmployeesView() {
+    const tab = state.empTab;
+    let body = '';
+    if (tab === 'directory') {
+      const emps = state.data.employees || [];
+      body = `
+        <div class="section-header">
+          <input class="search-input" placeholder="Search employees by name, NIC, position, phone..." oninput="filterTable('empTable', this.value)">
+          <div class="section-actions">
+            <button class="btn btn-secondary" onclick="exportEmployeesExcel()">⬇ Export Excel</button>
+            <button class="btn btn-primary" onclick="openEmployeeModal()">+ Add Employee</button>
+          </div>
+        </div>
+        <div class="card table-wrap">
+          <table id="empTable">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Position</th>
+                <th>National ID (NIC)</th>
+                <th>Gender</th>
+                <th>Phone</th>
+                <th>Emergency Contact</th>
+                <th>Join Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${emps.map(e => `
+                <tr>
+                  <td>
+                    <b>${esc(e.Name)}</b>
+                    ${e.Email ? `<div style="font-size:11px; color:var(--muted);">${esc(e.Email)}</div>` : ''}
+                    ${e.Address ? `<div style="font-size:11px; color:var(--muted);">${esc(e.Address)}</div>` : ''}
+                  </td>
+                  <td><span class="badge badge-info">${esc(e.Position || 'Office Staff')}</span></td>
+                  <td>${esc(e.NIC || '-')}</td>
+                  <td>${esc(e.Gender || '-')}</td>
+                  <td>${esc(e.Phone || '-')}</td>
+                  <td>
+                    ${e.EmergencyContactName ? `<b>${esc(e.EmergencyContactName)}</b>` : '-'}
+                    ${e.EmergencyContactPhone ? `<div style="font-size:11px; color:var(--muted);">${esc(e.EmergencyContactPhone)}</div>` : ''}
+                  </td>
+                  <td>${esc(e.JoinDate || '-')}</td>
+                  <td>${statusBadge(e.Status === 'Active' ? 'Approved' : 'Cancelled')}</td>
+                  <td>
+                    <button class="btn btn-sm btn-secondary" onclick="openEmployeeModal('${esc(e.EmpId)}')">Edit</button>
+                    <button class="btn btn-sm btn-danger" onclick="removeEmployee('${esc(e.EmpId)}')">Del</button>
+                  </td>
+                </tr>
+              `).join('') || '<tr><td colspan="9" style="color:var(--muted)">No employees added yet. Click "+ Add Employee" to create one.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      `;
+    } else if (tab === 'attendance') {
+      const rows = [...(state.data.attendance || [])].reverse();
+      body = `
+        <div class="card table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Team Member</th><th>Clock In</th><th>Clock Out</th><th>Status</th></tr></thead>
+            <tbody>
+              ${rows.map(a => `
+                <tr>
+                  <td>${esc(a.Date)}</td>
+                  <td><b>${esc(a.UserName)}</b></td>
+                  <td>${esc(a.ClockIn)}</td>
+                  <td>${esc(a.ClockOut || '-')}</td>
+                  <td>${statusBadge(a.Status)}</td>
+                </tr>
+              `).join('') || '<tr><td colspan="5" style="color:var(--muted)">No attendance records yet.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      `;
+    } else {
+      const leaves = [...(state.data.leaves || [])].reverse();
+      const isAdmin = state.user.Role === 'Admin';
+      body = `
+        <div class="section-header">
+          <h3>Leave Requests</h3>
+          <button class="btn btn-primary" onclick="openLeaveModal()">+ Request Leave</button>
+        </div>
+        <div class="card table-wrap">
+          <table>
+            <thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Days</th><th>Reason</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody>
+              ${leaves.map(l => `
+                <tr>
+                  <td><b>${esc(l.UserName)}</b></td>
+                  <td>${esc(l.Type)}</td>
+                  <td>${esc(l.StartDate)} → ${esc(l.EndDate)}</td>
+                  <td>${l.Days}</td>
+                  <td>${esc(l.Reason)}</td>
+                  <td>${statusBadge(l.Status)}</td>
+                  <td>
+                    ${isAdmin && l.Status === 'Pending' ? `
+                      <button class="btn btn-sm btn-success" onclick="setLeaveStatus('${esc(l.LeaveId)}','Approved')">Approve</button>
+                      <button class="btn btn-sm btn-danger" onclick="setLeaveStatus('${esc(l.LeaveId)}','Rejected')">Reject</button>
+                    ` : esc(l.ApprovedBy || '-')}
+                  </td>
+                </tr>
+              `).join('') || '<tr><td colspan="7" style="color:var(--muted)">No leave requests.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    document.getElementById('mainContent').innerHTML = `
+      <div class="tabs">
+        <button class="tab-btn ${tab === 'directory' ? 'active' : ''}" onclick="state.empTab='directory'; renderEmployeesView()">Employee Directory</button>
+        <button class="tab-btn ${tab === 'attendance' ? 'active' : ''}" onclick="state.empTab='attendance'; renderEmployeesView()">Daily Attendance</button>
+        <button class="tab-btn ${tab === 'leaves' ? 'active' : ''}" onclick="state.empTab='leaves'; renderEmployeesView()">Leave Requests</button>
+      </div>
+      ${body}
+    `;
+  }
+
+  function openEmployeeModal(id) {
+    const e = id ? (state.data.employees || []).find(x => x.EmpId === id) : {
+      Name: '',
+      Address: '',
+      NIC: '',
+      DOB: '',
+      Gender: 'Male',
+      Position: 'Office Staff',
+      Email: '',
+      Phone: '',
+      EmergencyContactName: '',
+      EmergencyContactPhone: '',
+      JoinDate: state.data.today,
+      Status: 'Active'
+    };
+
+    const positionOptions = ['Office Staff', 'Technical Officer', 'Factory Staff', 'Sales Officer'];
+    const genderOptions = ['Male', 'Female'];
+    const statusOptions = ['Active', 'Inactive'];
+
+    openModal(
+      id ? 'Edit Employee' : 'Add New Employee',
+      `
+        <div class="form-row">
+          <div class="form-group">
+            <label>Full Name *</label>
+            <input id="fEmName" value="${esc(e.Name)}" placeholder="e.g. Kasun Perera" required>
+          </div>
+          <div class="form-group">
+            <label>National ID Number (NIC) *</label>
+            <input id="fEmNic" value="${esc(e.NIC)}" placeholder="e.g. 199512345678 / 951234567V">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Residential Address</label>
+          <input id="fEmAddr" value="${esc(e.Address)}" placeholder="Street, City">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date of Birth</label>
+            <input type="date" id="fEmDob" value="${esc(e.DOB)}">
+          </div>
+          <div class="form-group">
+            <label>Gender *</label>
+            <select id="fEmGender">
+              ${genderOptions.map(g => `<option value="${g}" ${e.Gender === g ? 'selected' : ''}>${g}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Position *</label>
+            <select id="fEmPos">
+              ${positionOptions.map(p => `<option value="${p}" ${e.Position === p ? 'selected' : ''}>${p}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Status *</label>
+            <select id="fEmStat">
+              ${statusOptions.map(s => `<option value="${s}" ${e.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Phone Number *</label>
+            <input id="fEmPhone" value="${esc(e.Phone)}" placeholder="e.g. 077 123 4567">
+          </div>
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" id="fEmEmail" value="${esc(e.Email)}" placeholder="e.g. kasun@jadecoatings.lk">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Emergency Contact Person Name</label>
+            <input id="fEmEmergName" value="${esc(e.EmergencyContactName)}" placeholder="e.g. Spouse / Parent / Relative">
+          </div>
+          <div class="form-group">
+            <label>Emergency Contact Phone Number</label>
+            <input id="fEmEmergPhone" value="${esc(e.EmergencyContactPhone)}" placeholder="e.g. 071 987 6543">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Date of Joining</label>
+          <input type="date" id="fEmJoin" value="${esc(e.JoinDate || state.data.today)}">
+        </div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="submitEmployee('${esc(id || '')}')">Save Employee</button>`
+    );
+  }
+
+  async function submitEmployee(id) {
+    const name = document.getElementById('fEmName').value.trim();
+    if (!name) {
+      showToast('Please enter Employee Name.');
+      return;
+    }
+    await gas('saveEmployee', {
+      EmpId: id,
+      Name: name,
+      Address: document.getElementById('fEmAddr').value.trim(),
+      NIC: document.getElementById('fEmNic').value.trim(),
+      DOB: document.getElementById('fEmDob').value,
+      Gender: document.getElementById('fEmGender').value,
+      Position: document.getElementById('fEmPos').value,
+      Email: document.getElementById('fEmEmail').value.trim(),
+      Phone: document.getElementById('fEmPhone').value.trim(),
+      EmergencyContactName: document.getElementById('fEmEmergName').value.trim(),
+      EmergencyContactPhone: document.getElementById('fEmEmergPhone').value.trim(),
+      JoinDate: document.getElementById('fEmJoin').value,
+      Status: document.getElementById('fEmStat').value
+    });
+    closeModal();
+    showToast('Employee saved successfully!');
+    await refreshData();
+  }
+
+  async function removeEmployee(id) {
+    if (!confirm('Are you sure you want to delete this employee?')) return;
+    await gas('deleteEmployee', id);
+    showToast('Employee deleted.');
+    await refreshData();
+  }
+
+  function exportEmployeesExcel() {
+    if (typeof XLSX === 'undefined') return;
+    const emps = state.data.employees || [];
+    const ws = XLSX.utils.json_to_sheet(emps);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Employees');
+    XLSX.writeFile(wb, `Employees_${state.data.today || new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
+
+  async function removeEmployee(id) {
+    if (!confirm('Delete this employee?')) return;
+    await gas('deleteEmployee', id);
+    await refreshData();
+  }
+
+  function renderAttendanceView() {
+    state.empTab = 'attendance';
+    renderEmployeesView();
+  }
+
+  function openLeaveModal() {
+    openModal(
+      'Request Leave',
+      `
+        <div class="form-row">
+          <div class="form-group"><label>Leave Type</label><select id="fLvType"><option>Annual</option><option>Casual</option><option>Sick</option></select></div>
+          <div class="form-group"><label>Days</label><input type="number" min="0.5" step="0.5" id="fLvDays" value="1"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Start Date</label><input type="date" id="fLvStart" value="${state.data.today}"></div>
+          <div class="form-group"><label>End Date</label><input type="date" id="fLvEnd" value="${state.data.today}"></div>
+        </div>
+        <div class="form-group"><label>Reason</label><textarea id="fLvReason" rows="2"></textarea></div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="submitLeave()">Submit Request</button>`
+    );
+  }
+
+  async function submitLeave() {
+    await gas('saveLeaveRequest', {
+      UserId: state.user.UserId,
+      UserName: state.user.Name,
+      Type: document.getElementById('fLvType').value,
+      Days: document.getElementById('fLvDays').value,
+      StartDate: document.getElementById('fLvStart').value,
+      EndDate: document.getElementById('fLvEnd').value,
+      Reason: document.getElementById('fLvReason').value
+    });
+    closeModal();
+    showToast('Leave request submitted!');
+    await refreshData();
+  }
+
+  async function setLeaveStatus(leaveId, status) {
+    await gas('updateLeaveStatus', leaveId, status, state.user.Name);
+    showToast('Leave ' + status);
+    await refreshData();
+  }
+
+  /* ==========================================================================
+   * 6. Tasks & Projects
+   * ======================================================================== */
+
+  function renderTasksView() {
+    const cols = ['To Do', 'In Progress', 'Done'];
+    document.getElementById('mainContent').innerHTML = `
+      <div class="section-header">
+        <h3>Team Task Board</h3>
+        <button class="btn btn-primary" onclick="openTaskModal()">+ New Task</button>
+      </div>
+      <div class="kanban">
+        ${cols.map(col => {
+          const list = state.data.tasks.filter(t => t.Status === col);
+          return `
+            <div class="kanban-col">
+              <h4><span>${col}</span><span class="badge badge-muted">${list.length}</span></h4>
+              ${list.map(t => `
+                <div class="task-card">
+                  <div style="display:flex; justify-content:space-between; align-items:start; gap:6px;">
+                    <div class="task-title">${esc(t.Title)}</div>
+                    ${statusBadge(t.Priority)}
+                  </div>
+                  <div style="font-size:12px; color:var(--muted);">${esc(t.Project || 'General')}</div>
+                  <div class="task-meta">
+                    <span>👤 ${esc(t.AssigneeName || 'Unassigned')}</span>
+                    <span>📅 ${esc(t.DueDate || '-')}</span>
+                  </div>
+                  <div style="display:flex; gap:4px; margin-top:8px; flex-wrap:wrap;">
+                    <button class="btn btn-sm btn-secondary" onclick="openTaskModal('${esc(t.TaskId)}')">Edit</button>
+                    ${col !== 'In Progress' ? `<button class="btn btn-sm btn-secondary" onclick="moveTask('${esc(t.TaskId)}','In Progress')">In Progress</button>` : ''}
+                    ${col !== 'Done' ? `<button class="btn btn-sm btn-success" onclick="moveTask('${esc(t.TaskId)}','Done')">Done</button>` : ''}
+                  </div>
+                </div>
+              `).join('') || '<div style="font-size:12px; color:var(--muted);">No tasks</div>'}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  function openTaskModal(taskId) {
+    const t = taskId ? state.data.tasks.find(x => x.TaskId === taskId) : {
+      Title: '', Project: '', AssigneeId: state.user.UserId, DueDate: state.data.today, Priority: 'Medium', Status: 'To Do', Notes: ''
+    };
+    const userOpts = state.data.users.map(u => `<option value="${esc(u.UserId)}" ${t.AssigneeId === u.UserId ? 'selected' : ''}>${esc(u.Name)}</option>`).join('');
+    openModal(
+      taskId ? 'Edit Task' : 'New Task',
+      `
+        <div class="form-group"><label>Task Title</label><input id="fTkTitle" value="${esc(t.Title)}"></div>
+        <div class="form-row">
+          <div class="form-group"><label>Project</label><input id="fTkProj" value="${esc(t.Project)}" placeholder="e.g. Office Admin"></div>
+          <div class="form-group"><label>Assign To</label><select id="fTkUser">${userOpts}</select></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Due Date</label><input type="date" id="fTkDue" value="${esc(t.DueDate)}"></div>
+          <div class="form-group"><label>Priority</label><select id="fTkPri">${['Low', 'Medium', 'High'].map(p => `<option ${t.Priority === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+        </div>
+        <div class="form-group"><label>Status</label><select id="fTkStat">${['To Do', 'In Progress', 'Done'].map(s => `<option ${t.Status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Notes</label><textarea id="fTkNotes" rows="2">${esc(t.Notes)}</textarea></div>
+      `,
+      `${taskId ? `<button class="btn btn-danger" onclick="removeTask('${esc(taskId)}')">Delete</button>` : ''}
+       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="submitTask('${esc(taskId || '')}')">Save Task</button>`
+    );
+  }
+
+  async function submitTask(taskId) {
+    const uid = document.getElementById('fTkUser').value;
+    const u = state.data.users.find(x => x.UserId === uid);
+    await gas('saveTask', {
+      TaskId: taskId,
+      Title: document.getElementById('fTkTitle').value,
+      Project: document.getElementById('fTkProj').value,
+      AssigneeId: uid,
+      AssigneeName: u ? u.Name : '',
+      DueDate: document.getElementById('fTkDue').value,
+      Priority: document.getElementById('fTkPri').value,
+      Status: document.getElementById('fTkStat').value,
+      Notes: document.getElementById('fTkNotes').value
+    });
+    closeModal();
+    showToast('Task saved!');
+    await refreshData();
+  }
+
+  async function moveTask(taskId, newStatus) {
+    await gas('saveTask', { TaskId: taskId, Status: newStatus });
+    await refreshData();
+  }
+
+  async function removeTask(taskId) {
+    if (!confirm('Delete this task?')) return;
+    await gas('deleteTask', taskId);
+    closeModal();
+    await refreshData();
+  }
+
+  /* ==========================================================================
+   * 7. Settings & 4-User Management
+   * ======================================================================== */
+
+  function renderSettingsView() {
+    const s = state.data.settings;
+    const isAdmin = state.user.Role === 'Admin';
+    document.getElementById('mainContent').innerHTML = `
+      <div class="two-col">
+        <div class="card">
+          <h3 style="margin-bottom:14px;">Company Settings</h3>
+          <div class="form-group"><label>Company Name</label><input id="sComp" value="${esc(s.CompanyName)}"></div>
+          <div class="form-group"><label>Address</label><input id="sAddr" value="${esc(s.Address)}"></div>
+          <div class="form-row">
+            <div class="form-group"><label>Phone</label><input id="sPhone" value="${esc(s.Phone)}"></div>
+            <div class="form-group"><label>Email</label><input id="sEmail" value="${esc(s.Email)}"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Currency</label><input id="sCur" value="${esc(s.Currency || 'LKR')}"></div>
+            <div class="form-group"><label>Default Tax %</label><input type="number" id="sTax" value="${esc(s.TaxRate || '0')}"></div>
+          </div>
+          ${isAdmin ? `<button class="btn btn-primary" onclick="submitSettings()">Save Settings</button>
+          <button class="btn btn-secondary" style="margin-left:6px;" onclick="enableDriveTrigger()">⏱ Enable 5-Min Drive Auto-Sync</button>` : `<p style="color:var(--muted); font-size:12px;">Only Admin can update settings.</p>`}
+          ${s.LastDriveSync ? `<div style="margin-top:10px; font-size:12px; color:var(--muted);">Last Drive Auto-Sync: <b>${esc(s.LastDriveSync)}</b></div>` : ''}
+          ${s.DriveFolderUrl ? `<div style="margin-top:14px;"><a class="btn btn-sm btn-secondary" href="${esc(s.DriveFolderUrl)}" target="_blank">📁 Open Google Drive Folder</a></div>` : ''}
+        </div>
+
+        <div class="card">
+          <div class="section-header">
+            <h3>Team Users (${state.data.users.length})</h3>
+            ${isAdmin ? `<button class="btn btn-sm btn-primary" onclick="openUserModal()">+ Add User</button>` : ''}
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody>
+                ${state.data.users.map(u => `
+                  <tr>
+                    <td><b>${esc(u.Name)}</b><div style="font-size:11px; color:var(--muted)">${esc(u.Email)}</div></td>
+                    <td>${esc(u.Role)}</td>
+                    <td>${statusBadge(u.Status === 'Active' ? 'Approved' : 'Cancelled')}</td>
+                    <td>${isAdmin ? `<button class="btn btn-sm btn-secondary" onclick="openUserModal('${esc(u.UserId)}')">Edit</button>` : '-'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <div class="section-header">
+          <div>
+            <h3>Custom Tabs &amp; Report Templates</h3>
+            <p style="font-size:12px; color:var(--muted);">Create new sidebar tabs or customize Call/Project Report templates by uploading your own Excel/CSV file.</p>
+          </div>
+          <button class="btn btn-primary" onclick="openCustomTabModal()">+ Add New Custom Tab</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tab / Report</th><th>Columns</th><th>Actions</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><b>📞 Call Report</b> <span class="badge badge-muted">Built-in</span></td>
+                <td>${getTemplateCols('CallReports').map(c => `<span class="badge badge-muted" style="margin-right:3px;">${esc(c)}</span>`).join('')}</td>
+                <td>
+                  <label class="btn btn-sm btn-secondary" style="cursor:pointer; margin:0;">
+                    📤 Upload Template
+                    <input type="file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="uploadTemplateFile('CallReports', this.files[0])">
+                  </label>
+                </td>
+              </tr>
+              <tr>
+                <td><b>🏗️ Project Report</b> <span class="badge badge-muted">Built-in</span></td>
+                <td>${getTemplateCols('ProjectReports').map(c => `<span class="badge badge-muted" style="margin-right:3px;">${esc(c)}</span>`).join('')}</td>
+                <td>
+                  <label class="btn btn-sm btn-secondary" style="cursor:pointer; margin:0;">
+                    📤 Upload Template
+                    <input type="file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="uploadTemplateFile('ProjectReports', this.files[0])">
+                  </label>
+                </td>
+              </tr>
+              ${(state.data.customTabs || []).map(t => {
+                let cols = [];
+                try { cols = JSON.parse(t.ColumnsJson || '[]'); } catch (e) {}
+                return `
+                  <tr>
+                    <td><b>${esc(t.Icon)} ${esc(t.Name)}</b> <span class="badge badge-info">Custom Tab</span></td>
+                    <td>${cols.map(c => `<span class="badge badge-muted" style="margin-right:3px;">${esc(c)}</span>`).join('')}</td>
+                    <td>
+                      <button class="btn btn-sm btn-secondary" onclick="openCustomTabModal('${esc(t.TabId)}')">Edit</button>
+                      <button class="btn btn-sm btn-danger" onclick="removeCustomTab('${esc(t.TabId)}')">Del</button>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  let _ctPendingRows = [];
+  function openCustomTabModal(tabId) {
+    const t = tabId ? (state.data.customTabs || []).find(x => x.TabId === tabId) : { Name: '', Icon: '📋', ColumnsJson: '["Date","Title","Amount","Status","Notes"]' };
+    let cols = [];
+    try { cols = JSON.parse(t.ColumnsJson || '[]'); } catch (e) {}
+    _ctPendingRows = [];
+
+    openModal(
+      tabId ? 'Edit Custom Tab' : 'Create New Custom Tab',
+      `
+        <div class="form-row">
+          <div class="form-group"><label>Tab Name (appears in Left Sidebar)</label><input id="fCtName" value="${esc(t.Name)}" placeholder="e.g. Delivery Log, Vehicle Expenses"></div>
+          <div class="form-group"><label>Icon (Emoji)</label><input id="fCtIcon" value="${esc(t.Icon || '📋')}" maxlength="4"></div>
+        </div>
+        <div class="form-group">
+          <label>Upload Excel / CSV Template (Auto-detects columns &amp; optional data)</label>
+          <input type="file" accept=".xlsx,.xls,.csv" onchange="readCustomTabTemplate(this.files[0])">
+        </div>
+        <div class="form-group">
+          <label>Columns (comma-separated, editable)</label>
+          <textarea id="fCtCols" rows="2">${esc(cols.join(', '))}</textarea>
+        </div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="submitCustomTab('${esc(tabId || '')}')">Save Custom Tab</button>`
+    );
+  }
+
+  function readCustomTabTemplate(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        let json = [];
+        if (typeof XLSX !== 'undefined') {
+          const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          json = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+        }
+        if (json.length) {
+          const cols = Object.keys(json[0]);
+          document.getElementById('fCtCols').value = cols.join(', ');
+          if (!document.getElementById('fCtName').value) {
+            document.getElementById('fCtName').value = file.name.replace(/\.[^.]+$/, '');
+          }
+          _ctPendingRows = json;
+          showToast(`Detected ${cols.length} columns and ${json.length} rows!`);
+        }
+      } catch (err) {
+        showToast('Error reading file: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  async function submitCustomTab(tabId) {
+    const cols = document.getElementById('fCtCols').value.split(',').map(s => s.trim()).filter(Boolean);
+    const saved = await gas('saveCustomTab', {
+      TabId: tabId,
+      Name: document.getElementById('fCtName').value || 'Custom Tab',
+      Icon: document.getElementById('fCtIcon').value || '📋',
+      ColumnsJson: JSON.stringify(cols),
+      CreatedBy: state.user.Name
+    });
+    if (_ctPendingRows.length && confirm(`Import ${_ctPendingRows.length} rows from the uploaded file into "${saved.Name}"?`)) {
+      await gas('importCustomTabRows', saved.TabId, _ctPendingRows, state.user.Name);
+    }
+    _ctPendingRows = [];
+    closeModal();
+    showToast('Custom tab saved!');
+    await refreshData();
+  }
+
+  async function removeCustomTab(tabId) {
+    if (!confirm('Delete this custom tab and all its rows?')) return;
+    await gas('deleteCustomTab', tabId);
+    if (state.view === 'customTab:' + tabId) state.view = 'settings';
+    await refreshData();
+  }
+
+  function renderCustomTabView(tabId) {
+    const tab = (state.data.customTabs || []).find(t => t.TabId === tabId);
+    if (!tab) { renderDashboard(); return; }
+    let cols = [];
+    try { cols = JSON.parse(tab.ColumnsJson || '[]'); } catch (e) {}
+
+    const rows = (state.data.customTabRows || [])
+      .filter(r => r.TabId === tabId)
+      .map(r => {
+        let d = {};
+        try { d = JSON.parse(r.DataJson || '{}'); } catch (e) {}
+        return { _id: r.RowId, ...d };
+      }).reverse();
+
+    // Auto-calculate numeric column totals
+    const totals = {};
+    cols.forEach((c, idx) => {
+      if (idx === 0) { totals[c] = 'TOTAL'; return; }
+      const vals = rows.map(r => r[c]).filter(v => v !== '' && v !== null && v !== undefined);
+      if (vals.length && vals.every(v => !isNaN(Number(String(v).replace(/,/g, ''))))) {
+        const sum = vals.reduce((a, b) => a + Number(String(b).replace(/,/g, '')), 0);
+        totals[c] = Number(sum.toFixed(2)).toLocaleString('en-US', { maximumFractionDigits: 2 });
+      } else {
+        totals[c] = '';
+      }
+    });
+
+    document.getElementById('mainContent').innerHTML = `
+      <div class="section-header no-print">
+        <input class="search-input" placeholder="Search ${esc(tab.Name)}..." oninput="filterTable('ctTable', this.value)">
+        <div class="section-actions">
+          <label class="btn btn-sm btn-secondary" style="cursor:pointer; margin:0;">
+            📤 Import Excel / CSV
+            <input type="file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importIntoCustomTab('${esc(tabId)}', this.files[0])">
+          </label>
+          <button class="btn btn-sm btn-secondary" onclick="exportCustomTabExcel('${esc(tabId)}')">⬇ Export Excel</button>
+          <button class="btn btn-sm btn-primary" onclick="openCustomTabRowModal('${esc(tabId)}')">+ New Entry</button>
+        </div>
+      </div>
+      <div class="card table-wrap">
+        <table id="ctTable">
+          <thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join('')}<th>Actions</th></tr></thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                ${cols.map(c => `<td>${esc(r[c] ?? '')}</td>`).join('')}
+                <td>
+                  <button class="btn btn-sm btn-secondary" onclick="openCustomTabRowModal('${esc(tabId)}', '${esc(r._id)}')">Edit</button>
+                  <button class="btn btn-sm btn-danger" onclick="removeCustomTabRow('${esc(r._id)}')">Del</button>
+                </td>
+              </tr>
+            `).join('') || `<tr><td colspan="${cols.length + 1}" style="color:var(--muted)">No entries yet. Click "+ New Entry" or "Import Excel / CSV".</td></tr>`}
+          </tbody>
+          ${rows.length ? `<tfoot><tr style="background:var(--primary-light); font-weight:700;">${cols.map(c => `<td>${esc(totals[c])}</td>`).join('')}<td></td></tr></tfoot>` : ''}
+        </table>
+      </div>
+    `;
+  }
+
+  function openCustomTabRowModal(tabId, rowId) {
+    const tab = (state.data.customTabs || []).find(t => t.TabId === tabId);
+    let cols = [];
+    try { cols = JSON.parse(tab.ColumnsJson || '[]'); } catch (e) {}
+    const existing = rowId ? (state.data.customTabRows || []).find(r => r.RowId === rowId) : null;
+    let data = {};
+    if (existing) { try { data = JSON.parse(existing.DataJson || '{}'); } catch (e) {} }
+
+    openModal(
+      (rowId ? 'Edit ' : 'New ') + tab.Name,
+      cols.map((c, idx) => `
+        <div class="form-group">
+          <label>${esc(c)}</label>
+          <input id="fCtr_${idx}" value="${esc(data[c] ?? (/date/i.test(c) && !rowId ? state.data.today : ''))}">
+        </div>
+      `).join(''),
+      `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="submitCustomTabRow('${esc(tabId)}', '${esc(rowId || '')}')">Save</button>`
+    );
+  }
+
+  async function submitCustomTabRow(tabId, rowId) {
+    const tab = (state.data.customTabs || []).find(t => t.TabId === tabId);
+    let cols = [];
+    try { cols = JSON.parse(tab.ColumnsJson || '[]'); } catch (e) {}
+    const obj = {};
+    cols.forEach((c, idx) => { obj[c] = document.getElementById('fCtr_' + idx).value; });
+    await gas('saveCustomTabRow', {
+      RowId: rowId,
+      TabId: tabId,
+      DataJson: JSON.stringify(obj),
+      CreatedBy: state.user.Name
+    });
+    closeModal();
+    showToast('Saved!');
+    await refreshData();
+  }
+
+  async function removeCustomTabRow(rowId) {
+    if (!confirm('Delete this entry?')) return;
+    await gas('deleteCustomTabRow', rowId);
+    await refreshData();
+  }
+
+  function importIntoCustomTab(tabId, file) {
+    if (!file || typeof XLSX === 'undefined') return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+      const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '', raw: false });
+      if (json.length) {
+        await gas('importCustomTabRows', tabId, json, state.user.Name);
+        showToast(`Imported ${json.length} rows!`);
+        await refreshData();
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function exportCustomTabExcel(tabId) {
+    if (typeof XLSX === 'undefined') return;
+    const tab = (state.data.customTabs || []).find(t => t.TabId === tabId);
+    let cols = [];
+    try { cols = JSON.parse(tab.ColumnsJson || '[]'); } catch (e) {}
+    const rows = (state.data.customTabRows || []).filter(r => r.TabId === tabId).map(r => {
+      try { return JSON.parse(r.DataJson || '{}'); } catch (e) { return {}; }
+    });
+    const ws = XLSX.utils.json_to_sheet(rows, { header: cols });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, tab.Name.slice(0, 30));
+    XLSX.writeFile(wb, `${tab.Name}_${state.data.today}.xlsx`);
+  }
+
+  async function submitSettings() {
+    await gas('saveSettings', {
+      CompanyName: document.getElementById('sComp').value,
+      Address: document.getElementById('sAddr').value,
+      Phone: document.getElementById('sPhone').value,
+      Email: document.getElementById('sEmail').value,
+      Currency: document.getElementById('sCur').value,
+      TaxRate: document.getElementById('sTax').value
+    });
+    showToast('Settings saved!');
+    await refreshData();
+  }
+
+  async function enableDriveTrigger() {
+    const msg = await gas('setupAutoSyncTrigger');
+    showToast(msg);
+  }
+
+  function openUserModal(userId) {
+    const u = userId ? state.data.users.find(x => x.UserId === userId) : { Name: '', Email: '', Role: 'Staff', Status: 'Active' };
+    openModal(
+      userId ? 'Edit User' : 'Add User',
+      `
+        <div class="form-group"><label>Name</label><input id="fUsName" value="${esc(u.Name)}"></div>
+        <div class="form-group"><label>Email</label><input id="fUsEmail" value="${esc(u.Email)}"></div>
+        <div class="form-row">
+          <div class="form-group"><label>Role</label><select id="fUsRole"><option ${u.Role === 'Admin' ? 'selected' : ''}>Admin</option><option ${u.Role === 'Staff' ? 'selected' : ''}>Staff</option></select></div>
+          <div class="form-group"><label>Status</label><select id="fUsStat"><option ${u.Status === 'Active' ? 'selected' : ''}>Active</option><option ${u.Status === 'Inactive' ? 'selected' : ''}>Inactive</option></select></div>
+        </div>
+        <div class="form-group"><label>${userId ? 'New PIN (leave blank to keep current)' : 'PIN'}</label><input type="password" id="fUsPin" placeholder="4-digit PIN"></div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="submitUser('${esc(userId || '')}')">Save User</button>`
+    );
+  }
+
+  async function submitUser(userId) {
+    await gas('saveUser', {
+      UserId: userId,
+      Name: document.getElementById('fUsName').value,
+      Email: document.getElementById('fUsEmail').value,
+      Role: document.getElementById('fUsRole').value,
+      Status: document.getElementById('fUsStat').value,
+      Pin: document.getElementById('fUsPin').value
+    });
+    closeModal();
+    showToast('User saved!');
+    await refreshData();
+  }
+
+  /* ==========================================================================
+   * 7B. Custom Reports & Uploaded-File Analytics
+   * ======================================================================== */
+
+  const _reportState = {
+    source: 'Invoices',
+    uploadedName: '',
+    uploadedRows: [],
+    selectedCols: [],
+    dateFrom: '',
+    dateTo: '',
+    search: '',
+    groupBy: '',
+    calcType: 'SUM',
+    lastOutputRows: [],
+    lastOutputCols: []
+  };
+
+  function getReportDataset() {
+    if (_reportState.source === 'UploadedFile') {
+      return _reportState.uploadedRows || [];
+    }
+    const map = {
+      Invoices: state.data.invoices,
+      Transactions: state.data.transactions,
+      Inventory: state.data.inventory.map(it => ({
+        ...it,
+        StockValue: (Number(it.UnitPrice) || 0) * (Number(it.StockQty) || 0)
+      })),
+      Customers: state.data.customers,
+      Attendance: state.data.attendance.map(a => {
+        let hrs = '';
+        if (a.ClockIn && a.ClockOut) {
+          const [h1, m1] = String(a.ClockIn).split(':').map(Number);
+          const [h2, m2] = String(a.ClockOut).split(':').map(Number);
+          if (!isNaN(h1) && !isNaN(h2)) {
+            hrs = (((h2 * 60 + m2) - (h1 * 60 + m1)) / 60).toFixed(2);
+          }
+        }
+        return { ...a, HoursWorked: hrs };
+      }),
+      Leaves: state.data.leaves,
+      Tasks: state.data.tasks
+    };
+    return map[_reportState.source] || [];
+  }
+
+  function renderReportsView() {
+    const raw = getReportDataset();
+    const allCols = raw.length ? Object.keys(raw[0]) : [];
+    if (!_reportState.selectedCols.length || !_reportState.selectedCols.every(c => allCols.includes(c))) {
+      _reportState.selectedCols = allCols.slice(0, 8);
+    }
+
+    // Filter rows
+    const dateCol = allCols.find(c => /date/i.test(c));
+    const q = _reportState.search.toLowerCase();
+    const filtered = raw.filter(r => {
+      if (dateCol && _reportState.dateFrom && String(r[dateCol]) < _reportState.dateFrom) return false;
+      if (dateCol && _reportState.dateTo && String(r[dateCol]) > _reportState.dateTo) return false;
+      if (q && !Object.values(r).some(v => String(v).toLowerCase().includes(q))) return false;
+      return true;
+    });
+
+    // Detect numeric columns among selectedCols
+    const numCols = _reportState.selectedCols.filter(c => {
+      const vals = filtered.map(r => r[c]).filter(v => v !== '' && v !== null && v !== undefined);
+      return vals.length > 0 && vals.every(v => !isNaN(Number(String(v).replace(/,/g, ''))));
+    });
+
+    // Build output rows (raw or grouped with system calculations)
+    let outCols = [..._reportState.selectedCols];
+    let outRows = filtered;
+
+    if (_reportState.groupBy && allCols.includes(_reportState.groupBy)) {
+      const grpCol = _reportState.groupBy;
+      const groups = {};
+      filtered.forEach(r => {
+        const k = String(r[grpCol] || '(Blank)');
+        if (!groups[k]) groups[k] = [];
+        groups[k].push(r);
+      });
+
+      const calcCols = numCols.filter(c => c !== grpCol);
+      outCols = [grpCol, 'Count', ...calcCols.map(c => `${c} (${_reportState.calcType})`)];
+      outRows = Object.keys(groups).map(k => {
+        const list = groups[k];
+        const rowObj = { [grpCol]: k, Count: list.length };
+        calcCols.forEach(c => {
+          const nums = list.map(x => Number(String(x[c]).replace(/,/g, '')) || 0);
+          const sum = nums.reduce((a, b) => a + b, 0);
+          let val = sum;
+          if (_reportState.calcType === 'AVG') val = nums.length ? sum / nums.length : 0;
+          else if (_reportState.calcType === 'MIN') val = nums.length ? Math.min(...nums) : 0;
+          else if (_reportState.calcType === 'MAX') val = nums.length ? Math.max(...nums) : 0;
+          rowObj[`${c} (${_reportState.calcType})`] = Number(val.toFixed(2));
+        });
+        return rowObj;
+      });
+    }
+
+    _reportState.lastOutputCols = outCols;
+    _reportState.lastOutputRows = outRows;
+
+    // Grand Totals row
+    const totals = {};
+    outCols.forEach((c, idx) => {
+      if (idx === 0) { totals[c] = 'TOTAL'; return; }
+      const vals = outRows.map(r => r[c]).filter(v => v !== '' && v !== null && v !== undefined);
+      if (vals.length && vals.every(v => !isNaN(Number(String(v).replace(/,/g, ''))))) {
+        const sum = vals.reduce((a, b) => a + Number(String(b).replace(/,/g, '')), 0);
+        totals[c] = Number(sum.toFixed(2)).toLocaleString('en-US', { maximumFractionDigits: 2 });
+      } else {
+        totals[c] = '';
+      }
+    });
+
+    const savedOpts = state.data.savedReports.map(sr =>
+      `<option value="${esc(sr.ReportId)}">${esc(sr.Name)} (${esc(sr.Source)})</option>`
+    ).join('');
+
+    document.getElementById('mainContent').innerHTML = `
+      <div class="card no-print" style="margin-bottom:16px;">
+        <div class="section-header">
+          <div>
+            <h3>Custom Report Builder</h3>
+            <p style="font-size:12px; color:var(--muted);">Create custom reports from Office data or directly from any uploaded Excel / CSV file with automatic calculations.</p>
+          </div>
+          <div class="section-actions">
+            <select id="savedRptSelect" style="width:auto;" onchange="loadSavedReport(this.value)">
+              <option value="">-- Load Saved Report --</option>
+              ${savedOpts}
+            </select>
+            <button class="btn btn-sm btn-secondary" onclick="saveCurrentReport()">💾 Save Report</button>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Data Source</label>
+            <select onchange="changeReportSource(this.value)">
+              ${['Invoices', 'Transactions', 'Inventory', 'Customers', 'Attendance', 'Leaves', 'Tasks'].map(s =>
+                `<option value="${s}" ${_reportState.source === s ? 'selected' : ''}>${s}</option>`
+              ).join('')}
+              <option value="UploadedFile" ${_reportState.source === 'UploadedFile' ? 'selected' : ''}>📄 Uploaded Excel / CSV File ${_reportState.uploadedName ? '(' + esc(_reportState.uploadedName) + ')' : ''}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Or Upload Excel / CSV File for Instant Report</label>
+            <input type="file" accept=".xlsx,.xls,.csv" onchange="handleReportFileUpload(this.files[0])">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin-bottom:12px;">
+          <div class="form-group" style="margin:0;">
+            <label>Date From</label>
+            <input type="date" value="${esc(_reportState.dateFrom)}" onchange="_reportState.dateFrom=this.value; renderReportsView()">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label>Date To</label>
+            <input type="date" value="${esc(_reportState.dateTo)}" onchange="_reportState.dateTo=this.value; renderReportsView()">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label>Search / Filter</label>
+            <input placeholder="Keyword..." value="${esc(_reportState.search)}" oninput="_reportState.search=this.value; renderReportsView()">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label>Group By (Calculations)</label>
+            <select onchange="_reportState.groupBy=this.value; renderReportsView()">
+              <option value="">-- Detailed Rows (No Grouping) --</option>
+              ${allCols.map(c => `<option value="${esc(c)}" ${_reportState.groupBy === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
+            </select>
+          </div>
+          ${_reportState.groupBy ? `
+            <div class="form-group" style="margin:0;">
+              <label>Calculation</label>
+              <select onchange="_reportState.calcType=this.value; renderReportsView()">
+                ${['SUM', 'AVG', 'MIN', 'MAX'].map(fn => `<option ${fn === _reportState.calcType ? 'selected' : ''}>${fn}</option>`).join('')}
+              </select>
+            </div>
+          ` : ''}
+        </div>
+
+        ${allCols.length ? `
+          <div>
+            <label style="font-size:12px; font-weight:600; color:var(--muted); display:block; margin-bottom:6px;">Columns to Include:</label>
+            <div style="display:flex; flex-wrap:wrap; gap:10px;">
+              ${allCols.map(c => `
+                <label style="display:inline-flex; align-items:center; gap:5px; font-size:12px; cursor:pointer;">
+                  <input type="checkbox" style="width:auto;" ${_reportState.selectedCols.includes(c) ? 'checked' : ''} onchange="toggleReportCol('${esc(c)}', this.checked)">
+                  ${esc(c)}
+                </label>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+
+      <div class="card">
+        <div class="section-header">
+          <div>
+            <h3>Report Output (${outRows.length} rows)</h3>
+            <div style="font-size:12px; color:var(--muted);">Source: ${esc(_reportState.source === 'UploadedFile' ? _reportState.uploadedName : _reportState.source)}</div>
+          </div>
+          <div class="section-actions no-print">
+            <button class="btn btn-sm btn-secondary" onclick="exportReportCsv()">⬇ Export CSV</button>
+            <button class="btn btn-sm btn-secondary" onclick="exportReportExcel()">⬇ Export Excel</button>
+            <button class="btn btn-sm btn-secondary" onclick="saveCurrentReportToDrive()">☁ Save to Drive</button>
+            <button class="btn btn-sm btn-primary" onclick="window.print()">🖨 Print / PDF</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>${outCols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+            <tbody>
+              ${outRows.map(r => `
+                <tr>${outCols.map(c => `<td>${esc(r[c])}</td>`).join('')}</tr>
+              `).join('') || '<tr><td colspan="' + (outCols.length || 1) + '" style="color:var(--muted)">No matching records.</td></tr>'}
+            </tbody>
+            ${outRows.length ? `
+              <tfoot>
+                <tr style="background:#f1f5f9; font-weight:700;">
+                  ${outCols.map(c => `<td>${esc(totals[c])}</td>`).join('')}
+                </tr>
+              </tfoot>
+            ` : ''}
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  function changeReportSource(src) {
+    _reportState.source = src;
+    _reportState.selectedCols = [];
+    _reportState.groupBy = '';
+    renderReportsView();
+  }
+
+  function toggleReportCol(col, checked) {
+    if (checked && !_reportState.selectedCols.includes(col)) {
+      _reportState.selectedCols.push(col);
+    } else if (!checked) {
+      _reportState.selectedCols = _reportState.selectedCols.filter(c => c !== col);
+    }
+    renderReportsView();
+  }
+
+  function handleReportFileUpload(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        if (typeof XLSX !== 'undefined') {
+          const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          _reportState.uploadedRows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+        } else {
+          const text = new TextDecoder().decode(e.target.result);
+          const lines = text.split(/\r?\n/).filter(l => l.trim());
+          const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+          _reportState.uploadedRows = lines.slice(1).map(l => {
+            const cols = l.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+            const obj = {};
+            headers.forEach((h, i) => { obj[h] = cols[i] || ''; });
+            return obj;
+          });
+        }
+        _reportState.uploadedName = file.name;
+        _reportState.source = 'UploadedFile';
+        _reportState.selectedCols = [];
+        _reportState.groupBy = '';
+        showToast('File loaded for reporting: ' + file.name);
+        renderReportsView();
+      } catch (err) {
+        showToast('Error reading file: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  async function saveCurrentReport() {
+    const name = prompt('Enter a name for this custom report:');
+    if (!name) return;
+    await gas('saveCustomReport', {
+      Name: name,
+      Source: _reportState.source,
+      ConfigJson: JSON.stringify({
+        selectedCols: _reportState.selectedCols,
+        dateFrom: _reportState.dateFrom,
+        dateTo: _reportState.dateTo,
+        search: _reportState.search,
+        groupBy: _reportState.groupBy,
+        calcType: _reportState.calcType
+      }),
+      CreatedBy: state.user.Name
+    });
+    showToast('Custom report saved!');
+    await refreshData();
+  }
+
+  function loadSavedReport(reportId) {
+    if (!reportId) return;
+    const r = state.data.savedReports.find(x => x.ReportId === reportId);
+    if (!r) return;
+    try {
+      const cfg = JSON.parse(r.ConfigJson || '{}');
+      _reportState.source = r.Source || 'Invoices';
+      _reportState.selectedCols = cfg.selectedCols || [];
+      _reportState.dateFrom = cfg.dateFrom || '';
+      _reportState.dateTo = cfg.dateTo || '';
+      _reportState.search = cfg.search || '';
+      _reportState.groupBy = cfg.groupBy || '';
+      _reportState.calcType = cfg.calcType || 'SUM';
+      renderReportsView();
+    } catch (e) {}
+  }
+
+  function buildReportCsv() {
+    const cols = _reportState.lastOutputCols;
+    const rows = _reportState.lastOutputRows;
+    const escCsv = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    return [cols.map(escCsv).join(','), ...rows.map(r => cols.map(c => escCsv(r[c])).join(','))].join('\n');
+  }
+
+  function exportReportCsv() {
+    const csv = buildReportCsv();
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Report_${_reportState.source}_${state.data.today}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportReportExcel() {
+    if (typeof XLSX === 'undefined') return exportReportCsv();
+    const ws = XLSX.utils.json_to_sheet(_reportState.lastOutputRows, { header: _reportState.lastOutputCols });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Report');
+    XLSX.writeFile(wb, `Report_${_reportState.source}_${state.data.today}.xlsx`);
+  }
+
+  async function saveCurrentReportToDrive() {
+    const filename = `Report_${_reportState.source}_${state.data.today}.csv`;
+    const res = await gas('saveReportToDrive', filename, buildReportCsv());
+    showToast('Saved to Google Drive: ' + res.name);
+  }
+
+  /* ==========================================================================
+   * 8. Import Excel / CSV Data
+   * ======================================================================== */
+
+  const IMPORT_SCHEMAS = {
+    Inventory: ['SKU', 'Name', 'Category', 'UnitPrice', 'StockQty', 'ReorderLevel', 'Unit'],
+    Customers: ['Name', 'Company', 'Phone', 'Email', 'Address', 'Notes'],
+    Employees: ['Name', 'Address', 'NIC', 'DOB', 'Gender', 'Position', 'Email', 'Phone', 'EmergencyContactName', 'EmergencyContactPhone', 'JoinDate', 'Status'],
+    Transactions: ['Date', 'Type', 'Category', 'Description', 'Amount', 'RecordedBy'],
+    Invoices: ['InvoiceNo', 'CustomerName', 'Date', 'DueDate', 'Status', 'Subtotal', 'TaxAmount', 'Total', 'Notes'],
+    Attendance: ['UserName', 'Date', 'ClockIn', 'ClockOut', 'Status', 'Notes'],
+    Tasks: ['Title', 'Project', 'AssigneeName', 'DueDate', 'Priority', 'Status', 'Notes']
+  };
+
+  const _importState = {
+    table: 'Inventory',
+    workbook: null,
+    sheetNames: [],
+    selectedSheet: '',
+    headers: [],
+    rawRows: [],
+    mapping: {}
+  };
+
+  function renderImportView() {
+    const tableOpts = Object.keys(IMPORT_SCHEMAS).map(t =>
+      `<option value="${t}" ${_importState.table === t ? 'selected' : ''}>${t}</option>`
+    ).join('');
+
+    const hasRows = _importState.rawRows.length > 0;
+    const fields = IMPORT_SCHEMAS[_importState.table];
+
+    document.getElementById('mainContent').innerHTML = `
+      <div class="card" style="margin-bottom:16px;">
+        <div class="section-header">
+          <div>
+            <h3>Import Manual Excel / CSV Files</h3>
+            <p style="font-size:12px; color:var(--muted);">Upload your existing .xlsx, .xls, or .csv files, map columns, and import directly into Google Sheets.</p>
+          </div>
+          <button class="btn btn-sm btn-secondary" onclick="downloadImportTemplate()">⬇ Download Sample CSV</button>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>1. Select Target Module</label>
+            <select id="impTable" onchange="changeImportTable(this.value)">${tableOpts}</select>
+          </div>
+          <div class="form-group">
+            <label>2. Choose Excel / CSV File (.xlsx, .xls, .csv)</label>
+            <input type="file" id="impFile" accept=".xlsx,.xls,.csv" onchange="handleImportFile(this.files[0])">
+          </div>
+        </div>
+
+        ${_importState.sheetNames.length > 1 ? `
+          <div class="form-group">
+            <label>Select Excel Sheet Tab</label>
+            <select onchange="loadExcelSheet(this.value)">
+              ${_importState.sheetNames.map(s => `<option value="${esc(s)}" ${s === _importState.selectedSheet ? 'selected' : ''}>${esc(s)}</option>`).join('')}
+            </select>
+          </div>
+        ` : ''}
+      </div>
+
+      ${hasRows ? `
+        <div class="card" style="margin-bottom:16px;">
+          <div class="section-header">
+            <h3>3. Match Columns (${_importState.rawRows.length} rows detected)</h3>
+            <button class="btn btn-primary" onclick="executeImport()">📥 Import ${_importState.rawRows.length} Rows to ${esc(_importState.table)}</button>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+            ${fields.map(f => `
+              <div class="form-group" style="margin-bottom:0;">
+                <label>${esc(f)}</label>
+                <select onchange="_importState.mapping['${esc(f)}']=this.value">
+                  <option value="">-- Skip / Leave Blank --</option>
+                  ${_importState.headers.map(h => `<option value="${esc(h)}" ${_importState.mapping[f] === h ? 'selected' : ''}>${esc(h)}</option>`).join('')}
+                </select>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom:10px;">Preview (First 5 Rows)</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>${_importState.headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+              <tbody>
+                ${_importState.rawRows.slice(0, 5).map(r => `
+                  <tr>${_importState.headers.map(h => `<td>${esc(r[h])}</td>`).join('')}</tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ` : ''}
+    `;
+  }
+
+  function changeImportTable(tbl) {
+    _importState.table = tbl;
+    autoMapColumns();
+    renderImportView();
+  }
+
+  function handleImportFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        if (typeof XLSX !== 'undefined') {
+          const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+          _importState.workbook = wb;
+          _importState.sheetNames = wb.SheetNames;
+          loadExcelSheet(wb.SheetNames[0]);
+        } else {
+          // Offline fallback for CSV only
+          const text = new TextDecoder().decode(e.target.result);
+          const lines = text.split(/\r?\n/).filter(l => l.trim());
+          const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+          const rows = lines.slice(1).map(l => {
+            const cols = l.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+            const obj = {};
+            headers.forEach((h, i) => { obj[h] = cols[i] || ''; });
+            return obj;
+          });
+          _importState.workbook = null;
+          _importState.sheetNames = [];
+          _importState.headers = headers;
+          _importState.rawRows = rows;
+          autoMapColumns();
+          renderImportView();
+        }
+      } catch (err) {
+        showToast('Could not read file: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function loadExcelSheet(sheetName) {
+    _importState.selectedSheet = sheetName;
+    const sheet = _importState.workbook.Sheets[sheetName];
+    const json = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+    _importState.rawRows = json;
+    _importState.headers = json.length ? Object.keys(json[0]) : [];
+    autoMapColumns();
+    renderImportView();
+  }
+
+  function autoMapColumns() {
+    const fields = IMPORT_SCHEMAS[_importState.table];
+    const map = {};
+    fields.forEach(f => {
+      const fl = f.toLowerCase();
+      const match = _importState.headers.find(h => {
+        const hl = h.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return hl === fl || hl.includes(fl) || fl.includes(hl);
+      });
+      map[f] = match || '';
+    });
+    _importState.mapping = map;
+  }
+
+  async function executeImport() {
+    const fields = IMPORT_SCHEMAS[_importState.table];
+    const mapped = _importState.rawRows.map(r => {
+      const obj = {};
+      fields.forEach(f => {
+        const src = _importState.mapping[f];
+        obj[f] = src ? r[src] : '';
+      });
+      return obj;
+    });
+
+    const res = await gas('importRecords', _importState.table, mapped);
+    showToast(`Successfully imported ${res.imported} rows into ${_importState.table}!`);
+    _importState.rawRows = [];
+    _importState.headers = [];
+    _importState.sheetNames = [];
+    await refreshData();
+  }
+
+  function downloadImportTemplate() {
+    const fields = IMPORT_SCHEMAS[_importState.table];
+    const csv = fields.join(',') + '\n';
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = _importState.table + '_Template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /* ==========================================================================
+   * Table Search Helper
+   * ======================================================================== */
+
+  function filterTable(tableId, query) {
+    const q = query.toLowerCase();
+    const rows = document.querySelectorAll('#' + tableId + ' tbody tr');
+    rows.forEach(tr => {
+      tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  }
+</script>
+
+</body>
+</html>
