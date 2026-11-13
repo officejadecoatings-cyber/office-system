@@ -867,9 +867,9 @@
 
   function statusBadge(status) {
     const map = {
-      Paid: 'badge-success', Approved: 'badge-success', Done: 'badge-success', Present: 'badge-success',
+      Active: 'badge-success', Paid: 'badge-success', Approved: 'badge-success', Done: 'badge-success', Present: 'badge-success',
+      Inactive: 'badge-danger', Cancelled: 'badge-danger', Rejected: 'badge-danger', High: 'badge-danger',
       Pending: 'badge-warning', 'In Progress': 'badge-warning', Late: 'badge-warning',
-      Cancelled: 'badge-danger', Rejected: 'badge-danger', High: 'badge-danger',
       Draft: 'badge-muted', 'To Do': 'badge-info', Medium: 'badge-info', Low: 'badge-muted'
     };
     return `<span class="badge ${map[status] || 'badge-muted'}">${esc(status)}</span>`;
@@ -1994,6 +1994,7 @@
             <thead>
               <tr>
                 <th>Name</th>
+                <th>Designation</th>
                 <th>Position</th>
                 <th>National ID (NIC)</th>
                 <th>Gender</th>
@@ -2012,6 +2013,7 @@
                     ${e.Email ? `<div style="font-size:11px; color:var(--muted);">${esc(e.Email)}</div>` : ''}
                     ${e.Address ? `<div style="font-size:11px; color:var(--muted);">${esc(e.Address)}</div>` : ''}
                   </td>
+                  <td><b>${esc(e.Designation || '-')}</b></td>
                   <td><span class="badge badge-info">${esc(e.Position || 'Office Staff')}</span></td>
                   <td>${esc(e.NIC || '-')}</td>
                   <td>${esc(e.Gender || '-')}</td>
@@ -2021,13 +2023,13 @@
                     ${e.EmergencyContactPhone ? `<div style="font-size:11px; color:var(--muted);">${esc(e.EmergencyContactPhone)}</div>` : ''}
                   </td>
                   <td>${esc(e.JoinDate || '-')}</td>
-                  <td>${statusBadge(e.Status === 'Active' ? 'Approved' : 'Cancelled')}</td>
+                  <td>${statusBadge(e.Status || 'Active')}</td>
                   <td>
                     <button class="btn btn-sm btn-secondary" onclick="openEmployeeModal('${esc(e.EmpId)}')">Edit</button>
                     <button class="btn btn-sm btn-danger" onclick="removeEmployee('${esc(e.EmpId)}')">Del</button>
                   </td>
                 </tr>
-              `).join('') || '<tr><td colspan="9" style="color:var(--muted)">No employees added yet. Click "+ Add Employee" to create one.</td></tr>'}
+              `).join('') || '<tr><td colspan="10" style="color:var(--muted)">No employees added yet. Click "+ Add Employee" to create one.</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -2099,6 +2101,7 @@
   function openEmployeeModal(id) {
     const e = id ? (state.data.employees || []).find(x => x.EmpId === id) : {
       Name: '',
+      Designation: '',
       Address: '',
       NIC: '',
       DOB: '',
@@ -2125,8 +2128,21 @@
             <input id="fEmName" value="${esc(e.Name)}" placeholder="e.g. Kasun Perera" required>
           </div>
           <div class="form-group">
+            <label>Designation *</label>
+            <input id="fEmDes" value="${esc(e.Designation)}" placeholder="e.g. Senior Accountant / Lab Analyst / Supervisor">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
             <label>National ID Number (NIC) *</label>
             <input id="fEmNic" value="${esc(e.NIC)}" placeholder="e.g. 199512345678 / 951234567V">
+          </div>
+          <div class="form-group">
+            <label>Position Category *</label>
+            <select id="fEmPos">
+              ${positionOptions.map(p => `<option value="${p}" ${e.Position === p ? 'selected' : ''}>${p}</option>`).join('')}
+            </select>
           </div>
         </div>
 
@@ -2150,16 +2166,14 @@
 
         <div class="form-row">
           <div class="form-group">
-            <label>Position *</label>
-            <select id="fEmPos">
-              ${positionOptions.map(p => `<option value="${p}" ${e.Position === p ? 'selected' : ''}>${p}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
             <label>Status *</label>
             <select id="fEmStat">
               ${statusOptions.map(s => `<option value="${s}" ${e.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
             </select>
+          </div>
+          <div class="form-group">
+            <label>Date of Joining</label>
+            <input type="date" id="fEmJoin" value="${esc(e.JoinDate || state.data.today)}">
           </div>
         </div>
 
@@ -2184,11 +2198,6 @@
             <input id="fEmEmergPhone" value="${esc(e.EmergencyContactPhone)}" placeholder="e.g. 071 987 6543">
           </div>
         </div>
-
-        <div class="form-group">
-          <label>Date of Joining</label>
-          <input type="date" id="fEmJoin" value="${esc(e.JoinDate || state.data.today)}">
-        </div>
       `,
       `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
        <button class="btn btn-primary" onclick="submitEmployee('${esc(id || '')}')">Save Employee</button>`
@@ -2204,6 +2213,7 @@
     await gas('saveEmployee', {
       EmpId: id,
       Name: name,
+      Designation: document.getElementById('fEmDes').value.trim(),
       Address: document.getElementById('fEmAddr').value.trim(),
       NIC: document.getElementById('fEmNic').value.trim(),
       DOB: document.getElementById('fEmDob').value,
@@ -2427,7 +2437,7 @@
                   <tr>
                     <td><b>${esc(u.Name)}</b><div style="font-size:11px; color:var(--muted)">${esc(u.Email)}</div></td>
                     <td>${esc(u.Role)}</td>
-                    <td>${statusBadge(u.Status === 'Active' ? 'Approved' : 'Cancelled')}</td>
+                    <td>${statusBadge(u.Status || 'Active')}</td>
                     <td>${isAdmin ? `<button class="btn btn-sm btn-secondary" onclick="openUserModal('${esc(u.UserId)}')">Edit</button>` : '-'}</td>
                   </tr>
                 `).join('')}
