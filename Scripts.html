@@ -1548,19 +1548,29 @@
    * 2B. Quotations Management (Placeholder structure ready for user's specs)
    * ======================================================================== */
 
+  /* ==========================================================================
+   * 2B. Quotations Management (Matching uploaded structure photo)
+   * ======================================================================== */
+
+  let _quotLines = [];
+
+  function getNextQuotationNo() {
+    const quotes = state.data.quotations || [];
+    if (quotes.length === 0) return '754';
+    const nums = quotes.map(q => {
+      const m = String(q.QuotationNo || '').match(/\d+/);
+      return m ? parseInt(m[0], 10) : 0;
+    }).filter(n => !isNaN(n) && n > 0);
+    const max = nums.length ? Math.max(...nums) : 753;
+    return String(max + 1);
+  }
+
   function renderQuotationView() {
     ensureDataDefaults();
-    const quotes = state.data.quotations || [];
+    const quotes = [...(state.data.quotations || [])].reverse();
     document.getElementById('mainContent').innerHTML = `
-      <div style="background:#f0fdf4; border:1px solid #86efac; border-radius:8px; padding:12px 16px; margin-bottom:16px; color:#166534; display:flex; justify-content:space-between; align-items:center;">
-        <div>
-          <b>📝 Quotation Management Module:</b> Tab created and ready. You can record quotations or provide your custom structure to be fully applied.
-        </div>
-        <button class="btn btn-sm btn-primary" onclick="openQuotationModal()">+ New Quotation</button>
-      </div>
-
       <div class="section-header">
-        <input class="search-input" placeholder="Search quotations..." oninput="filterTable('quotTable', this.value)">
+        <input class="search-input" placeholder="Search quotations by #, customer..." oninput="filterTable('quotTable', this.value)">
         <button class="btn btn-primary" onclick="openQuotationModal()">+ New Quotation</button>
       </div>
 
@@ -1585,11 +1595,12 @@
                 <td><b>${fmtMoney(q.TotalAmount || 0)}</b></td>
                 <td>${statusBadge(q.Status || 'Draft')}</td>
                 <td>
+                  <button class="btn btn-sm btn-secondary" onclick="printQuotation('${esc(q.QuotationId)}')">Print</button>
                   <button class="btn btn-sm btn-secondary" onclick="openQuotationModal('${esc(q.QuotationId)}')">Edit</button>
                   <button class="btn btn-sm btn-danger" onclick="removeQuotation('${esc(q.QuotationId)}')">Del</button>
                 </td>
               </tr>
-            `).join('') || '<tr><td colspan="6" style="color:var(--muted); text-align:center;">No quotations created yet. (Awaiting structure from user)</td></tr>'}
+            `).join('') || '<tr><td colspan="6" style="color:var(--muted); text-align:center;">No quotations created yet. Click "+ New Quotation" to create one.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -1598,63 +1609,372 @@
 
   function openQuotationModal(quotId) {
     ensureDataDefaults();
-    const q = quotId ? (state.data.quotations || []).find(x => x.QuotationId === quotId) : {
-      QuotationNo: '', Date: state.data.today, CustomerName: '', TotalAmount: 0, Status: 'Draft', Notes: ''
+    const existing = quotId ? (state.data.quotations || []).find(x => x.QuotationId === quotId) : null;
+    const nextNo = getNextQuotationNo();
+
+    let parsedData = {};
+    if (existing && existing.DataJson) {
+      try { parsedData = JSON.parse(existing.DataJson); } catch (e) {}
+    }
+
+    const q = existing ? {
+      QuotationId: existing.QuotationId,
+      QuotationNo: existing.QuotationNo || nextNo,
+      Date: existing.Date || state.data.today,
+      CustomerId: existing.CustomerId || parsedData.CustomerId || '',
+      CustomerName: existing.CustomerName || parsedData.CustomerName || '',
+      BillingAddress: existing.BillingAddress || parsedData.BillingAddress || '',
+      Description: existing.Description || parsedData.Description || '',
+      TotalAmount: existing.TotalAmount || 0,
+      Status: existing.Status || 'Draft',
+      CompanyId: existing.CompanyId || parsedData.CompanyId || '',
+      Items: parsedData.Items || []
+    } : {
+      QuotationId: '',
+      QuotationNo: nextNo,
+      Date: state.data.today,
+      CustomerId: '',
+      CustomerName: '',
+      BillingAddress: '',
+      Description: '',
+      TotalAmount: 0,
+      Status: 'Draft',
+      CompanyId: ((state.data.companyProfiles || []).find(c => c.IsDefault === 'Yes') || (state.data.companyProfiles || [])[0] || {}).CompanyId || '',
+      Items: []
     };
-    if (!q) return;
+
+    if (q.Items && q.Items.length > 0) {
+      _quotLines = q.Items.map(it => ({ ...it }));
+    } else {
+      _quotLines = [
+        { ItemId: '', ItemCode: '', Description: '', Qty: 1, UnitPrice: 0, Discount: 0, Tax: 'No tax', Amount: 0 }
+      ];
+    }
+
+    const custOpts = (state.data.customers || []).map(c => {
+      const label = `${c.CustomerCode ? c.CustomerCode + ' ' : ''}${c.Name}${c.Company ? ' - ' + c.Company : ''}`;
+      return `<option value="${esc(c.CustomerId)}" ${q.CustomerId === c.CustomerId ? 'selected' : ''}>${esc(label)}</option>`;
+    }).join('');
+
+    const compOpts = (state.data.companyProfiles || []).map(c => `
+      <option value="${esc(c.CompanyId)}" ${(q.CompanyId === c.CompanyId || (!q.CompanyId && c.IsDefault === 'Yes')) ? 'selected' : ''}>
+        ${esc(c.CompanyName)}${c.IsDefault === 'Yes' ? ' (Default)' : ''}
+      </option>
+    `).join('');
 
     openModal(
       quotId ? 'Edit Quotation ' + q.QuotationNo : 'New Quotation',
       `
-        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px; margin-bottom:12px; font-size:12.5px; color:#64748b;">
-          ℹ️ Standard Quotation placeholder. The full structure will be configured once you provide it.
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Customer Name *</label>
-            <input id="fQuotCust" placeholder="Customer or company name" value="${esc(q.CustomerName || '')}">
+        <div style="background:#fff; font-family:'Segoe UI', Arial, sans-serif;">
+          
+          <!-- Top Row: Date, Quote No, Company -->
+          <div style="display:flex; gap:12px; align-items:flex-end; margin-bottom:14px; flex-wrap:wrap;">
+            <div style="width:160px;">
+              <label style="font-weight:600; font-size:12.5px; color:#374151; margin-bottom:4px; display:block;">Date</label>
+              <input type="date" id="fQuotDate" value="${esc(q.Date || state.data.today)}" style="width:100%; font-weight:600; padding:6px 8px;">
+            </div>
+            <div style="width:120px;">
+              <label style="font-weight:600; font-size:12.5px; color:#374151; margin-bottom:4px; display:block;">Quote #</label>
+              <input type="text" id="fQuotNo" value="${esc(q.QuotationNo)}" placeholder="754" style="width:100%; font-weight:700; text-align:center; padding:6px 8px;">
+            </div>
+            <div style="flex:1; min-width:200px;">
+              <label style="font-weight:600; font-size:12.5px; color:#374151; margin-bottom:4px; display:block;">Company Profile</label>
+              <select id="fQuotCompany" style="width:100%; padding:6px 8px;">
+                ${compOpts}
+              </select>
+            </div>
+            <div style="width:130px;">
+              <label style="font-weight:600; font-size:12.5px; color:#374151; margin-bottom:4px; display:block;">Status</label>
+              <select id="fQuotStatus" style="width:100%; padding:6px 8px;">
+                ${['Draft', 'Pending', 'Approved', 'Rejected'].map(s => `<option ${q.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
+              </select>
+            </div>
           </div>
-          <div class="form-group">
-            <label>Date *</label>
-            <input type="date" id="fQuotDate" value="${esc(q.Date || state.data.today)}">
+
+          <!-- Customer & Searchable Picker -->
+          <div style="margin-bottom:12px;">
+            <label style="font-weight:600; font-size:13px; color:#374151; margin-bottom:4px; display:block;">Customer</label>
+            <div style="display:flex; gap:6px;">
+              <input list="quotCustDatalist" id="fQuotCustInput" placeholder="Type customer name or code to search..." value="${esc(q.CustomerName || '')}" oninput="onQuotCustInput(this.value)" style="flex:1; padding:7px 10px;">
+              <datalist id="quotCustDatalist">
+                ${(state.data.customers || []).map(c => `<option value="${esc((c.CustomerCode ? c.CustomerCode + ' ' : '') + c.Name + (c.Company ? ' - ' + c.Company : ''))}" data-id="${esc(c.CustomerId)}"></option>`).join('')}
+              </datalist>
+              <select id="fQuotCustSelect" onchange="onQuotCustSelect(this.value)" style="flex:1.2; padding:7px 10px;">
+                <option value="">-- Or Pick Customer from List --</option>
+                ${custOpts}
+              </select>
+            </div>
           </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Total Amount (LKR)</label>
-            <input type="number" step="0.01" id="fQuotAmt" placeholder="0.00" value="${Number(q.TotalAmount || 0)}">
+
+          <!-- Billing address -->
+          <div style="margin-bottom:14px;">
+            <label style="font-weight:600; font-size:13px; color:#374151; margin-bottom:4px; display:block;">Billing address</label>
+            <textarea id="fQuotAddr" rows="3" style="width:100%; border:1px solid #d1d5db; border-radius:4px; padding:8px 10px; font-size:13px; line-height:1.45; color:#111; box-sizing:border-box;" placeholder="Billing address will automatically populate here once a customer is chosen...">${esc(q.BillingAddress || '')}</textarea>
           </div>
-          <div class="form-group">
-            <label>Status</label>
-            <select id="fQuotStatus">
-              ${['Draft', 'Pending', 'Approved', 'Rejected'].map(s => `<option ${q.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
-            </select>
+
+          <!-- Description -->
+          <div style="margin-bottom:18px;">
+            <label style="font-weight:600; font-size:13px; color:#374151; margin-bottom:4px; display:block;">Description</label>
+            <input type="text" id="fQuotDesc" placeholder="Optional" value="${esc(q.Description || '')}" style="width:100%; padding:7px 10px; border:1px solid #d1d5db; border-radius:4px; box-sizing:border-box;">
           </div>
-        </div>
-        <div class="form-group">
-          <label>Notes / Requirements</label>
-          <textarea id="fQuotNotes" rows="3" placeholder="Enter any initial quotation details...">${esc(q.Notes || '')}</textarea>
+
+          <!-- Line items table matching the photo -->
+          <div style="margin-bottom:14px; overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; min-width:750px;">
+              <thead>
+                <tr style="border-bottom:1.5px solid #d1d5db; color:#374151; font-size:12.5px; text-align:left;">
+                  <th style="width:24px;"></th>
+                  <th style="padding:6px 8px; width:26%;">Item</th>
+                  <th style="padding:6px 8px; width:28%;">Description</th>
+                  <th style="padding:6px 8px; width:55px; text-align:center;">Qty</th>
+                  <th style="padding:6px 8px; width:85px; text-align:right;">Unit price</th>
+                  <th style="padding:6px 8px; width:90px; text-align:center;">Discount</th>
+                  <th style="padding:6px 8px; width:85px; text-align:right;">Amount</th>
+                  <th style="padding:6px 8px; width:85px;">Tax</th>
+                  <th style="width:28px;"></th>
+                </tr>
+              </thead>
+              <tbody id="quotLinesContainer"></tbody>
+            </table>
+          </div>
+
+          <!-- Add Line Button & Total Box on the Right -->
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
+            <div>
+              <button type="button" class="btn btn-sm btn-secondary" onclick="addQuotLine()" style="border-radius:4px; font-size:12.5px; padding:5px 12px;">+ Add line</button>
+            </div>
+            <div style="text-align:right;">
+              <div style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:6px 16px; font-size:16px; font-weight:700; min-width:130px; display:inline-block; text-align:right;" id="fQuotTotalBox">
+                ${Number(q.TotalAmount || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}
+              </div>
+            </div>
+          </div>
+
+          <!-- Checkboxes exactly matching the photo -->
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:12px 14px; font-size:13px; color:#374151;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+              <input type="checkbox" id="chkQuotDisc" checked style="cursor:pointer;">
+              <label for="chkQuotDisc" style="font-weight:600; cursor:pointer;">Discount</label>
+              <select id="selQuotDiscType" style="margin-left:8px; padding:2px 8px; font-size:12px; border-radius:4px; border:1px solid #cbd5e1;">
+                <option>Percentage</option>
+                <option>Exact amount</option>
+              </select>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+              <input type="checkbox" id="chkQuotHideTotal" style="cursor:pointer;">
+              <label for="chkQuotHideTotal" style="cursor:pointer;">Hide total amount</label>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+              <input type="checkbox" id="chkQuotTaxInclusive" style="cursor:pointer;">
+              <label for="chkQuotTaxInclusive" style="cursor:pointer;">Amounts are tax inclusive</label>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+              <input type="checkbox" id="chkQuotRound" style="cursor:pointer;">
+              <label for="chkQuotRound" style="cursor:pointer;">Round off the total</label>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <input type="checkbox" id="chkQuotCustomTitle" style="cursor:pointer;">
+              <label for="chkQuotCustomTitle" style="cursor:pointer;">Custom title</label>
+            </div>
+          </div>
+
         </div>
       `,
       `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
        <button class="btn btn-primary" onclick="submitQuotation('${esc(quotId || '')}')">Save Quotation</button>`,
       true
     );
+
+    renderQuotLines();
+    updateQuotTotals();
+  }
+
+  function onQuotCustSelect(custId) {
+    const cust = (state.data.customers || []).find(c => c.CustomerId === custId);
+    if (cust) {
+      const label = `${c => (cust.CustomerCode ? cust.CustomerCode + ' ' : '') + cust.Name + (cust.Company ? ' - ' + cust.Company : '')}`;
+      const inputEl = document.getElementById('fQuotCustInput');
+      if (inputEl) inputEl.value = (cust.CustomerCode ? cust.CustomerCode + ' ' : '') + cust.Name;
+      
+      const addrEl = document.getElementById('fQuotAddr');
+      if (addrEl) {
+        const fullAddr = [cust.BillingAddress || cust.DeliveryAddress || '', cust.Phone || ''].filter(Boolean).join('\n');
+        addrEl.value = fullAddr;
+      }
+    }
+  }
+
+  function onQuotCustInput(val) {
+    if (!val) return;
+    const lower = val.toLowerCase().trim();
+    const cust = (state.data.customers || []).find(c => {
+      const full = ((c.CustomerCode || '') + ' ' + (c.Name || '') + ' ' + (c.Company || '')).toLowerCase();
+      return full.includes(lower) || (c.CustomerId && c.CustomerId.toLowerCase() === lower);
+    });
+    if (cust) {
+      const selectEl = document.getElementById('fQuotCustSelect');
+      if (selectEl) selectEl.value = cust.CustomerId;
+      const addrEl = document.getElementById('fQuotAddr');
+      if (addrEl && !addrEl.value) {
+        const fullAddr = [cust.BillingAddress || cust.DeliveryAddress || '', cust.Phone || ''].filter(Boolean).join('\n');
+        addrEl.value = fullAddr;
+      }
+    }
+  }
+
+  function renderQuotLines() {
+    const invOpts = (state.data.inventory || []).map(it => `
+      <option value="${esc(it.ItemId)}">${esc(it.SKU ? it.SKU + ' - ' : '')}${esc(it.Name)}</option>
+    `).join('');
+
+    const container = document.getElementById('quotLinesContainer');
+    if (!container) return;
+
+    container.innerHTML = _quotLines.map((ln, idx) => {
+      const lineSub = Number(ln.Qty || 0) * Number(ln.UnitPrice || 0);
+      const lineDisc = lineSub * ((Number(ln.Discount) || 0) / 100);
+      const lineTotal = Math.round((lineSub - lineDisc) * 100) / 100;
+      ln.Amount = lineTotal;
+
+      return `
+        <tr style="border-bottom:1px solid #e2e8f0;">
+          <td style="color:#94a3b8; font-size:14px; text-align:center; cursor:grab;">↕</td>
+          <td style="padding:5px 6px;">
+            <select onchange="pickQuotItem(${idx}, this.value)" style="width:100%; padding:5px 6px; font-size:12.5px; border:1px solid #d1d5db; border-radius:4px;">
+              <option value="">-- Custom Item --</option>
+              ${invOpts}
+            </select>
+          </td>
+          <td style="padding:5px 6px;">
+            <input placeholder="Description" value="${esc(ln.Description || '')}" oninput="_quotLines[${idx}].Description=this.value" style="width:100%; padding:5px 6px; font-size:12.5px; border:1px solid #d1d5db; border-radius:4px;">
+          </td>
+          <td style="padding:5px 6px;">
+            <input type="number" min="1" value="${ln.Qty || 1}" oninput="_quotLines[${idx}].Qty=Number(this.value); updateQuotTotals()" style="width:100%; text-align:center; padding:5px 4px; font-size:12.5px; border:1px solid #d1d5db; border-radius:4px;">
+          </td>
+          <td style="padding:5px 6px;">
+            <input type="number" step="0.01" value="${ln.UnitPrice || 0}" oninput="_quotLines[${idx}].UnitPrice=Number(this.value); updateQuotTotals()" style="width:100%; text-align:right; padding:5px 6px; font-size:12.5px; border:1px solid #d1d5db; border-radius:4px;">
+          </td>
+          <td style="padding:5px 6px;">
+            <div style="display:flex; align-items:center; gap:2px;">
+              <input type="number" step="0.1" min="0" placeholder="0" value="${ln.Discount || 0}" oninput="_quotLines[${idx}].Discount=Number(this.value); updateQuotTotals()" style="width:60px; text-align:center; padding:5px 4px; font-size:12.5px; border:1px solid #d1d5db; border-radius:4px;">
+              <span style="font-size:12px; color:#64748b;">%</span>
+            </div>
+          </td>
+          <td style="padding:5px 6px;">
+            <input readonly value="${Number(lineTotal).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}" id="quotLineAmt_${idx}" style="width:100%; text-align:right; font-weight:600; padding:5px 6px; font-size:12.5px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; color:#1e293b;">
+          </td>
+          <td style="padding:5px 6px;">
+            <select onchange="_quotLines[${idx}].Tax=this.value" style="width:100%; padding:5px 4px; font-size:12px; border:1px solid #d1d5db; border-radius:4px; color:#64748b;">
+              <option ${ln.Tax === 'No tax' ? 'selected' : ''}>No tax</option>
+              <option ${ln.Tax === '0%' ? 'selected' : ''}>0%</option>
+            </select>
+          </td>
+          <td style="padding:5px 4px; text-align:center;">
+            <button type="button" class="btn btn-sm btn-danger" onclick="removeQuotLine(${idx})" style="padding:2px 6px; font-size:12px; line-height:1;">✕</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    const selects = container.querySelectorAll('select');
+    _quotLines.forEach((ln, idx) => {
+      const sel = selects[idx * 2]; // first select in the row
+      if (sel) sel.value = ln.ItemId || '';
+    });
+  }
+
+  function pickQuotItem(idx, itemId) {
+    const item = (state.data.inventory || []).find(x => x.ItemId === itemId);
+    _quotLines[idx].ItemId = itemId;
+    if (item) {
+      _quotLines[idx].ItemCode = item.SKU || '';
+      _quotLines[idx].Description = item.Name || '';
+      _quotLines[idx].UnitPrice = Number(item.UnitPrice) || 0;
+    }
+    renderQuotLines();
+    updateQuotTotals();
+  }
+
+  function addQuotLine() {
+    _quotLines.push({ ItemId: '', ItemCode: '', Description: '', Qty: 1, UnitPrice: 0, Discount: 0, Tax: 'No tax', Amount: 0 });
+    renderQuotLines();
+    updateQuotTotals();
+  }
+
+  function removeQuotLine(idx) {
+    if (_quotLines.length > 1) {
+      _quotLines.splice(idx, 1);
+    } else {
+      _quotLines[0] = { ItemId: '', ItemCode: '', Description: '', Qty: 1, UnitPrice: 0, Discount: 0, Tax: 'No tax', Amount: 0 };
+    }
+    renderQuotLines();
+    updateQuotTotals();
+  }
+
+  function updateQuotTotals() {
+    let grand = 0;
+    _quotLines.forEach((ln, idx) => {
+      const lineSub = Number(ln.Qty || 0) * Number(ln.UnitPrice || 0);
+      const lineDisc = lineSub * ((Number(ln.Discount) || 0) / 100);
+      const lineTotal = Math.round((lineSub - lineDisc) * 100) / 100;
+      ln.Amount = lineTotal;
+      grand += lineTotal;
+      const amtEl = document.getElementById('quotLineAmt_' + idx);
+      if (amtEl) amtEl.value = Number(lineTotal).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+    });
+
+    const totalBox = document.getElementById('fQuotTotalBox');
+    if (totalBox) {
+      totalBox.textContent = Number(grand).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+    return grand;
   }
 
   async function submitQuotation(quotId) {
-    const cust = document.getElementById('fQuotCust').value.trim();
-    if (!cust) {
-      showToast('Please enter Customer Name');
-      return;
-    }
+    const custInput = document.getElementById('fQuotCustInput')?.value.trim() || '';
+    const custSelect = document.getElementById('fQuotCustSelect')?.value || '';
+    const custObj = (state.data.customers || []).find(c => c.CustomerId === custSelect);
+
+    const custName = custInput || (custObj ? custObj.Name : 'Walk-in Customer');
+    const custId = custObj ? custObj.CustomerId : (custSelect || '');
+    const quotNo = document.getElementById('fQuotNo')?.value.trim() || getNextQuotationNo();
+    const dateVal = document.getElementById('fQuotDate')?.value || state.data.today;
+    const addrVal = document.getElementById('fQuotAddr')?.value.trim() || '';
+    const descVal = document.getElementById('fQuotDesc')?.value.trim() || '';
+    const companyId = document.getElementById('fQuotCompany')?.value || '';
+    const statusVal = document.getElementById('fQuotStatus')?.value || 'Draft';
+
+    const grandTotal = updateQuotTotals();
+
+    const dataJson = JSON.stringify({
+      QuotationNo: quotNo,
+      CustomerId: custId,
+      CustomerName: custName,
+      BillingAddress: addrVal,
+      Description: descVal,
+      CompanyId: companyId,
+      Date: dateVal,
+      Items: _quotLines.filter(l => (l.Description || '').trim() !== ''),
+      DiscountChecked: document.getElementById('chkQuotDisc')?.checked || false,
+      DiscountType: document.getElementById('selQuotDiscType')?.value || 'Percentage',
+      HideTotal: document.getElementById('chkQuotHideTotal')?.checked || false,
+      TaxInclusive: document.getElementById('chkQuotTaxInclusive')?.checked || false,
+      RoundOff: document.getElementById('chkQuotRound')?.checked || false,
+      CustomTitle: document.getElementById('chkQuotCustomTitle')?.checked || false
+    });
+
     const payload = {
       QuotationId: quotId || '',
-      CustomerName: cust,
-      Date: document.getElementById('fQuotDate').value,
-      TotalAmount: Number(document.getElementById('fQuotAmt').value) || 0,
-      Status: document.getElementById('fQuotStatus').value,
-      Notes: document.getElementById('fQuotNotes').value,
+      QuotationNo: quotNo,
+      Date: dateVal,
+      CustomerId: custId,
+      CustomerName: custName,
+      BillingAddress: addrVal,
+      Description: descVal,
+      TotalAmount: grandTotal,
+      Status: statusVal,
+      CompanyId: companyId,
+      DataJson: dataJson,
       CreatedBy: state.user.Name
     };
 
@@ -1670,6 +1990,183 @@
       showToast('Quotation deleted.');
       await refreshData();
     });
+  }
+
+  function printQuotation(quotationId) {
+    ensureDataDefaults();
+    const q = (state.data.quotations || []).find(x => x.QuotationId === quotationId);
+    if (!q) return;
+
+    let parsed = {};
+    if (q.DataJson) {
+      try { parsed = JSON.parse(q.DataJson); } catch (e) {}
+    }
+
+    const items = parsed.Items || [];
+    const compId = q.CompanyId || parsed.CompanyId || '';
+    const comp = (compId && (state.data.companyProfiles || []).find(c => c.CompanyId === compId))
+      || (state.data.companyProfiles || []).find(c => c.IsDefault === 'Yes')
+      || (state.data.companyProfiles || [])[0]
+      || {
+        CompanyName: 'Paint Zone (Pvt) Ltd',
+        Address: '424/1/B Kottunna Rd, Biyagama, Sri Lanka, (10350)',
+        Phone: '(M): +(94)768760609 / (T): +(94)112468883',
+        Email: 'info@colourmax.lk',
+        Website: 'www.colourmax.lk'
+      };
+
+    const compAddrLines = (comp.Address || '').split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
+    const compPhoneLines = (comp.Phone || '').split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
+    const custAddrLines = (q.BillingAddress || parsed.BillingAddress || '').split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
+
+    openModal(
+      'Quotation ' + q.QuotationNo,
+      `
+        <div id="quotationPrintArea" style="padding:24px 30px; background:#fff; color:#000; font-family:'Segoe UI', Arial, sans-serif; max-width:850px; margin:0 auto; box-sizing:border-box;">
+          
+          <!-- Top Header: Quotation Title & Logo -->
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px;">
+            <div style="font-size:34px; font-weight:700; color:#111; letter-spacing:-0.5px; padding-top:4px;">
+              Quotation
+            </div>
+            <div style="text-align:right;">
+              ${comp.Logo
+                ? `<img src="${esc(comp.Logo)}" style="max-height:68px; max-width:160px; object-fit:contain;" alt="${esc(comp.CompanyName)} Logo">`
+                : `<svg width="150" height="68" viewBox="0 0 150 68" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <g fill="#000">
+                      <rect x="2" y="6" width="3.5" height="5.5" />
+                      <rect x="2" y="14" width="3.5" height="5.5" />
+                      <rect x="2" y="22" width="3.5" height="5.5" />
+                      <rect x="2" y="30" width="3.5" height="5.5" />
+                      <rect x="8" y="2" width="3.5" height="5.5" />
+                      <rect x="8" y="10" width="3.5" height="5.5" />
+                      <rect x="8" y="18" width="3.5" height="5.5" />
+                      <rect x="8" y="26" width="3.5" height="5.5" />
+                      <rect x="8" y="34" width="3.5" height="5.5" />
+                      <rect x="14" y="0" width="3.5" height="5.5" />
+                      <rect x="14" y="8" width="3.5" height="5.5" />
+                      <rect x="14" y="16" width="3.5" height="5.5" />
+                      <rect x="14" y="24" width="3.5" height="5.5" />
+                      <rect x="14" y="32" width="3.5" height="5.5" />
+                      <rect x="14" y="40" width="3.5" height="5.5" />
+                      <rect x="20" y="0" width="3.5" height="5.5" />
+                      <rect x="20" y="8" width="3.5" height="5.5" />
+                      <rect x="20" y="16" width="3.5" height="5.5" />
+                      <rect x="20" y="24" width="3.5" height="5.5" />
+                      <rect x="20" y="32" width="3.5" height="5.5" />
+                      <rect x="20" y="40" width="3.5" height="5.5" />
+                      <rect x="20" y="48" width="3.5" height="5.5" />
+                    </g>
+                    <polygon points="28,48 52,14 62,14 38,48" fill="#000" />
+                    <polygon points="56,14 100,64 88,64 48,18" fill="#000" />
+                    <text x="56" y="38" font-family="'Arial Black', Arial, sans-serif" font-weight="900" font-size="19" fill="#000" letter-spacing="1">PAINT</text>
+                    <text x="44" y="62" font-family="'Arial Black', Arial, sans-serif" font-weight="900" font-size="23" fill="#000" letter-spacing="2">ZONE</text>
+                  </svg>`
+              }
+            </div>
+          </div>
+
+          <!-- 3-Block Info Header -->
+          <div style="display:grid; grid-template-columns:1.2fr 0.9fr 1.1fr; gap:12px; margin-bottom:24px; font-size:12.5px; line-height:1.45; color:#111;">
+            
+            <!-- Left: Customer info -->
+            <div>
+              <div style="font-weight:700; margin-bottom:2px;">${esc(q.CustomerName || '')}</div>
+              ${custAddrLines.length ? custAddrLines.map(l => `<div>${esc(l)}</div>`).join('') : '<div>No address provided</div>'}
+            </div>
+
+            <!-- Middle: Quote Date & Number -->
+            <div style="text-align:right; padding-right:15px;">
+              <div style="font-weight:600;">Quotation date</div>
+              <div style="margin-bottom:8px;">${fmtInvoiceDate(q.Date)}</div>
+              
+              <div style="font-weight:600;">Quotation number</div>
+              <div>${esc(q.QuotationNo)}</div>
+            </div>
+
+            <!-- Right: Company Info with left divider -->
+            <div style="border-left:1.5px solid #000; padding-left:14px;">
+              <div style="font-weight:600;">${esc(comp.CompanyName)}</div>
+              ${compAddrLines.map(l => `<div>${esc(l)}</div>`).join('')}
+              ${compPhoneLines.map(l => `<div>${esc(l)}</div>`).join('')}
+              ${comp.Email ? `<div>${esc(comp.Email)}</div>` : ''}
+              ${comp.Website ? `<div>${esc(comp.Website)}</div>` : ''}
+            </div>
+
+          </div>
+
+          ${q.Description || parsed.Description ? `
+            <div style="margin-bottom:14px; font-size:12.5px; color:#475569; font-style:italic;">
+              <b>Subject / Notes:</b> ${esc(q.Description || parsed.Description)}
+            </div>
+          ` : ''}
+
+          <!-- Items Table with Solid Black Borders -->
+          <table style="width:100%; border-collapse:collapse; border:1.5px solid #000; margin-bottom:0;">
+            <thead>
+              <tr style="background:#fff;">
+                <th style="border:1.5px solid #000; padding:6px 10px; font-size:12.5px; font-weight:700; text-align:left; width:15%;">Code</th>
+                <th style="border:1.5px solid #000; padding:6px 10px; font-size:12.5px; font-weight:700; text-align:left; width:45%;">Description</th>
+                <th style="border:1.5px solid #000; padding:6px 10px; font-size:12.5px; font-weight:700; text-align:center; width:8%;">Qty</th>
+                <th style="border:1.5px solid #000; padding:6px 10px; font-size:12.5px; font-weight:700; text-align:right; width:12%;">Unit price</th>
+                <th style="border:1.5px solid #000; padding:6px 10px; font-size:12.5px; font-weight:700; text-align:center; width:10%;">Discount</th>
+                <th style="border:1.5px solid #000; padding:6px 10px; font-size:12.5px; font-weight:700; text-align:right; width:10%;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.length ? items.map(li => `
+                <tr>
+                  <td style="border:1.5px solid #000; padding:6px 10px; font-size:12px; color:#111;">${esc(li.ItemCode || '')}</td>
+                  <td style="border:1.5px solid #000; padding:6px 10px; font-size:12px; color:#111;">${esc(li.Description || li.ItemName || '')}</td>
+                  <td style="border:1.5px solid #000; padding:6px 10px; font-size:12px; color:#111; text-align:center;">${li.Qty || 1}</td>
+                  <td style="border:1.5px solid #000; padding:6px 10px; font-size:12px; color:#111; text-align:right;">${Number(li.UnitPrice || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  <td style="border:1.5px solid #000; padding:6px 10px; font-size:12px; color:#111; text-align:center;">${Number(li.Discount) > 0 ? Number(li.Discount) + ' %' : '-'}</td>
+                  <td style="border:1.5px solid #000; padding:6px 10px; font-size:12px; color:#111; text-align:right;">${Number(li.Amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                </tr>
+              `).join('') : `
+                <tr><td colspan="6" style="border:1.5px solid #000; padding:12px; text-align:center; color:#666;">No items listed</td></tr>
+              `}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="4" style="border:none;"></td>
+                <td style="border:1.5px solid #000; border-top:1.5px solid #000; font-weight:700; text-align:right; padding:6px 10px; font-size:12.5px;">Total</td>
+                <td style="border:1.5px solid #000; border-top:1.5px solid #000; font-weight:700; text-align:right; padding:6px 10px; font-size:12.5px; white-space:nowrap;">Rs ${Number(q.TotalAmount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <!-- Under-table Content -->
+          <div style="margin-top:20px; font-size:12.5px; line-height:1.5; color:#111;">
+            <div style="font-weight:700; margin-bottom:2px;">Total amount in words</div>
+            <div style="margin-bottom:16px;">${numberToWords(q.TotalAmount || 0)}</div>
+
+            <div style="margin-bottom:2px;">For ${esc(comp.CompanyName).toUpperCase()}.</div>
+            <div style="margin-bottom:28px;">-</div>
+
+            <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:20px; font-size:11.5px;">
+              <div style="text-align:left;">
+                <div style="border-bottom:1px dotted #000; width:160px; margin-bottom:4px;"></div>
+                <div>Authorized Signatory</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="border-bottom:1px dotted #000; width:160px; margin-bottom:4px; margin-left:auto;"></div>
+                <div>Customer Acceptance</div>
+              </div>
+            </div>
+
+            <div style="font-size:11.5px; color:#475569;">
+              * This quotation is valid for 30 days from the date of issue.
+            </div>
+          </div>
+
+        </div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Close</button>
+       <button class="btn btn-secondary" onclick="exportElementPdf('#quotationPrintArea', 'Quotation_${esc(q.QuotationNo || q.QuotationId)}')">📄 Download PDF</button>
+       <button class="btn btn-primary" onclick="window.print()">🖨 Print</button>`,
+      true
+    );
   }
 
   function openTxModal() {

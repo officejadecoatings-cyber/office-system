@@ -14,7 +14,7 @@ const SCHEMA = {
   Invoices: ['InvoiceId', 'InvoiceNo', 'CustomerId', 'CustomerName', 'Date', 'DueDate', 'Status', 'Subtotal', 'Discount', 'TaxAmount', 'Total', 'PaidAmount', 'Notes', 'CreatedBy', 'QuoteNo', 'SalesPerson', 'CustomerAddress', 'CustomerPhone', 'BankDetails', 'CompanyId'],
   InvoiceItems: ['LineId', 'InvoiceId', 'ItemId', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal', 'ItemCode', 'DiscountPercent'],
   CompanyProfiles: ['CompanyId', 'CompanyName', 'Address', 'Phone', 'Email', 'Website', 'BankName', 'Branch', 'AccountNo', 'Logo', 'IsDefault', 'CreatedAt'],
-  Quotations: ['QuotationId', 'QuotationNo', 'Date', 'CustomerName', 'TotalAmount', 'Status', 'DataJson', 'CreatedBy', 'CreatedAt'],
+  Quotations: ['QuotationId', 'QuotationNo', 'Date', 'CustomerId', 'CustomerName', 'BillingAddress', 'Description', 'TotalAmount', 'Status', 'DataJson', 'CompanyId', 'CreatedBy', 'CreatedAt'],
   Creditors: ['CreditorId', 'SupplierName', 'BillNo', 'Date', 'DueDate', 'TotalAmount', 'PaidAmount', 'Status', 'Notes'],
   PettyCash: ['PcId', 'VoucherNo', 'Date', 'Type', 'Category', 'Description', 'PaidTo', 'ReceiptNo', 'Amount', 'RecordedBy'],
   CallReports: ['CallId', 'ReportType', 'DataJson', 'CreatedBy', 'CreatedAt'],
@@ -1121,7 +1121,14 @@ function saveQuotation(q) {
     }
     const existing = readSheetObjects_('Quotations');
     q.QuotationId = nextId_('QUOT');
-    q.QuotationNo = q.QuotationNo || ('QT-' + String(existing.length + 1001));
+    if (!q.QuotationNo) {
+      const nums = existing.map(x => {
+        const m = String(x.QuotationNo || '').match(/\d+/);
+        return m ? parseInt(m[0], 10) : 0;
+      }).filter(n => !isNaN(n) && n > 0);
+      const nextNum = nums.length ? Math.max(...nums) + 1 : (existing.length + 754);
+      q.QuotationNo = String(nextNum);
+    }
     q.Date = q.Date || todayStr_();
     q.CreatedAt = todayStr_();
     return appendRowObject_('Quotations', q);
