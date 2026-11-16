@@ -2,9 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#10b981">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Office System</title>
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <link rel="preconnect" href="https://cdn.sheetjs.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="dns-prefetch" href="https://cdn.sheetjs.com">
+  <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+  <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
   :root {
     --bg: #f7fbf9;
@@ -399,12 +408,253 @@
     color: #000;
   }
 
+  /* Sidebar Overlay & Mobile Drawer */
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 95;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  .sidebar-overlay:not(.hidden) {
+    display: block;
+    opacity: 1;
+  }
+
+  /* Mobile and Tablet Responsive Optimization */
   @media (max-width: 860px) {
-    .sidebar { transform: translateX(-100%); }
-    .sidebar.open { transform: translateX(0); }
-    .main-wrap { margin-left: 0; }
-    .menu-btn { display: inline-flex; }
-    .two-col, .kanban, .form-row { grid-template-columns: 1fr; }
+    :root {
+      --sidebar-w: 280px;
+    }
+
+    body {
+      overflow-x: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Off-canvas Mobile Sidebar */
+    .sidebar {
+      transform: translateX(-100%);
+      transition: transform 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: none;
+      z-index: 100;
+      width: 280px;
+      max-width: 86vw;
+      will-change: transform;
+    }
+    .sidebar.open {
+      transform: translateX(0);
+      box-shadow: 6px 0 24px rgba(0, 0, 0, 0.45);
+    }
+    #closeSidebarBtn {
+      display: inline-flex !important;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      font-size: 16px;
+      padding: 0;
+      line-height: 1;
+      border-radius: 8px;
+    }
+
+    .main-wrap {
+      margin-left: 0 !important;
+      width: 100% !important;
+      min-width: 0;
+      overflow-x: hidden;
+    }
+
+    /* Compact Mobile Topbar */
+    .topbar {
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .menu-btn {
+      display: inline-flex !important;
+      align-items: center;
+      justify-content: center;
+      min-width: 42px;
+      min-height: 42px;
+      font-size: 20px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      cursor: pointer;
+    }
+    .topbar-title {
+      font-size: 16px;
+      font-weight: 700;
+      max-width: 150px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .topbar-right {
+      gap: 6px;
+    }
+    #autoSyncBadge {
+      display: none;
+    }
+
+    /* Content Area */
+    .content {
+      padding: 12px 10px;
+    }
+
+    /* Responsive Grids & Layouts */
+    .two-col, .kanban, .form-row {
+      grid-template-columns: 1fr !important;
+      gap: 10px !important;
+    }
+
+    /* Section Headers & Action Bars */
+    .section-header {
+      flex-direction: column;
+      align-items: stretch !important;
+      gap: 10px;
+    }
+    .section-header .search-input {
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+    .section-header .btn,
+    .section-header .section-actions,
+    .section-actions .btn {
+      width: 100% !important;
+      justify-content: center;
+    }
+
+    /* Horizontal Scrolling Scrollable Tabs */
+    .tabs {
+      overflow-x: auto;
+      white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 4px;
+      margin-bottom: 12px;
+    }
+    .tab {
+      padding: 8px 14px;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    /* Mobile KPI Cards */
+    .kpi-grid {
+      grid-template-columns: repeat(2, 1fr) !important;
+      gap: 10px !important;
+      margin-bottom: 14px;
+    }
+    .kpi-card, .card {
+      padding: 12px !important;
+      border-radius: 10px;
+    }
+    .kpi-val {
+      font-size: 18px !important;
+      word-break: break-word;
+    }
+    .kpi-label {
+      font-size: 11px !important;
+    }
+
+    /* Mobile Table Scrolling */
+    .table-wrap {
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch;
+      max-width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    table {
+      min-width: 600px;
+    }
+    th, td {
+      padding: 8px 10px !important;
+      font-size: 12px !important;
+    }
+
+    /* Mobile Responsive Modals */
+    .modal-backdrop {
+      padding: 6px !important;
+      align-items: center;
+      z-index: 110;
+    }
+    .modal, .modal-lg {
+      width: 100% !important;
+      max-width: 100% !important;
+      max-height: 94vh !important;
+      margin: 0 auto !important;
+      border-radius: 14px !important;
+    }
+    .modal-header {
+      padding: 12px 14px !important;
+    }
+    .modal-header h3 {
+      font-size: 16px !important;
+    }
+    .modal-body {
+      padding: 14px 12px !important;
+      max-height: calc(94vh - 115px) !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch;
+    }
+    .modal-footer {
+      padding: 10px 12px !important;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .modal-footer .btn {
+      flex: 1 1 auto;
+      min-height: 42px;
+      justify-content: center;
+    }
+
+    /* Prevent iOS & Android browser zooming on input focus (minimum 16px required) */
+    input, select, textarea {
+      font-size: 16px !important;
+      min-height: 42px;
+      border-radius: 7px;
+    }
+
+    /* Interactive Buttons */
+    .btn {
+      min-height: 42px;
+      font-size: 14px;
+      padding: 8px 14px;
+    }
+    .btn-sm {
+      min-height: 34px;
+      font-size: 12px;
+      padding: 4px 10px;
+    }
+
+    /* Login Card for Mobile */
+    .login-wrap {
+      padding: 12px;
+    }
+    .login-card {
+      padding: 24px 16px;
+      border-radius: 14px;
+      max-width: 100%;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .kpi-grid {
+      grid-template-columns: 1fr !important;
+    }
+    .topbar-title {
+      font-size: 15px;
+      max-width: 130px;
+    }
+    .modal-body {
+      padding: 10px !important;
+    }
   }
 
   @media print {
@@ -504,6 +754,8 @@
         <button class="btn btn-sm btn-secondary" style="width:100%;" onclick="logout()">Sign Out</button>
       </div>
     </aside>
+
+    <div id="sidebarOverlay" class="sidebar-overlay hidden" onclick="toggleSidebar(false)"></div>
 
     <div class="main-wrap">
       <header class="topbar">
@@ -715,19 +967,32 @@
   }
 
   function toggleSidebar(open) {
-    document.getElementById('sidebar').classList.toggle('open', open);
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    const isOpen = open !== undefined ? !!open : !sidebar.classList.contains('open');
+    sidebar.classList.toggle('open', isOpen);
+    if (overlay) overlay.classList.toggle('hidden', !isOpen);
   }
 
   function openModal(title, bodyHtml, footerHtml, large = false) {
     document.getElementById('modalTitle').textContent = title;
     document.getElementById('modalBody').innerHTML = bodyHtml;
     document.getElementById('modalFooter').innerHTML = footerHtml || '';
-    document.getElementById('modalBox').classList.toggle('modal-lg', large);
-    document.getElementById('modalBackdrop').classList.remove('hidden');
+    document.getElementById('modalBox').classList.toggle('modal-lg', !!large);
+    const backdrop = document.getElementById('modalBackdrop');
+    backdrop.classList.remove('hidden');
+    document.body.classList.add('modal-open');
+    if (!backdrop._hasClickListener) {
+      backdrop._hasClickListener = true;
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) closeModal();
+      });
+    }
   }
 
   function closeModal() {
     document.getElementById('modalBackdrop').classList.add('hidden');
+    document.body.classList.remove('modal-open');
   }
 
   /* ==========================================================================
@@ -926,8 +1191,8 @@
           renderTopbarClock();
           renderView();
           startAutoSync();
-          // Silently refresh fresh data from backend in background without freezing
-          refreshData(false, /* silent */ true);
+          // Silently refresh fresh data from backend in background without freezing UI
+          setTimeout(() => { refreshData(false, /* silent */ true); }, 150);
           return;
         }
       }
@@ -935,14 +1200,26 @@
       console.warn('Cache load error:', e);
     }
 
-    // 2. If not logged in from cache, fetch login users
+    // 2. Populate login users instantly from cache (0ms perceived load time!)
     try {
-      const users = await gas('getLoginUsers');
+      const cachedUsersStr = localStorage.getItem('cached_login_users_v1');
+      if (cachedUsersStr) {
+        const cachedUsers = JSON.parse(cachedUsersStr);
+        const sel = document.getElementById('loginUser');
+        if (sel && cachedUsers && cachedUsers.length) {
+          sel.innerHTML = cachedUsers.map(u => `<option value="${esc(u.UserId)}">${esc(u.Name)} (${esc(u.Role)})</option>`).join('');
+        }
+      }
+    } catch (e) {}
+
+    // Fetch and update login users in background
+    gas('getLoginUsers').then(users => {
       const sel = document.getElementById('loginUser');
       if (sel && users && users.length) {
         sel.innerHTML = users.map(u => `<option value="${esc(u.UserId)}">${esc(u.Name)} (${esc(u.Role)})</option>`).join('');
+        try { localStorage.setItem('cached_login_users_v1', JSON.stringify(users)); } catch (e) {}
       }
-    } catch (e) {}
+    }).catch(e => console.warn('Login users fetch error:', e));
 
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -7651,11 +7928,15 @@
    * Table Search Helper
    * ======================================================================== */
 
+  let _filterTimer = null;
   function filterTable(tableId, query) {
-    const q = query.toLowerCase();
-    const rows = document.querySelectorAll('#' + tableId + ' tbody tr');
-    rows.forEach(tr => {
-      tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+    if (_filterTimer) cancelAnimationFrame(_filterTimer);
+    _filterTimer = requestAnimationFrame(() => {
+      const q = query.toLowerCase();
+      const rows = document.querySelectorAll('#' + tableId + ' tbody tr');
+      rows.forEach(tr => {
+        tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+      });
     });
   }
 </script>
