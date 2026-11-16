@@ -70,7 +70,7 @@ function doPost(e) {
       saveEmployee, deleteEmployee,
       saveCustomTab, deleteCustomTab, saveCustomTabRow, deleteCustomTabRow, importCustomTabRows,
       saveTransaction, deleteTransaction,
-      clockInUser, clockOutUser, saveLeaveRequest, updateLeaveStatus,
+      clockInUser, clockOutUser, saveLeaveRequest, updateLeaveStatus, deleteLeaveRequest,
       saveTask, deleteTask,
       saveSettings, saveUser,
       importRecords,
@@ -919,6 +919,10 @@ function updateLeaveStatus(leaveId, status, approvedBy) {
       ApprovedBy: approvedBy
     });
   });
+}
+
+function deleteLeaveRequest(leaveId) {
+  return withLock_(() => deleteRowByKey_('Leaves', 'LeaveId', leaveId));
 }
 
 /* ============================================================================

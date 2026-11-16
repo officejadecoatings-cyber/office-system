@@ -6023,11 +6023,13 @@
                   <td>${l.Days}</td>
                   <td>${esc(l.Reason)}</td>
                   <td>${statusBadge(l.Status)}</td>
-                  <td>
+                  <td style="white-space:nowrap;">
                     ${isAdmin && l.Status === 'Pending' ? `
                       <button class="btn btn-sm btn-success" onclick="setLeaveStatus('${esc(l.LeaveId)}','Approved')">Approve</button>
                       <button class="btn btn-sm btn-danger" onclick="setLeaveStatus('${esc(l.LeaveId)}','Rejected')">Reject</button>
-                    ` : esc(l.ApprovedBy || '-')}
+                    ` : (l.ApprovedBy ? `<span style="font-size:11px; color:var(--muted); margin-right:4px;">(${esc(l.ApprovedBy)})</span>` : '')}
+                    <button class="btn btn-sm btn-secondary" onclick="openLeaveModal('${esc(l.LeaveId)}')">Edit</button>
+                    <button class="btn btn-sm btn-danger" onclick="removeLeave('${esc(l.LeaveId)}')">Del</button>
                   </td>
                 </tr>
               `).join('') || '<tr><td colspan="7" style="color:var(--muted)">No leave requests.</td></tr>'}
@@ -6209,14 +6211,21 @@
     renderEmployeesView();
   }
 
-  function openLeaveModal() {
+  function openLeaveModal(leaveId = null) {
+    const isEdit = !!leaveId;
+    const l = isEdit ? (state.data.leaves || []).find(x => x.LeaveId === leaveId) : null;
     const activeEmps = (state.data.employees || []).filter(e => e.Status !== 'Inactive');
+    const selectedEmpId = l ? l.UserId : state.user.UserId;
     const empOptions = activeEmps.length
-      ? activeEmps.map(e => `<option value="${esc(e.EmpId)}" data-name="${esc(e.Name)}">${esc(e.Name)} (${esc(e.Position || e.Designation || 'Staff')})</option>`).join('')
+      ? activeEmps.map(e => `<option value="${esc(e.EmpId)}" data-name="${esc(e.Name)}" ${e.EmpId === selectedEmpId || e.Name === (l ? l.UserName : '') ? 'selected' : ''}>${esc(e.Name)} (${esc(e.Position || e.Designation || 'Staff')})</option>`).join('')
       : `<option value="${esc(state.user.UserId)}" data-name="${esc(state.user.Name)}">${esc(state.user.Name)}</option>`;
 
+    const selectedType = l ? l.Type : 'Annual';
+    const typeOpts = ['Annual', 'Casual', 'Sick', 'Duty Leave'].map(t => `<option ${t === selectedType ? 'selected' : ''}>${t}</option>`).join('');
+    const statusOpts = ['Pending', 'Approved', 'Rejected'].map(s => `<option ${(l?.Status || 'Pending') === s ? 'selected' : ''}>${s}</option>`).join('');
+
     openModal(
-      'Request Leave',
+      isEdit ? 'Edit Leave Request' : 'Request Leave',
       `
         <div class="form-group">
           <label>Employee Name *</label>
@@ -6225,37 +6234,78 @@
           </select>
         </div>
         <div class="form-row">
-          <div class="form-group"><label>Leave Type</label><select id="fLvType"><option>Annual</option><option>Casual</option><option>Sick</option><option>Duty Leave</option></select></div>
-          <div class="form-group"><label>Days</label><input type="number" min="0.5" step="0.5" id="fLvDays" value="1"></div>
+          <div class="form-group"><label>Leave Type</label><select id="fLvType">${typeOpts}</select></div>
+          <div class="form-group"><label>Days</label><input type="number" min="0.5" step="0.5" id="fLvDays" value="${l ? l.Days : 1}"></div>
         </div>
         <div class="form-row">
-          <div class="form-group"><label>Start Date</label><input type="date" id="fLvStart" value="${state.data.today}"></div>
-          <div class="form-group"><label>End Date</label><input type="date" id="fLvEnd" value="${state.data.today}"></div>
+          <div class="form-group"><label>Start Date</label><input type="date" id="fLvStart" value="${l ? l.StartDate : state.data.today}"></div>
+          <div class="form-group"><label>End Date</label><input type="date" id="fLvEnd" value="${l ? l.EndDate : state.data.today}"></div>
         </div>
-        <div class="form-group"><label>Reason</label><textarea id="fLvReason" rows="2" placeholder="Reason for leave request..."></textarea></div>
+        <div class="form-group"><label>Reason</label><textarea id="fLvReason" rows="2" placeholder="Reason for leave request...">${esc(l ? l.Reason : '')}</textarea></div>
+        ${isEdit ? `
+          <div class="form-group"><label>Status</label><select id="fLvStatus">${statusOpts}</select></div>
+          <div class="form-group" style="background:#fef2f2; border:1px solid #fecaca; border-radius:6px; padding:10px 12px; margin-top:12px;">
+            <label style="color:#991b1b; font-weight:700; display:block; margin-bottom:4px;">
+              🔒 Enter Login PIN / Password to Authorize Edit *
+            </label>
+            <input type="password" id="fLvPin" placeholder="Enter your Login PIN (${esc(state.user.Name)})" style="max-width:260px; font-size:15px; letter-spacing:2px;" autocomplete="off">
+            <div id="fLvPinError" style="color:#b91c1c; font-size:12px; font-weight:600; margin-top:4px;"></div>
+          </div>
+        ` : ''}
       `,
       `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-       <button class="btn btn-primary" onclick="submitLeave()">Submit Request</button>`
+       <button class="btn btn-primary" onclick="submitLeave('${esc(leaveId || '')}')">${isEdit ? 'Save Changes' : 'Submit Request'}</button>`
     );
   }
 
-  async function submitLeave() {
+  async function submitLeave(leaveId) {
+    const isEdit = !!leaveId;
+    if (isEdit) {
+      const pin = document.getElementById('fLvPin')?.value.trim();
+      const errEl = document.getElementById('fLvPinError');
+      if (!pin) {
+        if (errEl) errEl.textContent = 'Please enter your login PIN/Password to authorize edit.';
+        showToast('Login PIN required to edit!');
+        return;
+      }
+      try {
+        await gas('authenticateUser', state.user.UserId, pin);
+      } catch (e) {
+        if (errEl) errEl.textContent = 'Incorrect Login PIN / Password. Edit rejected.';
+        showToast('Invalid Login PIN! Edit rejected.');
+        return;
+      }
+    }
+
     const sel = document.getElementById('fLvEmp');
     const empId = sel.value;
     const empName = sel.options[sel.selectedIndex]?.getAttribute('data-name') || sel.options[sel.selectedIndex]?.text || state.user.Name;
+    const existingLeave = isEdit ? (state.data.leaves || []).find(x => x.LeaveId === leaveId) : null;
+    const statusVal = isEdit && document.getElementById('fLvStatus') ? document.getElementById('fLvStatus').value : (existingLeave?.Status || 'Pending');
 
     await gas('saveLeaveRequest', {
+      LeaveId: leaveId || '',
       UserId: empId,
       UserName: empName,
       Type: document.getElementById('fLvType').value,
       Days: document.getElementById('fLvDays').value,
       StartDate: document.getElementById('fLvStart').value,
       EndDate: document.getElementById('fLvEnd').value,
-      Reason: document.getElementById('fLvReason').value
+      Reason: document.getElementById('fLvReason').value,
+      Status: statusVal,
+      ApprovedBy: (statusVal === 'Approved' || statusVal === 'Rejected') ? (existingLeave?.ApprovedBy || state.user.Name) : ''
     });
     closeModal();
-    showToast('Leave request submitted!');
+    showToast(isEdit ? 'Leave request updated!' : 'Leave request submitted!');
     await refreshData();
+  }
+
+  async function removeLeave(leaveId) {
+    verifyPinAndExecute('delete this leave request', async () => {
+      await gas('deleteLeaveRequest', leaveId);
+      showToast('Leave request deleted.');
+      await refreshData();
+    });
   }
 
   async function setLeaveStatus(leaveId, status) {
