@@ -1,0 +1,7 @@
+# Local preview & clasp credentials
+preview.html
+.clasprc.json
+node_modules/
+
+# Local Netlify folder
+.netlify

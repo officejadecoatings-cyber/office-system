@@ -459,7 +459,7 @@
       </div>
       <nav class="sidebar-nav">
         <button class="nav-item active" data-view="dashboard" onclick="navigate('dashboard')">📊 Dashboard</button>
-        <button class="nav-item" data-view="invoices" onclick="navigate('invoices')">🧾 Invoices</button>
+        <button class="nav-item" data-view="invoices" onclick="navigate('invoices')">🧾 Sales Invoices</button>
         <button class="nav-item" data-view="outstanding" onclick="navigate('outstanding')">⏳ Outstanding</button>
         <button class="nav-item" data-view="inventory" onclick="navigate('inventory')">📦 Stock</button>
         <button class="nav-item" data-view="callReport" style="display:none;" onclick="navigate('callReport')">📞 Call Report</button>
@@ -1033,7 +1033,7 @@
 
     const titles = {
       dashboard: 'Dashboard',
-      invoices: 'Invoices & Billing',
+      invoices: 'Sales Invoices',
       outstanding: 'Outstanding (Debtors & Creditors)',
       callReport: 'Call Report',
       projectReport: 'Project Report',
@@ -1135,8 +1135,8 @@
       <div class="two-col">
         <div class="card">
           <div class="section-header">
-            <h3>Recent Invoices</h3>
-            <button class="btn btn-sm btn-primary" onclick="navigate('invoices'); openInvoiceModal()">+ New Invoice</button>
+            <h3>Recent Sales Invoices</h3>
+            <button class="btn btn-sm btn-primary" onclick="navigate('invoices'); openInvoiceModal()">+ New Sales Invoice</button>
           </div>
           <div class="table-wrap">
             <table>
@@ -1149,7 +1149,7 @@
                     <td>${fmtMoney(i.Total)}</td>
                     <td>${statusBadge(i.Status)}</td>
                   </tr>
-                `).join('') || '<tr><td colspan="4" style="color:var(--muted)">No invoices yet.</td></tr>'}
+                `).join('') || '<tr><td colspan="4" style="color:var(--muted)">No sales invoices yet.</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -1201,8 +1201,8 @@
       const rows = [...state.data.invoices].reverse();
       body = `
         <div class="section-header">
-          <input class="search-input" id="invSearch" placeholder="Search invoices..." oninput="filterTable('invTable', this.value)">
-          <button class="btn btn-primary" onclick="openInvoiceModal()">+ New Invoice / Order</button>
+          <input class="search-input" id="invSearch" placeholder="Search sales invoices..." oninput="filterTable('invTable', this.value)">
+          <button class="btn btn-primary" onclick="openInvoiceModal()">+ New Sales Invoice / Order</button>
         </div>
         <div class="card table-wrap">
           <table id="invTable">
@@ -1221,7 +1221,7 @@
                     <button class="btn btn-sm btn-danger" onclick="removeInvoice('${esc(i.InvoiceId)}')">Del</button>
                   </td>
                 </tr>
-              `).join('') || '<tr><td colspan="6" style="color:var(--muted)">No invoices created yet.</td></tr>'}
+              `).join('') || '<tr><td colspan="6" style="color:var(--muted)">No sales invoices created yet.</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -1263,29 +1263,68 @@
 
     document.getElementById('mainContent').innerHTML = `
       <div class="tabs">
-        <button class="tab-btn ${tab === 'invoices' ? 'active' : ''}" onclick="state.invTab='invoices'; renderInvoicesView()">Invoices & Orders</button>
+        <button class="tab-btn ${tab === 'invoices' ? 'active' : ''}" onclick="state.invTab='invoices'; renderInvoicesView()">Sales Invoices & Orders</button>
         <button class="tab-btn ${tab === 'accounts' ? 'active' : ''}" onclick="state.invTab='accounts'; renderInvoicesView()">Income & Expenses</button>
       </div>
       ${body}
     `;
   }
 
+  function numberToWords(num) {
+    if (num === 0 || isNaN(num)) return 'Zero Only';
+    const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+      'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+    function toWords(n) {
+      if (n === 0) return '';
+      if (n < 20) return a[n] + ' ';
+      if (n < 100) return b[Math.floor(n / 10)] + (n % 10 ? ' ' + a[n % 10] : '') + ' ';
+      if (n < 1000) return a[Math.floor(n / 100)] + ' Hundred ' + toWords(n % 100);
+      if (n < 1000000) return toWords(Math.floor(n / 1000)) + 'Thousand ' + toWords(n % 1000);
+      if (n < 1000000000) return toWords(Math.floor(n / 1000000)) + 'Million ' + toWords(n % 1000000);
+      return toWords(Math.floor(n / 1000000000)) + 'Billion ' + toWords(n % 1000000000);
+    }
+
+    const parts = Number(num).toFixed(2).split('.');
+    const whole = parseInt(parts[0], 10);
+    const cents = parseInt(parts[1], 10);
+
+    let str = toWords(whole).trim();
+    if (!str) str = 'Zero';
+    if (cents > 0) {
+      str += ' and Cents ' + toWords(cents).trim();
+    }
+    return str + ' Only';
+  }
+
+  function fmtInvoiceDate(dStr) {
+    if (!dStr) return '';
+    const d = new Date(dStr);
+    if (isNaN(d)) return dStr;
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${mm}/${dd}/${yyyy}`;
+  }
+
   let _invLines = [];
 
   function openInvoiceModal(invoiceId) {
     const inv = invoiceId ? state.data.invoices.find(i => i.InvoiceId === invoiceId) : {
-      InvoiceNo: '', CustomerId: '', CustomerName: '', Date: state.data.today, DueDate: state.data.today, Status: 'Pending', Discount: 0, PaidAmount: 0, Notes: ''
+      InvoiceNo: '', CustomerId: '', CustomerName: '', Date: state.data.today, DueDate: state.data.today, Status: 'Pending', Discount: 0, PaidAmount: 0, Notes: '',
+      QuoteNo: '', SalesPerson: '', CustomerAddress: '', CustomerPhone: '', BankDetails: 'AC NAME :PAINT ZONE (PVT) LTD/ AC NO : 1000982266 /COMMERCIAL BANK / BATTARAMULLA'
     };
     _invLines = invoiceId
-      ? state.data.invoiceItems.filter(li => li.InvoiceId === invoiceId).map(x => ({ ...x }))
-      : [{ ItemId: '', ItemName: '', Qty: 1, UnitPrice: 0 }];
+      ? state.data.invoiceItems.filter(li => li.InvoiceId === invoiceId).map(x => ({ ...x, ItemCode: x.ItemCode || '', DiscountPercent: Number(x.DiscountPercent) || 0 }))
+      : [{ ItemId: '', ItemCode: '', ItemName: '', Qty: 1, UnitPrice: 0, DiscountPercent: 0, LineTotal: 0 }];
 
     const custOpts = state.data.customers.map(c =>
       `<option value="${esc(c.CustomerId)}" ${inv.CustomerId === c.CustomerId ? 'selected' : ''}>${esc(c.Name)}${c.Company ? ' - ' + esc(c.Company) : ''}</option>`
     ).join('');
 
     openModal(
-      invoiceId ? 'Edit Invoice ' + inv.InvoiceNo : 'New Standard Invoice',
+      invoiceId ? 'Edit Sales Invoice ' + inv.InvoiceNo : 'New Sales Invoice',
       `
         <div id="invOverdueAlert" class="alert-danger hidden">
           <b>⛔ BLOCKED (&gt; 120 Days Overdue):</b> <span id="invOverdueMsg"></span>
@@ -1297,7 +1336,7 @@
         <div class="form-row">
           <div class="form-group">
             <label>Customer</label>
-            <select id="fInvCust" onchange="checkInvCustomerBlock()">
+            <select id="fInvCust" onchange="onInvCustomerChange()">
               <option value="">-- Walk-in / Select Customer --</option>
               ${custOpts}
             </select>
@@ -1310,60 +1349,107 @@
           </div>
         </div>
         <div class="form-row">
+          <div class="form-group"><label>Customer Address</label><textarea id="fInvCustAddr" rows="2" placeholder="e.g. No. 08, Kandy Road, Mawathagama">${esc(inv.CustomerAddress || '')}</textarea></div>
+          <div class="form-group">
+            <label>Customer Phone</label><input id="fInvCustPhone" placeholder="e.g. 037- 2299592 / 076- 6550425" value="${esc(inv.CustomerPhone || '')}">
+            <label style="margin-top:6px;">Quote Number</label><input id="fInvQuote" placeholder="e.g. 754" value="${esc(inv.QuoteNo || '')}">
+          </div>
+        </div>
+        <div class="form-row">
           <div class="form-group"><label>Invoice Date</label><input type="date" id="fInvDate" value="${esc(inv.Date)}"></div>
           <div class="form-group"><label>Due Date</label><input type="date" id="fInvDue" value="${esc(inv.DueDate)}"></div>
         </div>
+        <div class="form-row">
+          <div class="form-group"><label>Sales Person (S.P)</label><input id="fInvSP" placeholder="e.g. S.P - Name" value="${esc(inv.SalesPerson || '')}"></div>
+          <div class="form-group"><label>Bank Details</label><input id="fInvBank" placeholder="AC NAME :PAINT ZONE (PVT) LTD..." value="${esc(inv.BankDetails || 'AC NAME :PAINT ZONE (PVT) LTD/ AC NO : 1000982266 /COMMERCIAL BANK / BATTARAMULLA')}"></div>
+        </div>
         <div style="margin:12px 0;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <b>Line Items</b>
+            <b>Line Items (Code, Description, Qty, Unit Price, Discount %)</b>
             <button type="button" class="btn btn-sm btn-secondary" onclick="addInvLine()">+ Add Line</button>
+          </div>
+          <div style="display:grid; grid-template-columns:120px 90px 1.8fr 55px 85px 65px 85px 32px; gap:6px; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:4px; padding:0 2px;">
+            <div>Inventory</div>
+            <div>Code</div>
+            <div>Description</div>
+            <div>Qty</div>
+            <div>Unit Price</div>
+            <div>Disc %</div>
+            <div style="text-align:right;">Amount</div>
+            <div></div>
           </div>
           <div id="invLinesContainer"></div>
         </div>
         <div class="form-row">
-          <div class="form-group"><label>Discount Amount</label><input type="number" step="0.01" id="fInvDisc" value="${Number(inv.Discount || 0)}" oninput="updateInvTotals()"></div>
+          <div class="form-group"><label>Additional Bill Discount</label><input type="number" step="0.01" id="fInvDisc" value="${Number(inv.Discount || 0)}" oninput="updateInvTotals()"></div>
           <div class="form-group"><label>Paid Amount</label><input type="number" step="0.01" id="fInvPaid" value="${Number(inv.PaidAmount || 0)}" oninput="updateInvTotals()"></div>
         </div>
         <div style="text-align:right; font-size:15px; margin-top:6px;" id="invTotalsPreview"></div>
-        <div class="form-group" style="margin-top:10px;"><label>Terms &amp; Notes</label><textarea id="fInvNotes" rows="2">${esc(inv.Notes)}</textarea></div>
+        <div class="form-group" style="margin-top:10px;"><label>Terms &amp; Notes</label><textarea id="fInvNotes" rows="2">${esc(inv.Notes || '')}</textarea></div>
       `,
       `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-       <button class="btn btn-primary" onclick="submitInvoice('${esc(invoiceId || '')}')">Save Invoice</button>`,
+       <button class="btn btn-primary" onclick="submitInvoice('${esc(invoiceId || '')}')">Save Sales Invoice</button>`,
       true
     );
     renderInvLines();
     checkInvCustomerBlock();
   }
 
+  function onInvCustomerChange() {
+    checkInvCustomerBlock();
+    const custId = document.getElementById('fInvCust')?.value;
+    const cust = state.data.customers.find(c => c.CustomerId === custId);
+    if (cust) {
+      const addrEl = document.getElementById('fInvCustAddr');
+      const phoneEl = document.getElementById('fInvCustPhone');
+      if (addrEl && !addrEl.value) {
+        addrEl.value = cust.BillingAddress || cust.DeliveryAddress || '';
+      }
+      if (phoneEl && !phoneEl.value) {
+        phoneEl.value = cust.Phone || '';
+      }
+    }
+  }
+
   function checkInvCustomerBlock() {
-    const custId = document.getElementById('fInvCust').value;
+    const custId = document.getElementById('fInvCust')?.value;
     const info = getCustomerOverdueInfo(custId);
     const alertEl = document.getElementById('invOverdueAlert');
-    if (info.blocked) {
-      document.getElementById('invOverdueMsg').textContent =
-        `This customer has unpaid invoices overdue by ${info.maxDays} days (Balance: ${fmtMoney(info.balance)}).`;
-      alertEl.classList.remove('hidden');
-    } else {
-      alertEl.classList.add('hidden');
+    if (alertEl) {
+      if (info.blocked) {
+        document.getElementById('invOverdueMsg').textContent =
+          `This customer has unpaid invoices overdue by ${info.maxDays} days (Balance: ${fmtMoney(info.balance)}).`;
+        alertEl.classList.remove('hidden');
+      } else {
+        alertEl.classList.add('hidden');
+      }
     }
   }
 
   function renderInvLines() {
-    const invOpts = state.data.inventory.map(it => `<option value="${esc(it.ItemId)}">${esc(it.Name)} (${it.StockQty} ${esc(it.Unit)})</option>`).join('');
-    document.getElementById('invLinesContainer').innerHTML = _invLines.map((ln, idx) => `
-      <div style="display:grid; grid-template-columns:2fr 1.5fr 70px 100px 36px; gap:6px; margin-bottom:6px; align-items:center;">
-        <select onchange="pickInvItem(${idx}, this.value)">
-          <option value="">-- Custom Item --</option>
-          ${invOpts}
-        </select>
-        <input placeholder="Item name" value="${esc(ln.ItemName)}" oninput="_invLines[${idx}].ItemName=this.value">
-        <input type="number" min="1" value="${ln.Qty}" oninput="_invLines[${idx}].Qty=Number(this.value); updateInvTotals()">
-        <input type="number" step="0.01" value="${ln.UnitPrice}" oninput="_invLines[${idx}].UnitPrice=Number(this.value); updateInvTotals()">
-        <button type="button" class="btn btn-sm btn-danger" onclick="_invLines.splice(${idx},1); renderInvLines()">✕</button>
-      </div>
-    `).join('');
+    const invOpts = state.data.inventory.map(it => `<option value="${esc(it.ItemId)}">${esc(it.SKU ? it.SKU + ' - ' : '')}${esc(it.Name)} (${it.StockQty} ${esc(it.Unit)})</option>`).join('');
+    document.getElementById('invLinesContainer').innerHTML = _invLines.map((ln, idx) => {
+      const lineSub = Number(ln.Qty || 0) * Number(ln.UnitPrice || 0);
+      const lineDisc = lineSub * ((Number(ln.DiscountPercent) || 0) / 100);
+      const lineTotal = Math.round((lineSub - lineDisc) * 100) / 100;
+      ln.LineTotal = lineTotal;
+      return `
+        <div style="display:grid; grid-template-columns:120px 90px 1.8fr 55px 85px 65px 85px 32px; gap:6px; margin-bottom:6px; align-items:center;">
+          <select onchange="pickInvItem(${idx}, this.value)">
+            <option value="">-- Custom --</option>
+            ${invOpts}
+          </select>
+          <input placeholder="Code" value="${esc(ln.ItemCode || '')}" oninput="_invLines[${idx}].ItemCode=this.value">
+          <input placeholder="Description" value="${esc(ln.ItemName || '')}" oninput="_invLines[${idx}].ItemName=this.value">
+          <input type="number" min="1" value="${ln.Qty}" oninput="_invLines[${idx}].Qty=Number(this.value); updateInvTotals()">
+          <input type="number" step="0.01" value="${ln.UnitPrice}" oninput="_invLines[${idx}].UnitPrice=Number(this.value); updateInvTotals()">
+          <input type="number" step="0.1" min="0" max="100" placeholder="%" value="${ln.DiscountPercent || 0}" oninput="_invLines[${idx}].DiscountPercent=Number(this.value); updateInvTotals()">
+          <div style="text-align:right; font-weight:600; font-size:13px; padding-right:4px;" id="invLineTotal_${idx}">${fmtMoney(lineTotal)}</div>
+          <button type="button" class="btn btn-sm btn-danger" onclick="_invLines.splice(${idx},1); renderInvLines()">✕</button>
+        </div>
+      `;
+    }).join('');
 
-    // Set selected dropdown values
     const selects = document.querySelectorAll('#invLinesContainer select');
     _invLines.forEach((ln, idx) => { if (selects[idx]) selects[idx].value = ln.ItemId || ''; });
     updateInvTotals();
@@ -1373,6 +1459,7 @@
     const item = state.data.inventory.find(x => x.ItemId === itemId);
     _invLines[idx].ItemId = itemId;
     if (item) {
+      _invLines[idx].ItemCode = item.SKU || '';
       _invLines[idx].ItemName = item.Name;
       _invLines[idx].UnitPrice = Number(item.UnitPrice) || 0;
     }
@@ -1380,12 +1467,22 @@
   }
 
   function addInvLine() {
-    _invLines.push({ ItemId: '', ItemName: '', Qty: 1, UnitPrice: 0 });
+    _invLines.push({ ItemId: '', ItemCode: '', ItemName: '', Qty: 1, UnitPrice: 0, DiscountPercent: 0, LineTotal: 0 });
     renderInvLines();
   }
 
   function updateInvTotals() {
-    const sub = _invLines.reduce((s, l) => s + (Number(l.Qty || 0) * Number(l.UnitPrice || 0)), 0);
+    let sub = 0;
+    _invLines.forEach((l, idx) => {
+      const lineSub = Number(l.Qty || 0) * Number(l.UnitPrice || 0);
+      const lineDisc = lineSub * ((Number(l.DiscountPercent) || 0) / 100);
+      const lineTotal = Math.round((lineSub - lineDisc) * 100) / 100;
+      l.LineTotal = lineTotal;
+      sub += lineTotal;
+      const ltEl = document.getElementById('invLineTotal_' + idx);
+      if (ltEl) ltEl.textContent = fmtMoney(lineTotal);
+    });
+
     const disc = Number(document.getElementById('fInvDisc')?.value || 0);
     const taxable = Math.max(0, sub - disc);
     const taxRate = Number(state.data.settings.TaxRate || 0);
@@ -1393,8 +1490,11 @@
     const total = taxable + tax;
     const paid = Number(document.getElementById('fInvPaid')?.value || 0);
     const bal = Math.max(0, total - paid);
-    document.getElementById('invTotalsPreview').innerHTML =
-      `Subtotal: <b>${fmtMoney(sub)}</b> | Discount: <b>${fmtMoney(disc)}</b> | Tax (${taxRate}%): <b>${fmtMoney(tax)}</b> | Total: <b>${fmtMoney(total)}</b> | Balance: <b style="color:var(--danger)">${fmtMoney(bal)}</b>`;
+    const previewEl = document.getElementById('invTotalsPreview');
+    if (previewEl) {
+      previewEl.innerHTML =
+        `Subtotal: <b>${fmtMoney(sub)}</b> | Discount: <b>${fmtMoney(disc)}</b> | Tax (${taxRate}%): <b>${fmtMoney(tax)}</b> | Total: <b>${fmtMoney(total)}</b> | Balance: <b style="color:var(--danger)">${fmtMoney(bal)}</b>`;
+    }
     return { sub, disc, tax, total, paid };
   }
 
@@ -1428,7 +1528,12 @@
         InvoiceId: invoiceId || '',
         InvoiceNo: existing ? existing.InvoiceNo : '',
         CustomerId: custId,
-        CustomerName: cust ? cust.Name : 'Walk-in Customer',
+        CustomerName: cust ? cust.Name : (custId ? 'Customer' : 'Walk-in Customer'),
+        CustomerAddress: document.getElementById('fInvCustAddr')?.value || (cust ? (cust.BillingAddress || cust.DeliveryAddress || '') : ''),
+        CustomerPhone: document.getElementById('fInvCustPhone')?.value || (cust ? (cust.Phone || '') : ''),
+        QuoteNo: document.getElementById('fInvQuote')?.value || '',
+        SalesPerson: document.getElementById('fInvSP')?.value || '',
+        BankDetails: document.getElementById('fInvBank')?.value || '',
         Date: document.getElementById('fInvDate').value,
         DueDate: document.getElementById('fInvDue').value,
         Status: status,
@@ -1440,61 +1545,211 @@
         Notes: document.getElementById('fInvNotes').value,
         CreatedBy: state.user.Name
       },
-      items: _invLines.filter(l => l.ItemName.trim() !== '')
+      items: _invLines.filter(l => (l.ItemName || '').trim() !== '').map(l => ({
+        ItemId: l.ItemId || '',
+        ItemCode: l.ItemCode || '',
+        ItemName: l.ItemName || '',
+        Qty: Number(l.Qty) || 0,
+        UnitPrice: Number(l.UnitPrice) || 0,
+        DiscountPercent: Number(l.DiscountPercent) || 0,
+        LineTotal: Number(l.LineTotal) || 0
+      }))
     };
 
     await gas('saveInvoice', payload);
     closeModal();
-    showToast('Invoice saved!');
+    showToast('Sales Invoice saved!');
     await refreshData();
   }
 
   async function removeInvoice(id) {
     verifyPinAndExecute('delete invoice ' + id, async () => {
       await gas('deleteInvoice', id);
-      showToast('Invoice deleted.');
+      showToast('Sales Invoice deleted.');
       await refreshData();
     });
   }
 
   function printInvoice(invoiceId) {
     const inv = state.data.invoices.find(i => i.InvoiceId === invoiceId);
+    if (!inv) return;
     const items = state.data.invoiceItems.filter(li => li.InvoiceId === invoiceId);
     const s = state.data.settings;
+
+    const custAddrLines = (inv.CustomerAddress || '').split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
+    const invNoDisplay = (inv.InvoiceNo || '').replace(/^INV-0*/, '') || inv.InvoiceNo || '';
+
     openModal(
-      'Invoice ' + inv.InvoiceNo,
+      'Sales Invoice ' + inv.InvoiceNo,
       `
-        <div id="invoicePrintArea" style="padding:10px;">
-          <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-            <div>
-              <h2>${esc(s.CompanyName)}</h2>
-              <div>${esc(s.Address)}</div>
-              <div>${esc(s.Phone)} | ${esc(s.Email)}</div>
+        <div id="invoicePrintArea" style="padding:24px 30px; background:#fff; color:#000; font-family:'Segoe UI', Arial, sans-serif; max-width:850px; margin:0 auto; box-sizing:border-box;">
+          
+          <!-- Top Header: Invoice Title & Logo -->
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px;">
+            <div style="font-size:34px; font-weight:700; color:#111; letter-spacing:-0.5px; padding-top:4px;">
+              Invoice
             </div>
             <div style="text-align:right;">
-              <h3>INVOICE</h3>
-              <div><b>#${esc(inv.InvoiceNo)}</b></div>
-              <div>Date: ${esc(inv.Date)}</div>
-              <div>Due: ${esc(inv.DueDate)}</div>
+              <svg width="150" height="68" viewBox="0 0 150 68" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- 4 vertical striped bars on left -->
+                <g fill="#000">
+                  <rect x="2" y="6" width="3.5" height="5.5" />
+                  <rect x="2" y="14" width="3.5" height="5.5" />
+                  <rect x="2" y="22" width="3.5" height="5.5" />
+                  <rect x="2" y="30" width="3.5" height="5.5" />
+                  
+                  <rect x="8" y="2" width="3.5" height="5.5" />
+                  <rect x="8" y="10" width="3.5" height="5.5" />
+                  <rect x="8" y="18" width="3.5" height="5.5" />
+                  <rect x="8" y="26" width="3.5" height="5.5" />
+                  <rect x="8" y="34" width="3.5" height="5.5" />
+
+                  <rect x="14" y="0" width="3.5" height="5.5" />
+                  <rect x="14" y="8" width="3.5" height="5.5" />
+                  <rect x="14" y="16" width="3.5" height="5.5" />
+                  <rect x="14" y="24" width="3.5" height="5.5" />
+                  <rect x="14" y="32" width="3.5" height="5.5" />
+                  <rect x="14" y="40" width="3.5" height="5.5" />
+
+                  <rect x="20" y="0" width="3.5" height="5.5" />
+                  <rect x="20" y="8" width="3.5" height="5.5" />
+                  <rect x="20" y="16" width="3.5" height="5.5" />
+                  <rect x="20" y="24" width="3.5" height="5.5" />
+                  <rect x="20" y="32" width="3.5" height="5.5" />
+                  <rect x="20" y="40" width="3.5" height="5.5" />
+                  <rect x="20" y="48" width="3.5" height="5.5" />
+                </g>
+                <!-- Slanted roof triangle & polygon -->
+                <polygon points="28,48 52,14 62,14 38,48" fill="#000" />
+                <polygon points="56,14 100,64 88,64 48,18" fill="#000" />
+                <!-- Text -->
+                <text x="56" y="38" font-family="'Arial Black', Arial, sans-serif" font-weight="900" font-size="19" fill="#000" letter-spacing="1">PAINT</text>
+                <text x="44" y="62" font-family="'Arial Black', Arial, sans-serif" font-weight="900" font-size="23" fill="#000" letter-spacing="2">ZONE</text>
+              </svg>
             </div>
           </div>
-          <div style="margin-bottom:16px;"><b>Bill To:</b> ${esc(inv.CustomerName)}</div>
-          <table>
-            <thead><tr><th>Item</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead>
-            <tbody>
-              ${items.map(li => `<tr><td>${esc(li.ItemName)}</td><td>${li.Qty}</td><td>${fmtMoney(li.UnitPrice)}</td><td>${fmtMoney(li.LineTotal)}</td></tr>`).join('')}
-            </tbody>
-          </table>
-          <div style="text-align:right; margin-top:16px;">
-            <div>Subtotal: ${fmtMoney(inv.Subtotal)}</div>
-            <div>Tax: ${fmtMoney(inv.TaxAmount)}</div>
-            <div style="font-size:18px; font-weight:700; margin-top:4px;">Total: ${fmtMoney(inv.Total)}</div>
+
+          <!-- 3-Block Info Header -->
+          <div style="display:grid; grid-template-columns:1.2fr 0.9fr 1.1fr; gap:12px; margin-bottom:28px; font-size:12.5px; line-height:1.45; color:#111;">
+            
+            <!-- Left: Customer info -->
+            <div>
+              <div style="font-weight:700; margin-bottom:2px;">${esc(inv.CustomerName || '')}</div>
+              ${custAddrLines.length ? custAddrLines.map(l => `<div>${esc(l)}</div>`).join('') : '<div>No. 08,</div><div>Kandy Road,</div><div>Mawathagama</div>'}
+              <div style="margin-top:2px;">${esc(inv.CustomerPhone || '037- 2299592 / 076- 6550425')}</div>
+            </div>
+
+            <!-- Middle: Invoice Dates and Numbers -->
+            <div style="text-align:right; padding-right:15px;">
+              <div style="font-weight:600;">Invoice date</div>
+              <div style="margin-bottom:8px;">${fmtInvoiceDate(inv.Date)}</div>
+              
+              <div style="font-weight:600;">Due date</div>
+              <div style="margin-bottom:8px;">${fmtInvoiceDate(inv.DueDate)}</div>
+
+              <div style="font-weight:600;">Invoice number</div>
+              <div style="margin-bottom:8px;">${esc(invNoDisplay)}</div>
+
+              <div style="font-weight:600;">Quote number</div>
+              <div>${esc(inv.QuoteNo || '')}</div>
+            </div>
+
+            <!-- Right: Company Info with left solid border -->
+            <div style="border-left:1.5px solid #000; padding-left:14px;">
+              <div style="font-weight:600;">Paint Zone (Pvt) Ltd</div>
+              <div>424/1/B Kottunna Rd,</div>
+              <div>Biyagama</div>
+              <div>Sri Lanka, (10350)</div>
+              <div>(M): +(94)768760609</div>
+              <div>(T): +(94)112468883</div>
+              <div>info@colourmax.lk</div>
+              <div>www.colourmax.lk</div>
+            </div>
+
           </div>
-          ${inv.Notes ? `<div style="margin-top:16px; font-size:12px; color:var(--muted)">Notes: ${esc(inv.Notes)}</div>` : ''}
+
+          <!-- Items Table with Solid Black Borders -->
+          <table style="width:100%; border-collapse:collapse; border:1.5px solid #000; margin-bottom:0;">
+            <thead>
+              <tr style="background:#fff;">
+                <th style="border:1.5px solid #000; padding:6px 10px; font-size:12.5px; font-weight:700; text-align:left; width:15%;">Code</th>
+                <th style="border:1.5px solid #000; padding:6px 10px; font-size:12.5px; font-weight:700; text-align:left; width:45%;">Description</th>
+                <th style="border:1.5px solid #000; padding:6px 10px; font-size:12.5px; font-weight:700; text-align:center; width:8%;">Qty</th>
+                <th style="border:1.5px solid #000; padding:6px 10px; font-size:12.5px; font-weight:700; text-align:right; width:12%;">Unit price</th>
+                <th style="border:1.5px solid #000; padding:6px 10px; font-size:12.5px; font-weight:700; text-align:center; width:10%;">Discount</th>
+                <th style="border:1.5px solid #000; padding:6px 10px; font-size:12.5px; font-weight:700; text-align:right; width:10%;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.length ? items.map(li => `
+                <tr>
+                  <td style="border:1.5px solid #000; padding:6px 10px; font-size:12px; color:#111;">${esc(li.ItemCode || '')}</td>
+                  <td style="border:1.5px solid #000; padding:6px 10px; font-size:12px; color:#111;">${esc(li.ItemName || '')}</td>
+                  <td style="border:1.5px solid #000; padding:6px 10px; font-size:12px; color:#111; text-align:center;">${li.Qty}</td>
+                  <td style="border:1.5px solid #000; padding:6px 10px; font-size:12px; color:#111; text-align:right;">${Number(li.UnitPrice || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  <td style="border:1.5px solid #000; padding:6px 10px; font-size:12px; color:#111; text-align:center;">${Number(li.DiscountPercent) > 0 ? Number(li.DiscountPercent) + ' %' : '-'}</td>
+                  <td style="border:1.5px solid #000; padding:6px 10px; font-size:12px; color:#111; text-align:right;">${Number(li.LineTotal || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                </tr>
+              `).join('') : `
+                <tr><td colspan="6" style="border:1.5px solid #000; padding:12px; text-align:center; color:#666;">No items listed</td></tr>
+              `}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="4" style="border:none;"></td>
+                <td style="border:1.5px solid #000; border-top:1.5px solid #000; font-weight:700; text-align:right; padding:6px 10px; font-size:12.5px;">Total</td>
+                <td style="border:1.5px solid #000; border-top:1.5px solid #000; font-weight:700; text-align:right; padding:6px 10px; font-size:12.5px; white-space:nowrap;">Rs ${Number(inv.Total || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <!-- Under-table Content Matching Photo Exactly -->
+          <div style="margin-top:22px; font-size:12.5px; line-height:1.5; color:#111;">
+            
+            <div style="font-weight:700; margin-bottom:2px;">Total amount in words</div>
+            <div style="margin-bottom:18px;">${numberToWords(inv.Total)}</div>
+
+            <div style="margin-bottom:2px;">For Paint Zone (PVT) LTD.</div>
+            <div style="margin-bottom:28px;">-</div>
+
+            <!-- Signatures line with dotted lines -->
+            <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:20px; font-size:11.5px;">
+              <div style="text-align:left;">
+                <div style="border-bottom:1px dotted #000; width:160px; margin-bottom:4px;"></div>
+                <div>Authorized Signatory</div>
+              </div>
+              <div style="font-size:11px; font-weight:600; letter-spacing:0.3px; padding:0 6px;">
+                &lt;&lt; RECEIVED ABOVE ITEMS IN GOOD CONDITION &gt;&gt;
+              </div>
+              <div style="text-align:right;">
+                <div style="border-bottom:1px dotted #000; width:160px; margin-bottom:4px; margin-left:auto;"></div>
+                <div>Customer Signature</div>
+              </div>
+            </div>
+
+            <div style="font-weight:700; font-size:11.5px; margin-bottom:3px;">
+              All payments to be made by cheques drawn in favor of PAINT ZONE (PVT) LTD and crossed Account Payee Only. (ORIGINAL COPY)
+            </div>
+            <div style="font-size:11.5px; margin-bottom:16px;">
+              Goods once sold will not be taken back..
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; font-size:12px;">
+              <div>S.P - ${esc(inv.SalesPerson || '')}</div>
+              <div>N.R ------------------------------------ Checked by</div>
+            </div>
+
+            <div style="font-size:11.5px;">
+              <div style="font-weight:700; margin-bottom:2px;">Bank Details</div>
+              <div>${esc(inv.BankDetails || 'AC NAME :PAINT ZONE (PVT) LTD/ AC NO : 1000982266 /COMMERCIAL BANK / BATTARAMULLA')}</div>
+            </div>
+
+          </div>
+
         </div>
       `,
       `<button class="btn btn-secondary" onclick="closeModal()">Close</button>
-       <button class="btn btn-secondary" onclick="exportElementPdf('#invoicePrintArea', 'Invoice_${esc(inv.InvoiceNo || inv.InvoiceId)}')">📄 Download PDF</button>
+       <button class="btn btn-secondary" onclick="exportElementPdf('#invoicePrintArea', 'Sales_Invoice_${esc(inv.InvoiceNo || inv.InvoiceId)}')">📄 Download PDF</button>
        <button class="btn btn-primary" onclick="window.print()">🖨 Print</button>`,
       true
     );

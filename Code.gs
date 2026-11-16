@@ -11,8 +11,8 @@ const SCHEMA = {
   Users: ['UserId', 'Name', 'Email', 'Role', 'Pin', 'Status'],
   Customers: ['CustomerId', 'CustomerCode', 'Name', 'BusinessIdentifier', 'BillingAddress', 'DeliveryAddress', 'Email', 'Phone', 'CreditLimit', 'SalesOfficerId', 'SalesOfficerName', 'Notes', 'CreatedAt'],
   Inventory: ['ItemId', 'SKU', 'Name', 'Category', 'UnitPrice', 'StockQty', 'ReorderLevel', 'Unit', 'UpdatedAt'],
-  Invoices: ['InvoiceId', 'InvoiceNo', 'CustomerId', 'CustomerName', 'Date', 'DueDate', 'Status', 'Subtotal', 'Discount', 'TaxAmount', 'Total', 'PaidAmount', 'Notes', 'CreatedBy'],
-  InvoiceItems: ['LineId', 'InvoiceId', 'ItemId', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal'],
+  Invoices: ['InvoiceId', 'InvoiceNo', 'CustomerId', 'CustomerName', 'Date', 'DueDate', 'Status', 'Subtotal', 'Discount', 'TaxAmount', 'Total', 'PaidAmount', 'Notes', 'CreatedBy', 'QuoteNo', 'SalesPerson', 'CustomerAddress', 'CustomerPhone', 'BankDetails'],
+  InvoiceItems: ['LineId', 'InvoiceId', 'ItemId', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal', 'ItemCode', 'DiscountPercent'],
   Creditors: ['CreditorId', 'SupplierName', 'BillNo', 'Date', 'DueDate', 'TotalAmount', 'PaidAmount', 'Status', 'Notes'],
   PettyCash: ['PcId', 'VoucherNo', 'Date', 'Type', 'Category', 'Description', 'PaidTo', 'ReceiptNo', 'Amount', 'RecordedBy'],
   CallReports: ['CallId', 'ReportType', 'DataJson', 'CreatedBy', 'CreatedAt'],
@@ -507,7 +507,10 @@ function saveInvoice(payload) {
       li.InvoiceId = invoice.InvoiceId;
       li.Qty = Number(li.Qty) || 0;
       li.UnitPrice = Number(li.UnitPrice) || 0;
-      li.LineTotal = li.Qty * li.UnitPrice;
+      li.DiscountPercent = Number(li.DiscountPercent) || 0;
+      const sub = li.Qty * li.UnitPrice;
+      li.LineTotal = Math.round((sub - (sub * (li.DiscountPercent / 100))) * 100) / 100;
+      li.ItemCode = li.ItemCode || '';
       appendRowObject_('InvoiceItems', li);
     });
 

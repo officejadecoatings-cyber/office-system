@@ -1,0 +1,7 @@
+# Ignore non-Apps-Script files when pushing with clasp
+preview.html
+README.md
+docs/**
+.git/**
+.gitignore
+node_modules/**
