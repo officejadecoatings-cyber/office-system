@@ -224,6 +224,14 @@
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
   }
+  input[type="checkbox"], input[type="radio"] {
+    width: 16px !important;
+    height: 16px !important;
+    display: inline-block !important;
+    margin: 0 !important;
+    flex-shrink: 0 !important;
+    cursor: pointer;
+  }
   .search-input { width: 240px; max-width: 100%; }
 
   .btn {
@@ -2167,11 +2175,6 @@
       ];
     }
 
-    const custOpts = (state.data.customers || []).map(c => {
-      const label = `${c.CustomerCode ? c.CustomerCode + ' ' : ''}${c.Name}${c.Company ? ' - ' + c.Company : ''}`;
-      return `<option value="${esc(c.CustomerId)}" ${q.CustomerId === c.CustomerId ? 'selected' : ''}>${esc(label)}</option>`;
-    }).join('');
-
     const compOpts = (state.data.companyProfiles || []).map(c => `
       <option value="${esc(c.CompanyId)}" ${(q.CompanyId === c.CompanyId || (!q.CompanyId && c.IsDefault === 'Yes')) ? 'selected' : ''}>
         ${esc(c.CompanyName)}${c.IsDefault === 'Yes' ? ' (Default)' : ''}
@@ -2183,7 +2186,7 @@
       `
         <div style="background:#fff; font-family:'Segoe UI', Arial, sans-serif;">
           
-          <!-- Top Row: Date, Quote No, Company -->
+          <!-- Top Row: Date, Quote No, Company, Status -->
           <div style="display:flex; gap:12px; align-items:flex-end; margin-bottom:14px; flex-wrap:wrap;">
             <div style="width:160px;">
               <label style="font-weight:600; font-size:12.5px; color:#374151; margin-bottom:4px; display:block;">Date</label>
@@ -2207,18 +2210,21 @@
             </div>
           </div>
 
-          <!-- Customer & Searchable Picker -->
+          <!-- Single Combined Searchable Customer Dropdown -->
           <div style="margin-bottom:12px;">
             <label style="font-weight:600; font-size:13px; color:#374151; margin-bottom:4px; display:block;">Customer</label>
-            <div style="display:flex; gap:6px;">
-              <input list="quotCustDatalist" id="fQuotCustInput" placeholder="Type customer name or code to search..." value="${esc(q.CustomerName || '')}" oninput="onQuotCustInput(this.value)" style="flex:1; padding:7px 10px;">
-              <datalist id="quotCustDatalist">
-                ${(state.data.customers || []).map(c => `<option value="${esc((c.CustomerCode ? c.CustomerCode + ' ' : '') + c.Name + (c.Company ? ' - ' + c.Company : ''))}" data-id="${esc(c.CustomerId)}"></option>`).join('')}
-              </datalist>
-              <select id="fQuotCustSelect" onchange="onQuotCustSelect(this.value)" style="flex:1.2; padding:7px 10px;">
-                <option value="">-- Or Pick Customer from List --</option>
-                ${custOpts}
-              </select>
+            <div style="position:relative;" id="quotCustCombo">
+              <div style="display:flex; align-items:center; border:1px solid #d1d5db; border-radius:6px; background:#fff; padding:2px 8px; cursor:text;" onclick="focusQuotCustInput()">
+                <input type="text" id="fQuotCustInput" placeholder="Select or type customer name / code..."
+                       value="${esc(q.CustomerName || '')}"
+                       oninput="filterQuotCustList(this.value)"
+                       onfocus="openQuotCustList()"
+                       style="width:100% !important; border:none !important; outline:none !important; padding:7px 0 !important; font-size:13px !important; background:transparent !important; color:#111 !important; box-shadow:none !important;">
+                <span onclick="toggleQuotCustList(event)" style="cursor:pointer; padding:4px 6px; color:#6b7280; font-size:13px; user-select:none;">▾</span>
+              </div>
+              <input type="hidden" id="fQuotCustId" value="${esc(q.CustomerId || '')}">
+              <div id="quotCustMenu" class="hidden" style="position:absolute; top:calc(100% + 2px); left:0; right:0; max-height:220px; overflow-y:auto; background:#fff; border:1px solid #cbd5e1; border-radius:6px; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1); z-index:9999;">
+              </div>
             </div>
           </div>
 
@@ -2240,7 +2246,7 @@
               <thead>
                 <tr style="border-bottom:1.5px solid #d1d5db; color:#374151; font-size:12.5px; text-align:left;">
                   <th style="width:24px;"></th>
-                  <th style="padding:6px 8px; width:26%;">Item</th>
+                  <th style="padding:6px 8px; width:26%;">Code / Item</th>
                   <th style="padding:6px 8px; width:28%;">Description</th>
                   <th style="padding:6px 8px; width:55px; text-align:center;">Qty</th>
                   <th style="padding:6px 8px; width:85px; text-align:right;">Unit price</th>
@@ -2266,31 +2272,31 @@
             </div>
           </div>
 
-          <!-- Checkboxes exactly matching the photo -->
-          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:12px 14px; font-size:13px; color:#374151;">
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-              <input type="checkbox" id="chkQuotDisc" checked style="cursor:pointer;">
-              <label for="chkQuotDisc" style="font-weight:600; cursor:pointer;">Discount</label>
-              <select id="selQuotDiscType" style="margin-left:8px; padding:2px 8px; font-size:12px; border-radius:4px; border:1px solid #cbd5e1;">
+          <!-- Checkboxes neatly aligned on the left matching the photo -->
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:14px 16px; font-size:13px; color:#374151; margin-top:16px;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+              <input type="checkbox" id="chkQuotDisc" checked style="width:16px !important; height:16px !important; margin:0 !important; flex-shrink:0 !important; cursor:pointer;">
+              <label for="chkQuotDisc" style="font-weight:600; cursor:pointer; margin:0 !important; display:inline !important;">Discount</label>
+              <select id="selQuotDiscType" style="width:auto !important; margin-left:8px; padding:3px 8px; font-size:12px; border-radius:4px; border:1px solid #cbd5e1; background:#fff;">
                 <option>Percentage</option>
                 <option>Exact amount</option>
               </select>
             </div>
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-              <input type="checkbox" id="chkQuotHideTotal" style="cursor:pointer;">
-              <label for="chkQuotHideTotal" style="cursor:pointer;">Hide total amount</label>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+              <input type="checkbox" id="chkQuotHideTotal" style="width:16px !important; height:16px !important; margin:0 !important; flex-shrink:0 !important; cursor:pointer;">
+              <label for="chkQuotHideTotal" style="cursor:pointer; margin:0 !important; display:inline !important; font-weight:normal;">Hide total amount</label>
             </div>
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-              <input type="checkbox" id="chkQuotTaxInclusive" style="cursor:pointer;">
-              <label for="chkQuotTaxInclusive" style="cursor:pointer;">Amounts are tax inclusive</label>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+              <input type="checkbox" id="chkQuotTaxInclusive" style="width:16px !important; height:16px !important; margin:0 !important; flex-shrink:0 !important; cursor:pointer;">
+              <label for="chkQuotTaxInclusive" style="cursor:pointer; margin:0 !important; display:inline !important; font-weight:normal;">Amounts are tax inclusive</label>
             </div>
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-              <input type="checkbox" id="chkQuotRound" style="cursor:pointer;">
-              <label for="chkQuotRound" style="cursor:pointer;">Round off the total</label>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+              <input type="checkbox" id="chkQuotRound" style="width:16px !important; height:16px !important; margin:0 !important; flex-shrink:0 !important; cursor:pointer;">
+              <label for="chkQuotRound" style="cursor:pointer; margin:0 !important; display:inline !important; font-weight:normal;">Round off the total</label>
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
-              <input type="checkbox" id="chkQuotCustomTitle" style="cursor:pointer;">
-              <label for="chkQuotCustomTitle" style="cursor:pointer;">Custom title</label>
+              <input type="checkbox" id="chkQuotCustomTitle" style="width:16px !important; height:16px !important; margin:0 !important; flex-shrink:0 !important; cursor:pointer;">
+              <label for="chkQuotCustomTitle" style="cursor:pointer; margin:0 !important; display:inline !important; font-weight:normal;">Custom title</label>
             </div>
           </div>
 
@@ -2303,39 +2309,95 @@
 
     renderQuotLines();
     updateQuotTotals();
+
+    // Close customer menu on outside click
+    document.addEventListener('click', function _onBodyClick(e) {
+      const box = document.getElementById('quotCustCombo');
+      const menu = document.getElementById('quotCustMenu');
+      if (box && menu && !box.contains(e.target)) {
+        menu.classList.add('hidden');
+      }
+    });
   }
 
-  function onQuotCustSelect(custId) {
+  function renderQuotCustList(filterText = '') {
+    const menu = document.getElementById('quotCustMenu');
+    if (!menu) return;
+    const lower = filterText.toLowerCase().trim();
+    const list = (state.data.customers || []).filter(c => {
+      if (!lower) return true;
+      const text = `${c.CustomerCode || ''} ${c.Name || ''} ${c.Company || ''} ${c.Phone || ''}`.toLowerCase();
+      return text.includes(lower);
+    });
+
+    if (list.length === 0) {
+      menu.innerHTML = '<div style="padding:10px 12px; font-size:12.5px; color:#94a3b8; text-align:center;">No matching customers found</div>';
+      return;
+    }
+
+    menu.innerHTML = list.map(c => {
+      const codeStr = c.CustomerCode ? `<span style="font-weight:700; color:#0f766e; margin-right:6px;">${esc(c.CustomerCode)}</span>` : '';
+      const compStr = c.Company ? ` <span style="color:#64748b; font-size:12px;">(${esc(c.Company)})</span>` : '';
+      return `
+        <div onclick="selectQuotCust('${esc(c.CustomerId)}')" style="padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
+          <div>${codeStr}<b>${esc(c.Name)}</b>${compStr}</div>
+          <div style="font-size:11.5px; color:#94a3b8;">${esc(c.Phone || '')}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function openQuotCustList() {
+    const menu = document.getElementById('quotCustMenu');
+    if (menu) {
+      renderQuotCustList(document.getElementById('fQuotCustInput')?.value || '');
+      menu.classList.remove('hidden');
+    }
+  }
+
+  function toggleQuotCustList(e) {
+    if (e) e.stopPropagation();
+    const menu = document.getElementById('quotCustMenu');
+    if (menu) {
+      if (menu.classList.contains('hidden')) {
+        openQuotCustList();
+        document.getElementById('fQuotCustInput')?.focus();
+      } else {
+        menu.classList.add('hidden');
+      }
+    }
+  }
+
+  function focusQuotCustInput() {
+    const input = document.getElementById('fQuotCustInput');
+    if (input) {
+      input.focus();
+      openQuotCustList();
+    }
+  }
+
+  function filterQuotCustList(val) {
+    renderQuotCustList(val);
+    const menu = document.getElementById('quotCustMenu');
+    if (menu) menu.classList.remove('hidden');
+  }
+
+  function selectQuotCust(custId) {
     const cust = (state.data.customers || []).find(c => c.CustomerId === custId);
     if (cust) {
-      const label = `${c => (cust.CustomerCode ? cust.CustomerCode + ' ' : '') + cust.Name + (cust.Company ? ' - ' + cust.Company : '')}`;
       const inputEl = document.getElementById('fQuotCustInput');
-      if (inputEl) inputEl.value = (cust.CustomerCode ? cust.CustomerCode + ' ' : '') + cust.Name;
-      
+      const idEl = document.getElementById('fQuotCustId');
       const addrEl = document.getElementById('fQuotAddr');
+      const displayName = `${cust.CustomerCode ? cust.CustomerCode + ' ' : ''}${cust.Name}`;
+      if (inputEl) inputEl.value = displayName;
+      if (idEl) idEl.value = cust.CustomerId;
       if (addrEl) {
         const fullAddr = [cust.BillingAddress || cust.DeliveryAddress || '', cust.Phone || ''].filter(Boolean).join('\n');
         addrEl.value = fullAddr;
       }
     }
-  }
-
-  function onQuotCustInput(val) {
-    if (!val) return;
-    const lower = val.toLowerCase().trim();
-    const cust = (state.data.customers || []).find(c => {
-      const full = ((c.CustomerCode || '') + ' ' + (c.Name || '') + ' ' + (c.Company || '')).toLowerCase();
-      return full.includes(lower) || (c.CustomerId && c.CustomerId.toLowerCase() === lower);
-    });
-    if (cust) {
-      const selectEl = document.getElementById('fQuotCustSelect');
-      if (selectEl) selectEl.value = cust.CustomerId;
-      const addrEl = document.getElementById('fQuotAddr');
-      if (addrEl && !addrEl.value) {
-        const fullAddr = [cust.BillingAddress || cust.DeliveryAddress || '', cust.Phone || ''].filter(Boolean).join('\n');
-        addrEl.value = fullAddr;
-      }
-    }
+    const menu = document.getElementById('quotCustMenu');
+    if (menu) menu.classList.add('hidden');
   }
 
   function renderQuotLines() {
@@ -2357,12 +2419,12 @@
           <td style="color:#94a3b8; font-size:14px; text-align:center; cursor:grab;">↕</td>
           <td style="padding:5px 6px;">
             <select onchange="pickQuotItem(${idx}, this.value)" style="width:100%; padding:5px 6px; font-size:12.5px; border:1px solid #d1d5db; border-radius:4px;">
-              <option value="">-- Custom Item --</option>
+              <option value="">-- Select Code / Item --</option>
               ${invOpts}
             </select>
           </td>
           <td style="padding:5px 6px;">
-            <input placeholder="Description" value="${esc(ln.Description || '')}" oninput="_quotLines[${idx}].Description=this.value" style="width:100%; padding:5px 6px; font-size:12.5px; border:1px solid #d1d5db; border-radius:4px;">
+            <input placeholder="Product description" value="${esc(ln.Description || '')}" oninput="_quotLines[${idx}].Description=this.value" style="width:100%; padding:5px 6px; font-size:12.5px; border:1px solid #d1d5db; border-radius:4px;">
           </td>
           <td style="padding:5px 6px;">
             <input type="number" min="1" value="${ln.Qty || 1}" oninput="_quotLines[${idx}].Qty=Number(this.value); updateQuotTotals()" style="width:100%; text-align:center; padding:5px 4px; font-size:12.5px; border:1px solid #d1d5db; border-radius:4px;">
@@ -2372,7 +2434,7 @@
           </td>
           <td style="padding:5px 6px;">
             <div style="display:flex; align-items:center; gap:2px;">
-              <input type="number" step="0.1" min="0" placeholder="0" value="${ln.Discount || 0}" oninput="_quotLines[${idx}].Discount=Number(this.value); updateQuotTotals()" style="width:60px; text-align:center; padding:5px 4px; font-size:12.5px; border:1px solid #d1d5db; border-radius:4px;">
+              <input type="number" step="0.1" min="0" placeholder="0" value="${ln.Discount || 0}" oninput="_quotLines[${idx}].Discount=Number(this.value); updateQuotTotals()" style="width:65px; text-align:center; padding:5px 4px; font-size:12.5px; border:1px solid #d1d5db; border-radius:4px;">
               <span style="font-size:12px; color:#64748b;">%</span>
             </div>
           </td>
@@ -2448,11 +2510,10 @@
 
   async function submitQuotation(quotId) {
     const custInput = document.getElementById('fQuotCustInput')?.value.trim() || '';
-    const custSelect = document.getElementById('fQuotCustSelect')?.value || '';
-    const custObj = (state.data.customers || []).find(c => c.CustomerId === custSelect);
+    const custId = document.getElementById('fQuotCustId')?.value || '';
+    const custObj = (state.data.customers || []).find(c => c.CustomerId === custId);
 
     const custName = custInput || (custObj ? custObj.Name : 'Walk-in Customer');
-    const custId = custObj ? custObj.CustomerId : (custSelect || '');
     const quotNo = document.getElementById('fQuotNo')?.value.trim() || getNextQuotationNo();
     const dateVal = document.getElementById('fQuotDate')?.value || state.data.today;
     const addrVal = document.getElementById('fQuotAddr')?.value.trim() || '';
@@ -2684,7 +2745,6 @@
       true
     );
   }
-
   function openTxModal() {
     openModal(
       'Record Income / Expense',
