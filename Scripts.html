@@ -231,6 +231,65 @@
     }
   }
 
+  function printCleanDocument(selector) {
+    const el = typeof selector === 'string' ? document.querySelector(selector) : selector;
+    if (!el) {
+      window.print();
+      return;
+    }
+
+    let iframe = document.getElementById('_cleanPrintIframe');
+    if (iframe) iframe.remove();
+
+    iframe = document.createElement('iframe');
+    iframe.id = '_cleanPrintIframe';
+    iframe.style.position = 'fixed';
+    iframe.style.top = '-9999px';
+    iframe.style.left = '-9999px';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title></title>
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 8mm 10mm;
+            }
+            * {
+              box-sizing: border-box;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            html, body {
+              margin: 0;
+              padding: 0;
+              background: #fff;
+              color: #000;
+              font-family: 'Segoe UI', Arial, sans-serif;
+            }
+          </style>
+        </head>
+        <body>
+          ${el.outerHTML}
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    }, 250);
+  }
+
   /* ==========================================================================
    * Mandatory PIN/Password Verification for Any Deletion
    * ======================================================================== */
@@ -1597,9 +1656,8 @@
               Goods once sold will not be taken back..
             </div>
 
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; font-size:12px;">
-              <div>S.P - ${esc(inv.SalesPerson || '')}</div>
-              <div>N.R ------------------------------------ Checked by</div>
+            <div style="margin-bottom:16px; font-size:12.5px; color:#111;">
+              <div><b>Checked by :</b> ${esc(inv.SalesPerson || '................................................')}</div>
             </div>
 
             <div style="font-size:11.5px;">
@@ -1613,7 +1671,7 @@
       `,
       `<button class="btn btn-secondary" onclick="closeModal()">Close</button>
        <button class="btn btn-secondary" onclick="exportElementPdf('#invoicePrintArea', 'Sales_Invoice_${esc(inv.InvoiceNo || inv.InvoiceId)}')">📄 Download PDF</button>
-       <button class="btn btn-primary" onclick="window.print()">🖨 Print</button>`,
+       <button class="btn btn-primary" onclick="printCleanDocument('#invoicePrintArea')">🖨 Print</button>`,
       true
     );
   }
@@ -2494,7 +2552,7 @@
       `,
       `<button class="btn btn-secondary" onclick="closeModal()">Close</button>
        <button class="btn btn-secondary" onclick="exportElementPdf('#quotationPrintArea', 'Quotation_${esc(q.QuotationNo || q.QuotationId)}')">📄 Download PDF</button>
-       <button class="btn btn-primary" onclick="window.print()">🖨 Print</button>`,
+       <button class="btn btn-primary" onclick="printCleanDocument('#quotationPrintArea')">🖨 Print</button>`,
       true
     );
   }

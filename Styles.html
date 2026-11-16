@@ -401,9 +401,23 @@
   }
 
   @media print {
-    @page { size: A4 landscape; margin: 10mm; }
+    @page { size: portrait; margin: 8mm 10mm; }
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    .sidebar, .topbar, .no-print, .modal-footer, .modal-header .close-btn { display: none !important; }
+    .sidebar, .topbar, .no-print, .modal-footer, .modal-header, .close-btn { display: none !important; }
+    
+    /* When a modal is open during print, hide the underlying page/app completely so background tables never print */
+    body:has(#modalBackdrop:not(.hidden)) #appShell > *:not(#modalBackdrop),
+    body:has(#modalBackdrop:not(.hidden)) .main-wrap,
+    body:has(#modalBackdrop:not(.hidden)) #mainContent,
+    body:has(#modalBackdrop:not(.hidden)) .sidebar,
+    body:has(#modalBackdrop:not(.hidden)) .topbar,
+    body.modal-open .main-wrap,
+    body.modal-open #mainContent,
+    body.modal-open .sidebar,
+    body.modal-open .topbar {
+      display: none !important;
+    }
+
     body, .main-wrap, .content, .card, .modal-backdrop, .modal { position: static; background: #fff; box-shadow: none; border: none; margin: 0; padding: 0; max-width: 100%; max-height: none; }
     #pcTable, .print-excel-table { border-collapse: collapse; width: 100%; border: 1px solid #000 !important; }
     #pcTable th, #pcTable td, .print-excel-table th, .print-excel-table td { border: 1px solid #000 !important; font-size: 12px; }

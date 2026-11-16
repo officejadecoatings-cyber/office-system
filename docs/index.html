@@ -408,9 +408,23 @@
   }
 
   @media print {
-    @page { size: A4 landscape; margin: 10mm; }
+    @page { size: portrait; margin: 8mm 10mm; }
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    .sidebar, .topbar, .no-print, .modal-footer, .modal-header .close-btn { display: none !important; }
+    .sidebar, .topbar, .no-print, .modal-footer, .modal-header, .close-btn { display: none !important; }
+    
+    /* When a modal is open during print, hide the underlying page/app completely so background tables never print */
+    body:has(#modalBackdrop:not(.hidden)) #appShell > *:not(#modalBackdrop),
+    body:has(#modalBackdrop:not(.hidden)) .main-wrap,
+    body:has(#modalBackdrop:not(.hidden)) #mainContent,
+    body:has(#modalBackdrop:not(.hidden)) .sidebar,
+    body:has(#modalBackdrop:not(.hidden)) .topbar,
+    body.modal-open .main-wrap,
+    body.modal-open #mainContent,
+    body.modal-open .sidebar,
+    body.modal-open .topbar {
+      display: none !important;
+    }
+
     body, .main-wrap, .content, .card, .modal-backdrop, .modal { position: static; background: #fff; box-shadow: none; border: none; margin: 0; padding: 0; max-width: 100%; max-height: none; }
     #pcTable, .print-excel-table { border-collapse: collapse; width: 100%; border: 1px solid #000 !important; }
     #pcTable th, #pcTable td, .print-excel-table th, .print-excel-table td { border: 1px solid #000 !important; font-size: 12px; }
@@ -753,6 +767,65 @@
     } else {
       window.print();
     }
+  }
+
+  function printCleanDocument(selector) {
+    const el = typeof selector === 'string' ? document.querySelector(selector) : selector;
+    if (!el) {
+      window.print();
+      return;
+    }
+
+    let iframe = document.getElementById('_cleanPrintIframe');
+    if (iframe) iframe.remove();
+
+    iframe = document.createElement('iframe');
+    iframe.id = '_cleanPrintIframe';
+    iframe.style.position = 'fixed';
+    iframe.style.top = '-9999px';
+    iframe.style.left = '-9999px';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title></title>
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 8mm 10mm;
+            }
+            * {
+              box-sizing: border-box;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            html, body {
+              margin: 0;
+              padding: 0;
+              background: #fff;
+              color: #000;
+              font-family: 'Segoe UI', Arial, sans-serif;
+            }
+          </style>
+        </head>
+        <body>
+          ${el.outerHTML}
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    }, 250);
   }
 
   /* ==========================================================================
@@ -2121,9 +2194,8 @@
               Goods once sold will not be taken back..
             </div>
 
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; font-size:12px;">
-              <div>S.P - ${esc(inv.SalesPerson || '')}</div>
-              <div>N.R ------------------------------------ Checked by</div>
+            <div style="margin-bottom:16px; font-size:12.5px; color:#111;">
+              <div><b>Checked by :</b> ${esc(inv.SalesPerson || '................................................')}</div>
             </div>
 
             <div style="font-size:11.5px;">
@@ -2137,7 +2209,7 @@
       `,
       `<button class="btn btn-secondary" onclick="closeModal()">Close</button>
        <button class="btn btn-secondary" onclick="exportElementPdf('#invoicePrintArea', 'Sales_Invoice_${esc(inv.InvoiceNo || inv.InvoiceId)}')">📄 Download PDF</button>
-       <button class="btn btn-primary" onclick="window.print()">🖨 Print</button>`,
+       <button class="btn btn-primary" onclick="printCleanDocument('#invoicePrintArea')">🖨 Print</button>`,
       true
     );
   }
@@ -3018,7 +3090,7 @@
       `,
       `<button class="btn btn-secondary" onclick="closeModal()">Close</button>
        <button class="btn btn-secondary" onclick="exportElementPdf('#quotationPrintArea', 'Quotation_${esc(q.QuotationNo || q.QuotationId)}')">📄 Download PDF</button>
-       <button class="btn btn-primary" onclick="window.print()">🖨 Print</button>`,
+       <button class="btn btn-primary" onclick="printCleanDocument('#quotationPrintArea')">🖨 Print</button>`,
       true
     );
   }
