@@ -574,7 +574,7 @@
     if (!customerId) return { blocked: false, maxDays: 0, balance: 0 };
     const unpaid = state.data.invoices.filter(i =>
       i.CustomerId === customerId &&
-      i.Status !== 'Paid' && i.Status !== 'Cancelled' && i.Status !== 'Draft' &&
+      i.Status !== 'Paid' && i.Status !== 'Cancelled' && i.Status !== 'Draft' && i.Status !== 'Free Issue' &&
       (Number(i.Total || 0) - Number(i.PaidAmount || 0)) > 0
     );
     let maxDays = 0;
@@ -677,9 +677,10 @@
   function statusBadge(status) {
     const map = {
       Active: 'badge-success', Paid: 'badge-success', Approved: 'badge-success', Done: 'badge-success', Present: 'badge-success',
-      Inactive: 'badge-danger', Cancelled: 'badge-danger', Rejected: 'badge-danger', High: 'badge-danger',
+      Inactive: 'badge-danger', Cancelled: 'badge-danger', Rejected: 'badge-danger', High: 'badge-danger', Unpaid: 'badge-danger',
       Pending: 'badge-warning', 'In Progress': 'badge-warning', Late: 'badge-warning',
-      Draft: 'badge-muted', 'To Do': 'badge-info', Medium: 'badge-info', Low: 'badge-muted'
+      Draft: 'badge-muted', 'To Do': 'badge-info', Medium: 'badge-info', Low: 'badge-muted',
+      'Free Issue': 'badge-info'
     };
     return `<span class="badge ${map[status] || 'badge-muted'}">${esc(status)}</span>`;
   }
@@ -848,15 +849,16 @@
       ? state.data.invoiceItems.filter(li => li.InvoiceId === invoiceId).map(x => ({ ...x, ItemCode: x.ItemCode || '', DiscountPercent: Number(x.DiscountPercent) || 0 }))
       : [{ ItemId: '', ItemCode: '', ItemName: '', Qty: 1, UnitPrice: 0, DiscountPercent: 0, LineTotal: 0 }];
 
-    const custOpts = state.data.customers.map(c =>
-      `<option value="${esc(c.CustomerId)}" ${inv.CustomerId === c.CustomerId ? 'selected' : ''}>${esc(c.Name)}${c.Company ? ' - ' + esc(c.Company) : ''}</option>`
-    ).join('');
-
     const compOpts = (state.data.companyProfiles || []).map(c =>
       `<option value="${esc(c.CompanyId)}" ${(inv.CompanyId === c.CompanyId || (!inv.CompanyId && c.IsDefault === 'Yes')) ? 'selected' : ''}>
         ${esc(c.CompanyName)}${c.IsDefault === 'Yes' ? ' (Default)' : ''} - ${esc(c.BankName || '')} (${esc(c.AccountNo || '')})
       </option>`
     ).join('');
+
+    const existingCust = (state.data.customers || []).find(c => c.CustomerId === inv.CustomerId);
+    const initialCustName = existingCust
+      ? `${existingCust.CustomerCode ? existingCust.CustomerCode + ' ' : ''}${existingCust.Name}`
+      : (inv.CustomerName || '');
 
     openModal(
       invoiceId ? 'Edit Sales Invoice ' + inv.InvoiceNo : 'New Sales Invoice',
@@ -883,17 +885,26 @@
         </div>
 
         <div class="form-row">
-          <div class="form-group">
+          <div class="form-group" style="position:relative;">
             <label>Customer</label>
-            <select id="fInvCust" onchange="onInvCustomerChange()">
-              <option value="">-- Walk-in / Select Customer --</option>
-              ${custOpts}
-            </select>
+            <div style="position:relative;" id="invCustCombo">
+              <div style="display:flex; align-items:center; border:1px solid #d1d5db; border-radius:6px; background:#fff; padding:2px 8px; cursor:text;" onclick="focusInvCustInput()">
+                <input type="text" id="fInvCustInput" placeholder="Select or type customer name / code..."
+                       value="${esc(initialCustName)}"
+                       oninput="filterInvCustList(this.value)"
+                       onfocus="openInvCustList()"
+                       style="width:100% !important; border:none !important; outline:none !important; padding:7px 0 !important; font-size:13px !important; background:transparent !important; color:#111 !important; box-shadow:none !important;">
+                <span onclick="toggleInvCustList(event)" style="cursor:pointer; padding:4px 6px; color:#6b7280; font-size:13px; user-select:none;">▾</span>
+              </div>
+              <input type="hidden" id="fInvCustId" value="${esc(inv.CustomerId || '')}">
+              <div id="invCustMenu" class="hidden" style="position:absolute; top:calc(100% + 2px); left:0; right:0; max-height:220px; overflow-y:auto; background:#fff; border:1px solid #cbd5e1; border-radius:6px; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1); z-index:9999;">
+              </div>
+            </div>
           </div>
           <div class="form-group">
             <label>Status</label>
             <select id="fInvStatus">
-              ${['Draft', 'Pending', 'Partial', 'Paid', 'Cancelled'].map(s => `<option ${inv.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
+              ${['Paid', 'Unpaid', 'Pending', 'Free Issue'].map(s => `<option ${inv.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -953,7 +964,100 @@
       true
     );
     renderInvLines();
-    checkInvCustomerBlock();
+    checkInvCustomerBlock(inv.CustomerId);
+
+    // Close customer menu on outside click
+    document.addEventListener('click', function _onInvBodyClick(e) {
+      const box = document.getElementById('invCustCombo');
+      const menu = document.getElementById('invCustMenu');
+      if (box && menu && !box.contains(e.target)) {
+        menu.classList.add('hidden');
+      }
+    });
+  }
+
+  function renderInvCustList(filterText = '') {
+    const menu = document.getElementById('invCustMenu');
+    if (!menu) return;
+    const lower = filterText.toLowerCase().trim();
+    const list = (state.data.customers || []).filter(c => {
+      if (!lower) return true;
+      const text = `${c.CustomerCode || ''} ${c.Name || ''} ${c.Company || ''} ${c.Phone || ''}`.toLowerCase();
+      return text.includes(lower);
+    });
+
+    if (list.length === 0) {
+      menu.innerHTML = '<div style="padding:10px 12px; font-size:12.5px; color:#94a3b8; text-align:center;">No matching customers found</div>';
+      return;
+    }
+
+    menu.innerHTML = list.map(c => {
+      const codeStr = c.CustomerCode ? `<span style="font-weight:700; color:#0f766e; margin-right:6px;">${esc(c.CustomerCode)}</span>` : '';
+      const compStr = c.Company ? ` <span style="color:#64748b; font-size:12px;">(${esc(c.Company)})</span>` : '';
+      return `
+        <div onclick="selectInvCust('${esc(c.CustomerId)}')" style="padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
+          <div>${codeStr}<b>${esc(c.Name)}</b>${compStr}</div>
+          <div style="font-size:11.5px; color:#94a3b8;">${esc(c.Phone || '')}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function openInvCustList() {
+    const menu = document.getElementById('invCustMenu');
+    if (menu) {
+      renderInvCustList(document.getElementById('fInvCustInput')?.value || '');
+      menu.classList.remove('hidden');
+    }
+  }
+
+  function toggleInvCustList(e) {
+    if (e) e.stopPropagation();
+    const menu = document.getElementById('invCustMenu');
+    if (menu) {
+      if (menu.classList.contains('hidden')) {
+        openInvCustList();
+        document.getElementById('fInvCustInput')?.focus();
+      } else {
+        menu.classList.add('hidden');
+      }
+    }
+  }
+
+  function focusInvCustInput() {
+    const input = document.getElementById('fInvCustInput');
+    if (input) {
+      input.focus();
+      openInvCustList();
+    }
+  }
+
+  function filterInvCustList(val) {
+    renderInvCustList(val);
+    const menu = document.getElementById('invCustMenu');
+    if (menu) menu.classList.remove('hidden');
+  }
+
+  function selectInvCust(custId) {
+    const cust = (state.data.customers || []).find(c => c.CustomerId === custId);
+    if (cust) {
+      const inputEl = document.getElementById('fInvCustInput');
+      const idEl = document.getElementById('fInvCustId');
+      const addrEl = document.getElementById('fInvCustAddr');
+      const phoneEl = document.getElementById('fInvCustPhone');
+      const displayName = `${cust.CustomerCode ? cust.CustomerCode + ' ' : ''}${cust.Name}`;
+      if (inputEl) inputEl.value = displayName;
+      if (idEl) idEl.value = cust.CustomerId;
+      if (addrEl) {
+        addrEl.value = cust.BillingAddress || cust.DeliveryAddress || '';
+      }
+      if (phoneEl) {
+        phoneEl.value = cust.Phone || '';
+      }
+      checkInvCustomerBlock(cust.CustomerId);
+    }
+    const menu = document.getElementById('invCustMenu');
+    if (menu) menu.classList.add('hidden');
   }
 
   function onInvCompanyChange() {
@@ -967,24 +1071,8 @@
     }
   }
 
-  function onInvCustomerChange() {
-    checkInvCustomerBlock();
-    const custId = document.getElementById('fInvCust')?.value;
-    const cust = state.data.customers.find(c => c.CustomerId === custId);
-    if (cust) {
-      const addrEl = document.getElementById('fInvCustAddr');
-      const phoneEl = document.getElementById('fInvCustPhone');
-      if (addrEl && !addrEl.value) {
-        addrEl.value = cust.BillingAddress || cust.DeliveryAddress || '';
-      }
-      if (phoneEl && !phoneEl.value) {
-        phoneEl.value = cust.Phone || '';
-      }
-    }
-  }
-
-  function checkInvCustomerBlock() {
-    const custId = document.getElementById('fInvCust')?.value;
+  function checkInvCustomerBlock(passedCustId) {
+    const custId = passedCustId !== undefined ? passedCustId : (document.getElementById('fInvCustId')?.value || '');
     const info = getCustomerOverdueInfo(custId);
     const alertEl = document.getElementById('invOverdueAlert');
     if (alertEl) {
@@ -1071,12 +1159,13 @@
   }
 
   async function submitInvoice(invoiceId) {
-    const custId = document.getElementById('fInvCust').value;
+    const custId = document.getElementById('fInvCustId')?.value || document.getElementById('fInvCust')?.value || '';
+    const custName = document.getElementById('fInvCustInput')?.value || '';
     const status = document.getElementById('fInvStatus').value;
     const info = getCustomerOverdueInfo(custId);
 
     // Block >120 day overdue customers unless Login PIN override is verified
-    if (info.blocked && status !== 'Draft' && status !== 'Cancelled') {
+    if (info.blocked && status !== 'Draft' && status !== 'Cancelled' && status !== 'Free Issue') {
       const pin = document.getElementById('fInvOverridePin')?.value || '';
       if (!pin) {
         showToast('Blocked: Customer is >120 days overdue. Enter your Login PIN to issue!');
@@ -1093,7 +1182,7 @@
     const cust = state.data.customers.find(c => c.CustomerId === custId);
     const { sub, disc, tax, total, paid } = updateInvTotals();
     const existing = invoiceId ? state.data.invoices.find(i => i.InvoiceId === invoiceId) : null;
-    const finalPaid = status === 'Paid' ? total : paid;
+    const finalPaid = status === 'Paid' ? total : (status === 'Free Issue' ? 0 : paid);
 
     const payload = {
       invoice: {
@@ -1101,7 +1190,7 @@
         InvoiceNo: existing ? existing.InvoiceNo : '',
         CompanyId: document.getElementById('fInvCompany')?.value || '',
         CustomerId: custId,
-        CustomerName: cust ? cust.Name : (custId ? 'Customer' : 'Walk-in Customer'),
+        CustomerName: custName || (cust ? cust.Name : (custId ? 'Customer' : 'Walk-in Customer')),
         CustomerAddress: document.getElementById('fInvCustAddr')?.value || (cust ? (cust.BillingAddress || cust.DeliveryAddress || '') : ''),
         CustomerPhone: document.getElementById('fInvCustPhone')?.value || (cust ? (cust.Phone || '') : ''),
         QuoteNo: document.getElementById('fInvQuote')?.value || '',
@@ -2269,7 +2358,7 @@
   function renderOutstandingView() {
     const tab = state.outTab;
     const debtors = state.data.invoices.filter(i =>
-      i.Status !== 'Paid' && i.Status !== 'Cancelled' && i.Status !== 'Draft' &&
+      i.Status !== 'Paid' && i.Status !== 'Cancelled' && i.Status !== 'Draft' && i.Status !== 'Free Issue' &&
       (Number(i.Total || 0) - Number(i.PaidAmount || 0)) > 0
     );
     const totalDebtors = debtors.reduce((s, i) => s + (Number(i.Total || 0) - Number(i.PaidAmount || 0)), 0);
