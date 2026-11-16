@@ -36,6 +36,39 @@
   const CACHE_KEY_USER = 'JADE_OFFICE_USER_CACHE';
 
   /* ==========================================================================
+   * Tab Access Control (Call Report, Project Report, Petty Cash)
+   * Visible ONLY to users: "Shihani nuwanthi" and "rashini fernando"
+   * ======================================================================== */
+
+  const RESTRICTED_REPORT_USERS = ['shihani nuwanthi', 'rashini fernando'];
+
+  function isRestrictedReportUser() {
+    if (!state.user || !state.user.Name) return false;
+    const norm = state.user.Name.toLowerCase().replace(/\s+/g, ' ').trim();
+    return RESTRICTED_REPORT_USERS.includes(norm);
+  }
+
+  function updateRestrictedTabsVisibility() {
+    const allowed = isRestrictedReportUser();
+    const restrictedViews = ['callReport', 'projectReport', 'pettyCash'];
+
+    restrictedViews.forEach(v => {
+      const btn = document.querySelector(`.sidebar-nav [data-view="${v}"]`);
+      if (btn) {
+        btn.style.display = allowed ? '' : 'none';
+      }
+    });
+
+    if (!allowed && restrictedViews.includes(state.view)) {
+      state.view = 'dashboard';
+      document.querySelectorAll('.nav-item').forEach(b => {
+        b.classList.toggle('active', b.dataset.view === 'dashboard');
+      });
+      renderView();
+    }
+  }
+
+  /* ==========================================================================
    * Utilities & GAS Bridge
    * ======================================================================== */
 
@@ -251,6 +284,7 @@
           document.getElementById('sidebarRole').textContent = cachedUser.Role || 'Staff';
           document.getElementById('brandName').textContent = cachedData.settings.CompanyName || 'Jade Coatings';
           renderCustomSidebarTabs();
+          updateRestrictedTabsVisibility();
           renderTopbarClock();
           renderView();
           startAutoSync();
@@ -300,6 +334,7 @@
         document.getElementById('appShell').classList.remove('hidden');
         document.getElementById('sidebarUser').textContent = state.user.Name;
         document.getElementById('sidebarRole').textContent = state.user.Role;
+        updateRestrictedTabsVisibility();
         startAutoSync();
       } catch (err) {
         showToast('Login failed: ' + (err.message || 'Invalid PIN'));
@@ -315,6 +350,7 @@
     document.getElementById('loginPin').value = '';
     document.getElementById('appShell').classList.add('hidden');
     document.getElementById('loginView').classList.remove('hidden');
+    updateRestrictedTabsVisibility();
   }
 
   async function refreshData(backupToDrive = false, silent = false) {
@@ -329,6 +365,7 @@
         document.getElementById('brandName').textContent = data.settings.CompanyName || 'Jade Coatings';
       }
       renderCustomSidebarTabs();
+      updateRestrictedTabsVisibility();
       renderTopbarClock();
       renderView();
       if (backupToDrive) showToast('Synced with Google Drive!');
@@ -367,6 +404,15 @@
   }
 
   function navigate(view) {
+    if (!isRestrictedReportUser() && ['callReport', 'projectReport', 'pettyCash'].includes(view)) {
+      showToast('Access restricted: Only Shihani Nuwanthi and Rashini Fernando can view this tab.');
+      state.view = 'dashboard';
+      document.querySelectorAll('.nav-item').forEach(b => {
+        b.classList.toggle('active', b.dataset.view === 'dashboard');
+      });
+      renderView();
+      return;
+    }
     state.view = view;
     document.querySelectorAll('.nav-item').forEach(b => {
       b.classList.toggle('active', b.dataset.view === view);
@@ -400,6 +446,10 @@
   }
 
   function renderView() {
+    if (!isRestrictedReportUser() && ['callReport', 'projectReport', 'pettyCash'].includes(state.view)) {
+      state.view = 'dashboard';
+    }
+
     if (state.view.startsWith('customTab:')) {
       const tabId = state.view.split(':')[1];
       const tab = (state.data.customTabs || []).find(t => t.TabId === tabId);
