@@ -1095,21 +1095,36 @@
   }
 
   function getCustomerOverdueInfo(customerId) {
-    if (!customerId) return { blocked: false, maxDays: 0, balance: 0 };
-    const unpaid = state.data.invoices.filter(i =>
+    if (!customerId) return { blocked: false, maxDays: 0, balance: 0, overdueInvoices: [], overdueBalance: 0 };
+    const unpaid = (state.data.invoices || []).filter(i =>
       i.CustomerId === customerId &&
       i.Status !== 'Paid' && i.Status !== 'Cancelled' && i.Status !== 'Draft' && i.Status !== 'Free Issue' &&
       (Number(i.Total || 0) - Number(i.PaidAmount || 0)) > 0
     );
     let maxDays = 0;
     let balance = 0;
+    let overdueBalance = 0;
+    const overdueInvoices = [];
+
     unpaid.forEach(i => {
       const bal = Number(i.Total || 0) - Number(i.PaidAmount || 0);
       balance += bal;
       const d = daysBetween(i.DueDate || i.Date, state.data.today);
+      if (d > 0) {
+        overdueBalance += bal;
+        overdueInvoices.push({
+          invoiceNo: i.InvoiceNo || 'INV',
+          dueDate: i.DueDate || i.Date,
+          daysOverdue: d,
+          balance: bal
+        });
+      }
       if (d > maxDays) maxDays = d;
     });
-    return { blocked: maxDays > 120, maxDays, balance };
+
+    // Block customer from new invoices if payment was not made before the due date (d > 0)
+    const blocked = overdueInvoices.length > 0;
+    return { blocked, maxDays, balance, overdueBalance, overdueInvoices };
   }
 
   /* ==========================================================================
@@ -1218,21 +1233,44 @@
     let body = '';
     if (tab === 'invoices') {
       const rows = [...state.data.invoices].reverse();
+      const allInvoices = state.data.invoices || [];
+      const totalSales = allInvoices.reduce((s, i) => s + (i.Status !== 'Cancelled' ? Number(i.Total || 0) : 0), 0);
+      const totalCollected = allInvoices.reduce((s, i) => s + (i.Status !== 'Cancelled' ? (i.Status === 'Paid' ? Number(i.Total || 0) : Number(i.PaidAmount || 0)) : 0), 0);
+      const totalCreditOutstanding = allInvoices.reduce((s, i) => {
+        if (i.Status === 'Paid' || i.Status === 'Cancelled' || i.Status === 'Free Issue') return s;
+        return s + Math.max(0, Number(i.Total || 0) - Number(i.PaidAmount || 0));
+      }, 0);
+      const totalOverdueCredit = allInvoices.reduce((s, i) => {
+        if (i.Status === 'Paid' || i.Status === 'Cancelled' || i.Status === 'Free Issue') return s;
+        const isPastDue = daysBetween(i.DueDate || i.Date, state.data.today) > 0;
+        return isPastDue ? s + Math.max(0, Number(i.Total || 0) - Number(i.PaidAmount || 0)) : s;
+      }, 0);
+
       body = `
+        <div class="kpi-grid">
+          <div class="card"><div class="kpi-label">Total Invoiced Sales</div><div class="kpi-val">${fmtMoney(totalSales)}</div></div>
+          <div class="card"><div class="kpi-label">Total Collected (Paid)</div><div class="kpi-val" style="color:var(--success)">${fmtMoney(totalCollected)}</div></div>
+          <div class="card"><div class="kpi-label">Outstanding Credit (Unpaid/Pending)</div><div class="kpi-val" style="color:var(--warning)">${fmtMoney(totalCreditOutstanding)}</div></div>
+          <div class="card"><div class="kpi-label">Overdue Credit (Past Due Date)</div><div class="kpi-val" style="color:var(--danger)">${fmtMoney(totalOverdueCredit)}</div></div>
+        </div>
         <div class="section-header">
           <input class="search-input" id="invSearch" placeholder="Search sales invoices..." oninput="filterTable('invTable', this.value)">
           <button class="btn btn-primary" onclick="openInvoiceModal()">+ New Sales Invoice / Order</button>
         </div>
         <div class="card table-wrap">
           <table id="invTable">
-            <thead><tr><th>Invoice #</th><th>Date</th><th>Customer</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Invoice #</th><th>Date</th><th>Customer</th><th>Sales Person</th><th>Total</th><th>Paid / Balance</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
-              ${rows.map(i => `
+              ${rows.map(i => {
+                const bal = Math.max(0, Number(i.Total || 0) - Number(i.PaidAmount || 0));
+                return `
                 <tr>
                   <td><b>${esc(i.InvoiceNo)}</b></td>
                   <td>${esc(i.Date)}</td>
                   <td>${esc(i.CustomerName)}</td>
+                  <td><b>${esc(i.SalesPerson || '-')}</b></td>
                   <td>${fmtMoney(i.Total)}</td>
+                  <td>${i.Status === 'Paid' ? `<span style="color:var(--success); font-weight:600;">${fmtMoney(i.Total)}</span>` : `${fmtMoney(i.PaidAmount || 0)}${bal > 0 ? `<div style="font-size:11px; color:var(--danger);">Bal: ${fmtMoney(bal)}</div>` : ''}`}</td>
                   <td>${statusBadge(i.Status)}</td>
                   <td>
                     <button class="btn btn-sm btn-secondary" onclick="printInvoice('${esc(i.InvoiceId)}')">Print</button>
@@ -1240,7 +1278,7 @@
                     <button class="btn btn-sm btn-danger" onclick="removeInvoice('${esc(i.InvoiceId)}')">Del</button>
                   </td>
                 </tr>
-              `).join('') || '<tr><td colspan="6" style="color:var(--muted)">No sales invoices created yet.</td></tr>'}
+              `;}).join('') || '<tr><td colspan="8" style="color:var(--muted)">No sales invoices created yet.</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -1387,11 +1425,13 @@
     openModal(
       invoiceId ? 'Edit Sales Invoice ' + inv.InvoiceNo : 'New Sales Invoice',
       `
-        <div id="invOverdueAlert" class="alert-danger hidden">
-          <b>⛔ BLOCKED (&gt; 120 Days Overdue):</b> <span id="invOverdueMsg"></span>
+        <div id="invOverdueAlert" class="alert-danger hidden" style="margin-bottom:12px; border-left:4px solid #b91c1c; padding:10px 14px; background:#fef2f2; border-radius:6px;">
+          <div style="font-weight:700; color:#991b1b; font-size:13.5px;">⛔ BLOCKED: Customer Has Unpaid Invoice(s) Past Due Date!</div>
+          <div id="invOverdueMsg" style="font-size:12px; color:#7f1d1d; margin:6px 0;"></div>
           <div class="form-group" style="margin-top:8px; margin-bottom:0;">
-            <label style="color:#991b1b;">Enter Your Login PIN/Password to Override &amp; Issue Invoice</label>
-            <input type="password" id="fInvOverridePin" placeholder="Enter your Login PIN (${esc(state.user.Name)})">
+            <label style="color:#991b1b; font-weight:700;">Enter Login PIN/Password to Override &amp; Issue Invoice *</label>
+            <input type="password" id="fInvOverridePin" placeholder="Enter your Login PIN (${esc(state.user.Name)})" style="max-width:240px; font-size:15px; letter-spacing:2px;" autocomplete="off">
+            <div id="fInvOverridePinError" style="color:#b91c1c; font-size:12px; font-weight:600; margin-top:4px;"></div>
           </div>
         </div>
 
@@ -1447,9 +1487,21 @@
         </div>
 
         <div class="form-row">
-          <div class="form-group">
-            <label>Sales Person (S.P) <span style="font-weight:normal; color:var(--muted);">(Optional)</span></label>
-            <input id="fInvSP" placeholder="e.g. S.P - Name (Optional)" value="${esc(inv.SalesPerson || '')}">
+          <div class="form-group" style="position:relative;">
+            <label>Sales Person (S.P) <span style="font-weight:normal; color:var(--muted);">(Selective &amp; Searchable)</span></label>
+            <div style="position:relative;" id="invSPCombo">
+              <div style="display:flex; align-items:center; border:1px solid #d1d5db; border-radius:6px; background:#fff; padding:2px 8px; cursor:text;" onclick="focusInvSPInput()">
+                <input type="text" id="fInvSPInput" placeholder="Select or type Sales Person name..."
+                       value="${esc(inv.SalesPerson || '')}"
+                       oninput="filterInvSPList(this.value)"
+                       onfocus="openInvSPList()"
+                       style="width:100% !important; border:none !important; outline:none !important; padding:7px 0 !important; font-size:13px !important; background:transparent !important; color:#111 !important; box-shadow:none !important;">
+                <span onclick="toggleInvSPList(event)" style="cursor:pointer; padding:4px 6px; color:#6b7280; font-size:13px; user-select:none;">▾</span>
+              </div>
+              <input type="hidden" id="fInvSP" value="${esc(inv.SalesPerson || '')}">
+              <div id="invSPMenu" class="hidden" style="position:absolute; top:calc(100% + 2px); left:0; right:0; max-height:200px; overflow-y:auto; background:#fff; border:1px solid #cbd5e1; border-radius:6px; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1); z-index:9999;">
+              </div>
+            </div>
           </div>
           <div class="form-group">
             <label>Bank Details (Auto-filled from Company)</label>
@@ -1490,12 +1542,17 @@
     renderInvLines();
     checkInvCustomerBlock(inv.CustomerId);
 
-    // Close customer menu on outside click
+    // Close customer and sales person menus on outside click
     document.addEventListener('click', function _onInvBodyClick(e) {
-      const box = document.getElementById('invCustCombo');
-      const menu = document.getElementById('invCustMenu');
-      if (box && menu && !box.contains(e.target)) {
-        menu.classList.add('hidden');
+      const custBox = document.getElementById('invCustCombo');
+      const custMenu = document.getElementById('invCustMenu');
+      if (custBox && custMenu && !custBox.contains(e.target)) {
+        custMenu.classList.add('hidden');
+      }
+      const spBox = document.getElementById('invSPCombo');
+      const spMenu = document.getElementById('invSPMenu');
+      if (spBox && spMenu && !spBox.contains(e.target)) {
+        spMenu.classList.add('hidden');
       }
     });
   }
@@ -1578,9 +1635,129 @@
       if (phoneEl) {
         phoneEl.value = cust.Phone || '';
       }
+
+      // If customer has an assigned Sales Officer, auto-fill Sales Person if currently blank
+      if (cust.SalesOfficerId) {
+        const spEmp = (state.data.employees || []).find(e => e.EmpId === cust.SalesOfficerId);
+        const spName = spEmp ? spEmp.Name : cust.SalesOfficerId;
+        const spInput = document.getElementById('fInvSPInput');
+        const spHidden = document.getElementById('fInvSP');
+        if (spInput && !spInput.value && spName) {
+          spInput.value = spName;
+          if (spHidden) spHidden.value = spName;
+        }
+      }
+
       checkInvCustomerBlock(cust.CustomerId);
     }
     const menu = document.getElementById('invCustMenu');
+    if (menu) menu.classList.add('hidden');
+  }
+
+  function getSalesPersonsList() {
+    const list = [];
+    const added = new Set();
+
+    // 1. Employees with position/designation containing sales/marketing
+    (state.data.employees || []).forEach(e => {
+      const p = ((e.Position || '') + ' ' + (e.Designation || '')).toLowerCase();
+      if (e.Status !== 'Inactive' && (p.includes('sales') || p.includes('rep') || p.includes('marketing') || p.includes('officer'))) {
+        if (!added.has(e.Name)) {
+          added.add(e.Name);
+          list.push({ Name: e.Name, Code: e.EmpCode || e.EmpId || '', Designation: e.Position || e.Designation || 'Sales Officer' });
+        }
+      }
+    });
+
+    // 2. Default well-known sales representatives
+    const defaultSalesNames = [
+      'Mr. Sunanda', 'Mr. Damith', 'Mr. Nimesh', 'Mr. Yasas',
+      'Mr. Shehan', 'Mr. Manjula', 'Mr. Nipun', 'Mr. Pathum'
+    ];
+    defaultSalesNames.forEach(name => {
+      if (!added.has(name)) {
+        added.add(name);
+        list.push({ Name: name, Code: '', Designation: 'Sales Officer' });
+      }
+    });
+
+    // 3. Other active employees
+    (state.data.employees || []).forEach(e => {
+      if (e.Status !== 'Inactive' && !added.has(e.Name)) {
+        added.add(e.Name);
+        list.push({ Name: e.Name, Code: e.EmpCode || e.EmpId || '', Designation: e.Position || e.Designation || 'Staff' });
+      }
+    });
+
+    return list;
+  }
+
+  function renderInvSPList(filterText = '') {
+    const menu = document.getElementById('invSPMenu');
+    if (!menu) return;
+    const lower = filterText.toLowerCase().trim();
+    const list = getSalesPersonsList().filter(s => {
+      if (!lower) return true;
+      const text = `${s.Name} ${s.Code} ${s.Designation}`.toLowerCase();
+      return text.includes(lower);
+    });
+
+    if (list.length === 0) {
+      menu.innerHTML = '<div style="padding:10px 12px; font-size:12.5px; color:#94a3b8; text-align:center;">No matching sales person. You can type any custom name.</div>';
+      return;
+    }
+
+    menu.innerHTML = list.map(s => `
+      <div onclick="selectInvSP('${esc(s.Name)}')" style="padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
+        <div><b>${esc(s.Name)}</b> <span style="font-size:11.5px; color:#64748b;">(${esc(s.Designation)})</span></div>
+        ${s.Code ? `<div style="font-size:11px; color:#0f766e; font-weight:600;">${esc(s.Code)}</div>` : ''}
+      </div>
+    `).join('');
+  }
+
+  function openInvSPList() {
+    const menu = document.getElementById('invSPMenu');
+    if (menu) {
+      renderInvSPList(document.getElementById('fInvSPInput')?.value || '');
+      menu.classList.remove('hidden');
+    }
+  }
+
+  function toggleInvSPList(e) {
+    if (e) e.stopPropagation();
+    const menu = document.getElementById('invSPMenu');
+    if (menu) {
+      if (menu.classList.contains('hidden')) {
+        openInvSPList();
+        document.getElementById('fInvSPInput')?.focus();
+      } else {
+        menu.classList.add('hidden');
+      }
+    }
+  }
+
+  function focusInvSPInput() {
+    const input = document.getElementById('fInvSPInput');
+    if (input) {
+      input.focus();
+      openInvSPList();
+    }
+  }
+
+  function filterInvSPList(val) {
+    const hidden = document.getElementById('fInvSP');
+    if (hidden) hidden.value = val;
+    renderInvSPList(val);
+    const menu = document.getElementById('invSPMenu');
+    if (menu) menu.classList.remove('hidden');
+  }
+
+  function selectInvSP(name) {
+    const inputEl = document.getElementById('fInvSPInput');
+    const idEl = document.getElementById('fInvSP');
+    if (inputEl) inputEl.value = name;
+    if (idEl) idEl.value = name;
+    const menu = document.getElementById('invSPMenu');
     if (menu) menu.classList.add('hidden');
   }
 
@@ -1601,8 +1778,14 @@
     const alertEl = document.getElementById('invOverdueAlert');
     if (alertEl) {
       if (info.blocked) {
-        document.getElementById('invOverdueMsg').textContent =
-          `This customer has unpaid invoices overdue by ${info.maxDays} days (Balance: ${fmtMoney(info.balance)}).`;
+        const invListStr = (info.overdueInvoices || []).map(x => `<b>${esc(x.invoiceNo)}</b> (Due: ${esc(x.dueDate)}, ${x.daysOverdue} days past due, ${fmtMoney(x.balance)})`).join(', ');
+        const msgEl = document.getElementById('invOverdueMsg');
+        if (msgEl) {
+          msgEl.innerHTML =
+            `This customer has <b>${info.overdueInvoices.length} unpaid invoice(s)</b> not paid before the due date!<br>` +
+            `<span style="font-size:12px; color:#991b1b;">Overdue: ${invListStr}</span><br>` +
+            `Total Overdue Amount: <b style="color:#991b1b;">${fmtMoney(info.overdueBalance)}</b> (Total Outstanding: ${fmtMoney(info.balance)}).`;
+        }
         alertEl.classList.remove('hidden');
       } else {
         alertEl.classList.add('hidden');
@@ -1685,20 +1868,25 @@
   async function submitInvoice(invoiceId) {
     const custId = document.getElementById('fInvCustId')?.value || document.getElementById('fInvCust')?.value || '';
     const custName = document.getElementById('fInvCustInput')?.value || '';
+    const spVal = document.getElementById('fInvSPInput')?.value || document.getElementById('fInvSP')?.value || '';
     const status = document.getElementById('fInvStatus').value;
     const info = getCustomerOverdueInfo(custId);
 
-    // Block >120 day overdue customers unless Login PIN override is verified
+    // Block customer if any unpaid invoice is past the Due Date unless authorized via Login PIN
     if (info.blocked && status !== 'Draft' && status !== 'Cancelled' && status !== 'Free Issue') {
-      const pin = document.getElementById('fInvOverridePin')?.value || '';
+      const pin = document.getElementById('fInvOverridePin')?.value.trim() || '';
+      const errEl = document.getElementById('fInvOverridePinError');
       if (!pin) {
-        showToast('Blocked: Customer is >120 days overdue. Enter your Login PIN to issue!');
+        if (errEl) errEl.textContent = 'Login PIN is required to issue invoice for an overdue customer.';
+        showToast('Blocked: Customer has unpaid invoices past Due Date. Enter Login PIN to issue!');
+        document.getElementById('fInvOverridePin')?.focus();
         return;
       }
       try {
         await gas('authenticateUser', state.user.UserId, pin);
       } catch (e) {
-        showToast('Invalid Login PIN! Invoice blocked.');
+        if (errEl) errEl.textContent = 'Invalid Login PIN / Password. Invoice blocked.';
+        showToast('Invalid Login PIN! Override blocked.');
         return;
       }
     }
@@ -1718,7 +1906,7 @@
         CustomerAddress: document.getElementById('fInvCustAddr')?.value || (cust ? (cust.BillingAddress || cust.DeliveryAddress || '') : ''),
         CustomerPhone: document.getElementById('fInvCustPhone')?.value || (cust ? (cust.Phone || '') : ''),
         QuoteNo: document.getElementById('fInvQuote')?.value || '',
-        SalesPerson: document.getElementById('fInvSP')?.value || '',
+        SalesPerson: spVal,
         BankDetails: document.getElementById('fInvBank')?.value || '',
         Date: document.getElementById('fInvDate').value,
         DueDate: document.getElementById('fInvDue').value,
@@ -2886,7 +3074,8 @@
       (Number(i.Total || 0) - Number(i.PaidAmount || 0)) > 0
     );
     const totalDebtors = debtors.reduce((s, i) => s + (Number(i.Total || 0) - Number(i.PaidAmount || 0)), 0);
-    const overdue120Debtors = debtors.filter(i => daysBetween(i.DueDate || i.Date, state.data.today) > 120).length;
+    const overdueDebtors = debtors.filter(i => daysBetween(i.DueDate || i.Date, state.data.today) > 0);
+    const overdueDebtorsSum = overdueDebtors.reduce((s, i) => s + (Number(i.Total || 0) - Number(i.PaidAmount || 0)), 0);
 
     const creditors = state.data.creditors.filter(c =>
       c.Status !== 'Paid' && (Number(c.TotalAmount || 0) - Number(c.PaidAmount || 0)) > 0
@@ -2896,32 +3085,85 @@
 
     let body = '';
     if (tab === 'debtors') {
+      const spMap = {};
+      (state.data.invoices || []).forEach(inv => {
+        if (inv.Status === 'Cancelled') return;
+        const sp = (inv.SalesPerson || '').trim() || 'Unassigned';
+        if (!spMap[sp]) {
+          spMap[sp] = { name: sp, totalSales: 0, collected: 0, credit: 0, overdueCredit: 0, count: 0 };
+        }
+        const tot = Number(inv.Total || 0);
+        const paidAmt = inv.Status === 'Paid' ? tot : Number(inv.PaidAmount || 0);
+        const bal = (inv.Status === 'Paid' || inv.Status === 'Free Issue') ? 0 : Math.max(0, tot - paidAmt);
+        const isOverdue = bal > 0 && daysBetween(inv.DueDate || inv.Date, state.data.today) > 0;
+
+        spMap[sp].totalSales += tot;
+        spMap[sp].collected += paidAmt;
+        spMap[sp].credit += bal;
+        if (isOverdue) spMap[sp].overdueCredit += bal;
+        spMap[sp].count++;
+      });
+      const spList = Object.values(spMap).sort((a, b) => b.totalSales - a.totalSales);
+
       body = `
         <div class="section-header">
           <input class="search-input" placeholder="Search debtors..." oninput="filterTable('debtorsTable', this.value)">
-          <span style="font-size:12px; color:var(--danger); font-weight:600;">Red rows = Overdue &gt; 120 days (New invoices blocked)</span>
+          <span style="font-size:12px; color:var(--danger); font-weight:600;">Red rows = Invoices past Due Date (New invoices blocked for customer unless Login PIN is entered)</span>
         </div>
         <div class="card table-wrap">
           <table id="debtorsTable">
-            <thead><tr><th>Invoice #</th><th>Customer</th><th>Due Date</th><th>Days Overdue</th><th>Total</th><th>Paid</th><th>Balance Due</th><th>Action</th></tr></thead>
+            <thead><tr><th>Invoice #</th><th>Customer</th><th>Sales Person</th><th>Due Date</th><th>Status</th><th>Overdue</th><th>Total</th><th>Paid</th><th>Balance Due</th><th>Action</th></tr></thead>
             <tbody>
               ${debtors.map(i => {
                 const bal = Number(i.Total || 0) - Number(i.PaidAmount || 0);
                 const days = daysBetween(i.DueDate || i.Date, state.data.today);
-                const isOver120 = days > 120;
+                const isOverdue = days > 0;
                 return `
-                  <tr class="${isOver120 ? 'row-overdue' : ''}">
+                  <tr class="${isOverdue ? 'row-overdue' : ''}">
                     <td><b>${esc(i.InvoiceNo)}</b></td>
                     <td>${esc(i.CustomerName)}</td>
+                    <td><b>${esc(i.SalesPerson || '-')}</b></td>
                     <td>${esc(i.DueDate || i.Date)}</td>
-                    <td>${days > 0 ? `<span class="badge ${isOver120 ? 'badge-danger' : 'badge-warning'}">${days} days</span>` : '<span class="badge badge-success">Current</span>'}</td>
+                    <td>${statusBadge(i.Status)}</td>
+                    <td>${isOverdue ? `<span class="badge badge-danger">${days} days (Blocked)</span>` : '<span class="badge badge-success">Within Term</span>'}</td>
                     <td>${fmtMoney(i.Total)}</td>
                     <td>${fmtMoney(i.PaidAmount || 0)}</td>
-                    <td><b>${fmtMoney(bal)}</b></td>
+                    <td><b style="color:var(--danger)">${fmtMoney(bal)}</b></td>
                     <td><button class="btn btn-sm btn-success" onclick="openInvoiceModal('${esc(i.InvoiceId)}')">Update / Pay</button></td>
                   </tr>
                 `;
-              }).join('') || '<tr><td colspan="8" style="color:var(--muted)">No outstanding debtors.</td></tr>'}
+              }).join('') || '<tr><td colspan="10" style="color:var(--muted)">No outstanding debtors.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card table-wrap" style="margin-top:16px;">
+          <div style="padding:12px 14px 6px 14px; font-weight:700; font-size:14px; color:var(--text); display:flex; justify-content:space-between; align-items:center;">
+            <span>💼 Sales Person Credit &amp; Collections Summary</span>
+            <span style="font-size:12px; font-weight:normal; color:var(--muted);">Attributed per Sales Person from all Sales Invoices</span>
+          </div>
+          <table>
+            <thead>
+              <tr style="background:#f8fafc;">
+                <th>Sales Person</th>
+                <th style="text-align:right;">Total Sales</th>
+                <th style="text-align:right;">Total Collected (Paid)</th>
+                <th style="text-align:right;">Outstanding Credit</th>
+                <th style="text-align:right;">Overdue Credit (Past Due)</th>
+                <th style="text-align:center;">Invoices</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${spList.map(sp => `
+                <tr>
+                  <td><b>${esc(sp.name)}</b></td>
+                  <td style="text-align:right;">${fmtMoney(sp.totalSales)}</td>
+                  <td style="text-align:right; color:var(--success); font-weight:600;">${fmtMoney(sp.collected)}</td>
+                  <td style="text-align:right; color:var(--warning); font-weight:600;">${fmtMoney(sp.credit)}</td>
+                  <td style="text-align:right; color:var(--danger); font-weight:700;">${fmtMoney(sp.overdueCredit)}</td>
+                  <td style="text-align:center;"><span class="badge badge-muted">${sp.count}</span></td>
+                </tr>
+              `).join('') || '<tr><td colspan="6" style="color:var(--muted); text-align:center;">No sales person data yet.</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -2964,7 +3206,7 @@
 
     document.getElementById('mainContent').innerHTML = `
       <div class="kpi-grid">
-        <div class="card"><div class="kpi-label">Debtors Receivable</div><div class="kpi-val">${fmtMoney(totalDebtors)}</div><div class="kpi-sub" style="color:var(--danger)">${overdue120Debtors} overdue &gt; 120 days</div></div>
+        <div class="card"><div class="kpi-label">Debtors Receivable</div><div class="kpi-val">${fmtMoney(totalDebtors)}</div><div class="kpi-sub" style="color:var(--danger)">${overdueDebtors.length} past Due Date (${fmtMoney(overdueDebtorsSum)})</div></div>
         <div class="card"><div class="kpi-label">Creditors Payable</div><div class="kpi-val">${fmtMoney(totalCreditors)}</div><div class="kpi-sub" style="color:var(--danger)">${overdue120Creditors} overdue &gt; 120 days</div></div>
       </div>
       <div class="tabs">
