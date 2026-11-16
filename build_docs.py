@@ -1,5 +1,4 @@
 import os
-import re
 
 def build():
     with open('Index.html', 'r', encoding='utf-8') as f:
@@ -9,15 +8,10 @@ def build():
     with open('Scripts.html', 'r', encoding='utf-8') as f:
         scripts = f.read().strip()
 
-    # In Index.html:
-    # <?!= include('Styles'); ?> -> <style>\n{styles}\n</style>
-    # <?!= include('Scripts'); ?> -> <script>\n{scripts}\n</script>
-
-    style_block = f'<style>\n{styles}\n</style>'
-    script_block = f'<script>\n{scripts}\n</script>'
-
-    out = idx.replace("<?!= include('Styles'); ?>", style_block)
-    out = out.replace("<?!= include('Scripts'); ?>", script_block)
+    # Styles.html already has <style>...</style>
+    # Scripts.html already has <script>...</script>
+    out = idx.replace("<?!= include('Styles'); ?>", styles)
+    out = out.replace("<?!= include('Scripts'); ?>", scripts)
 
     os.makedirs('docs', exist_ok=True)
     with open('docs/index.html', 'w', encoding='utf-8') as f:
