@@ -550,30 +550,68 @@
   const CACHE_KEY_USER = 'JADE_OFFICE_USER_CACHE';
 
   /* ==========================================================================
-   * Tab Access Control (Call Report, Project Report, Petty Cash)
-   * Visible ONLY to users: "Shihani nuwanthi" and "rashini fernando"
+   * Tab Access Control (Role & User-based visibility)
+   * - "Rashini Fernando": sees ONLY 3 tabs (Call Report, Project Report, Petty Cash). All other tabs hidden.
+   * - "Shihani Nuwanthi": sees Call Report, Project Report, Petty Cash PLUS standard tabs.
+   * - Other users (Admin, Staff, etc.): Call Report, Project Report, and Petty Cash are hidden.
    * ======================================================================== */
 
-  const RESTRICTED_REPORT_USERS = ['shihani nuwanthi', 'rashini fernando'];
-
-  function isRestrictedReportUser() {
+  function isRashiniFernando() {
     if (!state.user || !state.user.Name) return false;
     const norm = state.user.Name.toLowerCase().replace(/\s+/g, ' ').trim();
-    return RESTRICTED_REPORT_USERS.includes(norm);
+    return norm === 'rashini fernando';
+  }
+
+  function isShihaniNuwanthi() {
+    if (!state.user || !state.user.Name) return false;
+    const norm = state.user.Name.toLowerCase().replace(/\s+/g, ' ').trim();
+    return norm === 'shihani nuwanthi';
+  }
+
+  function isRestrictedReportUser() {
+    return isShihaniNuwanthi() || isRashiniFernando();
   }
 
   function updateRestrictedTabsVisibility() {
-    const allowed = isRestrictedReportUser();
-    const restrictedViews = ['callReport', 'projectReport', 'pettyCash'];
+    const isRashini = isRashiniFernando();
+    const isShihani = isShihaniNuwanthi();
+    const canSeeReports = isShihani || isRashini;
+    const reportViews = ['callReport', 'projectReport', 'pettyCash'];
 
-    restrictedViews.forEach(v => {
+    // 1. Configure the 3 report tabs (callReport, projectReport, pettyCash)
+    reportViews.forEach(v => {
       const btn = document.querySelector(`.sidebar-nav [data-view="${v}"]`);
       if (btn) {
-        btn.style.display = allowed ? '' : 'none';
+        btn.style.display = canSeeReports ? '' : 'none';
       }
     });
 
-    if (!allowed && restrictedViews.includes(state.view)) {
+    // 2. Configure all other sidebar nav items (Dashboard, Invoices, Outstanding, Stock, Customers, Employees, Painter Training, Reports, Import, Settings)
+    const otherNavItems = document.querySelectorAll('.sidebar-nav .nav-item:not([data-view="callReport"]):not([data-view="projectReport"]):not([data-view="pettyCash"])');
+    otherNavItems.forEach(el => {
+      el.style.display = isRashini ? 'none' : '';
+    });
+
+    // Dividers and custom sidebar tabs
+    const navDividers = document.querySelectorAll('.sidebar-nav .nav-divider');
+    navDividers.forEach(el => {
+      el.style.display = isRashini ? 'none' : '';
+    });
+    const customTabsEl = document.getElementById('customSidebarTabs');
+    if (customTabsEl) {
+      customTabsEl.style.display = isRashini ? 'none' : '';
+    }
+
+    // 3. View guarding and active view selection
+    if (isRashini) {
+      if (!reportViews.includes(state.view)) {
+        state.view = 'callReport';
+        document.querySelectorAll('.nav-item').forEach(b => {
+          b.classList.toggle('active', b.dataset.view === 'callReport');
+        });
+        renderView();
+      }
+    } else if (!canSeeReports && reportViews.includes(state.view)) {
       state.view = 'dashboard';
       document.querySelectorAll('.nav-item').forEach(b => {
         b.classList.toggle('active', b.dataset.view === 'dashboard');
@@ -891,6 +929,12 @@
   function renderCustomSidebarTabs() {
     const el = document.getElementById('customSidebarTabs');
     if (!el) return;
+    if (isRashiniFernando()) {
+      el.innerHTML = '';
+      el.style.display = 'none';
+      return;
+    }
+    el.style.display = '';
     el.innerHTML = (state.data.customTabs || []).map(t => `
       <button class="nav-item ${state.view === 'customTab:' + t.TabId ? 'active' : ''}" data-view="customTab:${esc(t.TabId)}" onclick="navigate('customTab:${esc(t.TabId)}')">
         ${esc(t.Icon || '📋')} ${esc(t.Name)}
@@ -918,7 +962,19 @@
   }
 
   function navigate(view) {
-    if (!isRestrictedReportUser() && ['callReport', 'projectReport', 'pettyCash'].includes(view)) {
+    const reportViews = ['callReport', 'projectReport', 'pettyCash'];
+
+    if (isRashiniFernando() && !reportViews.includes(view)) {
+      showToast('Access restricted: You only have access to Call Report, Project Report, and Petty Cash.');
+      state.view = 'callReport';
+      document.querySelectorAll('.nav-item').forEach(b => {
+        b.classList.toggle('active', b.dataset.view === 'callReport');
+      });
+      renderView();
+      return;
+    }
+
+    if (!isRestrictedReportUser() && reportViews.includes(view)) {
       showToast('Access restricted: Only Shihani Nuwanthi and Rashini Fernando can view this tab.');
       state.view = 'dashboard';
       document.querySelectorAll('.nav-item').forEach(b => {
@@ -960,7 +1016,10 @@
   }
 
   function renderView() {
-    if (!isRestrictedReportUser() && ['callReport', 'projectReport', 'pettyCash'].includes(state.view)) {
+    const reportViews = ['callReport', 'projectReport', 'pettyCash'];
+    if (isRashiniFernando() && !reportViews.includes(state.view)) {
+      state.view = 'callReport';
+    } else if (!isRestrictedReportUser() && reportViews.includes(state.view)) {
       state.view = 'dashboard';
     }
 
