@@ -71,7 +71,7 @@
         <div class="nav-divider"></div>
         <button class="nav-item" data-view="reports" onclick="navigate('reports')">📈 Custom Reports</button>
         <button class="nav-item" data-view="import" onclick="navigate('import')">📥 Import Excel / CSV</button>
-        <button class="nav-item" data-view="settings" onclick="navigate('settings')">⚙️ Settings &amp; Customize</button>
+        <button class="nav-item" data-view="settings" onclick="navigate('settings')">⚙️ Settings</button>
       </nav>
       <div class="sidebar-footer">
         <div id="sidebarUser" style="font-weight:600; color:#fff;"></div>
@@ -89,9 +89,13 @@
           <div class="topbar-title" id="pageTitle">Dashboard</div>
         </div>
         <div class="topbar-right">
-          <span id="autoSyncBadge" class="badge badge-info" title="Auto-syncs with Google Drive every 5 minutes">Auto-Sync: 5m</span>
-          <button class="btn btn-sm btn-secondary" onclick="refreshData(true)" title="Sync with Google Sheets & Drive">↻ Sync Now</button>
-          <span id="clockActionArea"></span>
+          <div class="topbar-user" id="topbarUserProfile" onclick="navigate('settings')" style="display:flex; align-items:center; gap:10px; cursor:pointer;" title="View Profile &amp; Settings">
+            <div style="text-align:right; line-height:1.2;">
+              <div id="topbarUserName" style="font-weight:700; font-size:13px; color:var(--text);">User</div>
+              <div id="topbarUserRole" style="font-size:11px; color:var(--muted);">Role</div>
+            </div>
+            <img id="topbarUserAvatar" src="logo.jpg" alt="Avatar" style="width:36px; height:36px; border-radius:50%; object-fit:cover; border:2px solid var(--primary); background:#e2e8f0;">
+          </div>
         </div>
       </header>
 

@@ -357,7 +357,46 @@
   }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
-  /* Excel Styled Tables (Petty Cash & Call Reports) */
+  /* Excel Styled Tables (Petty Cash & Call Reports & Outstanding) */
+  .excel-grid-table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 1400px;
+    border: 1px solid #7ea7d8;
+    background: #fff;
+  }
+  .excel-grid-table th {
+    background: #8ea9db !important;
+    color: #000 !important;
+    font-weight: 700 !important;
+    font-size: 11.5px !important;
+    text-align: center !important;
+    border: 1px solid #7ea7d8 !important;
+    padding: 6px 8px !important;
+    white-space: nowrap !important;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+  .excel-grid-table td {
+    border: 1px solid #d9e1f2 !important;
+    padding: 6px 8px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+    color: #1e293b;
+  }
+  .excel-grid-table tr:nth-child(even) td {
+    background: #f2f5fb;
+  }
+  .excel-grid-table tr:hover td {
+    background: #e9f0fc !important;
+  }
+  .excel-grid-table tfoot td {
+    background: #d9e1f2 !important;
+    font-weight: 700 !important;
+    border-top: 2px solid #8ea9db !important;
+  }
+
   .print-excel-table {
     border-collapse: collapse;
     width: 100%;

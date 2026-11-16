@@ -60,27 +60,38 @@
     return isShihaniNuwanthi() || isRashiniFernando();
   }
 
-  function updateRestrictedTabsVisibility() {
-    const isRashini = isRashiniFernando();
-    const isShihani = isShihaniNuwanthi();
-    const canSeeReports = isShihani || isRashini;
-    const reportViews = ['callReport', 'projectReport', 'pettyCash'];
+    function getUserAllowedTabs() {
+    if (!state.user) return [];
+    if (state.user.Role === 'Admin') return ['all'];
+    if (state.user.AllowedTabs) {
+      return state.user.AllowedTabs.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    }
+    if (isRashiniFernando()) return ['callreport', 'projectreport', 'pettycash'];
+    if (isShihaniNuwanthi()) return ['dashboard', 'invoices', 'quotation', 'outstanding', 'inventory', 'callreport', 'projectreport', 'pettycash', 'customers', 'companyprofile', 'employees', 'paintertraining', 'reports', 'import', 'settings'];
+    return ['dashboard', 'invoices', 'quotation', 'outstanding', 'inventory', 'customers', 'companyprofile', 'employees', 'paintertraining', 'reports', 'import', 'settings'];
+  }
 
-    // 1. Configure the 3 report tabs (callReport, projectReport, pettyCash)
-    reportViews.forEach(v => {
-      const btn = document.querySelector(`.sidebar-nav [data-view="${v}"]`);
-      if (btn) {
-        btn.style.display = canSeeReports ? '' : 'none';
+  function isTabAllowedForUser(tabName) {
+    if (!tabName) return true;
+    const allowed = getUserAllowedTabs();
+    if (allowed.includes('all')) return true;
+    return allowed.includes(tabName.toLowerCase());
+  }
+
+  function updateRestrictedTabsVisibility() {
+    const allowed = getUserAllowedTabs();
+    const isAll = allowed.includes('all');
+
+    document.querySelectorAll('.sidebar-nav .nav-item[data-view]').forEach(btn => {
+      const v = btn.getAttribute('data-view') || '';
+      if (isAll || allowed.includes(v.toLowerCase())) {
+        btn.style.display = '';
+      } else {
+        btn.style.display = 'none';
       }
     });
 
-    // 2. Configure all other sidebar nav items (Dashboard, Invoices, Outstanding, Stock, Customers, Employees, Painter Training, Reports, Import, Settings)
-    const otherNavItems = document.querySelectorAll('.sidebar-nav .nav-item:not([data-view="callReport"]):not([data-view="projectReport"]):not([data-view="pettyCash"])');
-    otherNavItems.forEach(el => {
-      el.style.display = isRashini ? 'none' : '';
-    });
-
-    // Dividers and custom sidebar tabs
+    const isRashini = isRashiniFernando();
     const navDividers = document.querySelectorAll('.sidebar-nav .nav-divider');
     navDividers.forEach(el => {
       el.style.display = isRashini ? 'none' : '';
@@ -90,19 +101,13 @@
       customTabsEl.style.display = isRashini ? 'none' : '';
     }
 
-    // 3. View guarding and active view selection
-    if (isRashini) {
-      if (!reportViews.includes(state.view)) {
-        state.view = 'callReport';
-        document.querySelectorAll('.nav-item').forEach(b => {
-          b.classList.toggle('active', b.dataset.view === 'callReport');
-        });
-        renderView();
-      }
-    } else if (!canSeeReports && reportViews.includes(state.view)) {
-      state.view = 'dashboard';
+    if (!isAll && !isTabAllowedForUser(state.view)) {
+      const firstAllowed = Array.from(document.querySelectorAll('.sidebar-nav .nav-item[data-view]'))
+        .map(b => b.getAttribute('data-view'))
+        .find(v => isTabAllowedForUser(v));
+      state.view = firstAllowed || 'dashboard';
       document.querySelectorAll('.nav-item').forEach(b => {
-        b.classList.toggle('active', b.dataset.view === 'dashboard');
+        b.classList.toggle('active', b.dataset.view === state.view);
       });
       renderView();
     }
@@ -536,25 +541,8 @@
   }
 
   function navigate(view) {
-    const reportViews = ['callReport', 'projectReport', 'pettyCash'];
-
-    if (isRashiniFernando() && !reportViews.includes(view)) {
-      showToast('Access restricted: You only have access to Call Report, Project Report, and Petty Cash.');
-      state.view = 'callReport';
-      document.querySelectorAll('.nav-item').forEach(b => {
-        b.classList.toggle('active', b.dataset.view === 'callReport');
-      });
-      renderView();
-      return;
-    }
-
-    if (!isRestrictedReportUser() && reportViews.includes(view)) {
-      showToast('Access restricted: Only Shihani Nuwanthi and Rashini Fernando can view this tab.');
-      state.view = 'dashboard';
-      document.querySelectorAll('.nav-item').forEach(b => {
-        b.classList.toggle('active', b.dataset.view === 'dashboard');
-      });
-      renderView();
+    if (!isTabAllowedForUser(view)) {
+      showToast('Access restricted: You do not have permission to view this tab.');
       return;
     }
     state.view = view;
@@ -565,16 +553,28 @@
     renderView();
   }
 
-  function renderTopbarClock() {
-    const todayAtt = state.data.attendance.find(a => a.UserId === state.user.UserId && a.Date === state.data.today);
-    const el = document.getElementById('clockActionArea');
-    if (!todayAtt) {
-      el.innerHTML = `<button class="btn btn-sm btn-success" onclick="handleClockIn()">Clock In</button>`;
-    } else if (!todayAtt.ClockOut) {
-      el.innerHTML = `<button class="btn btn-sm btn-danger" onclick="handleClockOut()">Clock Out (${esc(todayAtt.ClockIn)})</button>`;
-    } else {
-      el.innerHTML = `<span class="badge badge-success">Done ${esc(todayAtt.ClockIn)} - ${esc(todayAtt.ClockOut)}</span>`;
+  function renderTopbarUserProfile() {
+    if (!state.user) return;
+    const userNameEl = document.getElementById('topbarUserName');
+    const userRoleEl = document.getElementById('topbarUserRole');
+    const userAvatarEl = document.getElementById('topbarUserAvatar');
+    const sbUser = document.getElementById('sidebarUser');
+    const sbRole = document.getElementById('sidebarRole');
+
+    if (userNameEl) userNameEl.textContent = state.user.Name || 'User';
+    if (userRoleEl) userRoleEl.textContent = state.user.Role || 'Staff';
+    if (sbUser) sbUser.textContent = state.user.Name || 'User';
+    if (sbRole) sbRole.textContent = state.user.Role || 'Staff';
+
+    const defaultAvatar = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(state.user.Name || 'User') + '&background=0f766e&color=fff';
+    if (userAvatarEl) {
+      userAvatarEl.src = state.user.Avatar || defaultAvatar;
+      userAvatarEl.onerror = function() { this.src = defaultAvatar; };
     }
+  }
+
+  function renderTopbarClock() {
+    renderTopbarUserProfile();
   }
 
   async function handleClockIn() {
@@ -945,12 +945,36 @@
     if (!state.data.quotations || !Array.isArray(state.data.quotations)) {
       state.data.quotations = [];
     }
+    if (!state.data.settings) state.data.settings = {};
+    if (!state.data.settings.NextInvoiceNo) state.data.settings.NextInvoiceNo = '1001';
+    if (!state.data.settings.InvoicePrefix) state.data.settings.InvoicePrefix = 'INV-';
+    if (!state.data.settings.NextQuoteNo) state.data.settings.NextQuoteNo = '754';
+    if (!state.data.settings.QuotePrefix) state.data.settings.QuotePrefix = 'QT-';
+    if (!state.data.settings.NextPettyCashNo) state.data.settings.NextPettyCashNo = '1';
   }
 
   let _invLines = [];
 
+  let _currentEditingInvoiceId = null;
+
+  function onInvStatusChange(status) {
+    const spGroup = document.getElementById('fInvSPGroup');
+    if (spGroup) {
+      if (status === 'Free Issue') {
+        spGroup.style.display = 'none';
+        const spInput = document.getElementById('fInvSPInput');
+        const spHidden = document.getElementById('fInvSP');
+        if (spInput) spInput.value = '';
+        if (spHidden) spHidden.value = '';
+      } else {
+        spGroup.style.display = '';
+      }
+    }
+  }
+
   function openInvoiceModal(invoiceId) {
     ensureDataDefaults();
+    _currentEditingInvoiceId = invoiceId || null;
     const defaultComp = (state.data.companyProfiles || []).find(c => c.IsDefault === 'Yes') || (state.data.companyProfiles || [])[0];
     const defaultBank = defaultComp ? `AC NAME :${defaultComp.CompanyName.toUpperCase()}/ AC NO : ${defaultComp.AccountNo} /${(defaultComp.BankName || '').toUpperCase()} / ${(defaultComp.Branch || '').toUpperCase()}` : '';
 
@@ -960,6 +984,16 @@
       CompanyId: defaultComp ? defaultComp.CompanyId : '',
       BankDetails: defaultBank
     };
+    if (!inv.InvoiceNo && !invoiceId) {
+      const comp = (state.data.companyProfiles || []).find(c => c.CompanyId === inv.CompanyId) || defaultComp;
+      if (comp && (comp.InvoicePrefix || comp.NextInvoiceNo)) {
+        inv.InvoiceNo = `${comp.InvoicePrefix || 'INV-'}${comp.NextInvoiceNo || '1001'}`;
+      } else if (state.data.settings && (state.data.settings.InvoicePrefix || state.data.settings.NextInvoiceNo)) {
+        inv.InvoiceNo = `${state.data.settings.InvoicePrefix || 'INV-'}${state.data.settings.NextInvoiceNo || '1001'}`;
+      } else {
+        inv.InvoiceNo = 'INV-' + (1001 + (state.data.invoices || []).length);
+      }
+    }
     if (!inv.BankDetails && defaultBank) {
       inv.BankDetails = defaultBank;
     }
@@ -1003,6 +1037,10 @@
             </select>
           </div>
           <div class="form-group" style="flex:1;">
+            <label>Invoice Number *</label>
+            <input id="fInvNo" placeholder="e.g. INV-1001" value="${esc(inv.InvoiceNo || '')}">
+          </div>
+          <div class="form-group" style="flex:1;">
             <label>Quote Number</label>
             <input id="fInvQuote" placeholder="e.g. 754" value="${esc(inv.QuoteNo || '')}">
           </div>
@@ -1027,7 +1065,7 @@
           </div>
           <div class="form-group">
             <label>Status</label>
-            <select id="fInvStatus">
+            <select id="fInvStatus" onchange="onInvStatusChange(this.value)">
               ${['Paid', 'Unpaid', 'Pending', 'Free Issue'].map(s => `<option ${inv.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
             </select>
           </div>
@@ -1047,7 +1085,7 @@
         </div>
 
         <div class="form-row">
-          <div class="form-group" style="position:relative;">
+          <div class="form-group" style="position:relative; display:${inv.Status === 'Free Issue' ? 'none' : ''};" id="fInvSPGroup">
             <label>Sales Person (S.P) <span style="font-weight:normal; color:var(--muted);">(Selective &amp; Searchable)</span></label>
             <div style="position:relative;" id="invSPCombo">
               <div style="display:flex; align-items:center; border:1px solid #d1d5db; border-radius:6px; background:#fff; padding:2px 8px; cursor:text;" onclick="focusInvSPInput()">
@@ -1329,6 +1367,12 @@
       if (bankEl) {
         bankEl.value = `AC NAME :${comp.CompanyName.toUpperCase()}/ AC NO : ${comp.AccountNo} /${(comp.BankName || '').toUpperCase()} / ${(comp.Branch || '').toUpperCase()}`;
       }
+      const invNoEl = document.getElementById('fInvNo');
+      if (invNoEl && !_currentEditingInvoiceId) {
+        if (comp.InvoicePrefix || comp.NextInvoiceNo) {
+          invNoEl.value = `${comp.InvoicePrefix || 'INV-'}${comp.NextInvoiceNo || '1001'}`;
+        }
+      }
     }
   }
 
@@ -1490,17 +1534,89 @@
       }))
     };
 
-    await gas('saveInvoice', payload);
+    // 1. Stock Deduction: Deduct quantities from inventory immediately
+    if (status !== 'Draft' && status !== 'Cancelled') {
+      payload.items.forEach(li => {
+        const invItem = state.data.inventory.find(x => 
+          (li.ItemId && x.ItemId === li.ItemId) ||
+          (li.ItemCode && x.SKU && String(x.SKU).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase()) ||
+          (li.ItemName && x.Name && String(x.Name).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
+        );
+        if (invItem) {
+          invItem.StockQty = Math.max(0, (Number(invItem.StockQty) || 0) - (Number(li.Qty) || 0));
+          invItem.UpdatedAt = state.data.today;
+        }
+      });
+    }
+
+    // 2. Increment Next Invoice No in Company Profile & Settings
+    if (!invoiceId) {
+      const comp = (state.data.companyProfiles || []).find(c => c.CompanyId === payload.invoice.CompanyId);
+      if (comp && comp.NextInvoiceNo) {
+        const n = parseInt(comp.NextInvoiceNo, 10);
+        if (!isNaN(n)) comp.NextInvoiceNo = String(n + 1);
+      }
+      if (state.data.settings && state.data.settings.NextInvoiceNo) {
+        const n = parseInt(state.data.settings.NextInvoiceNo, 10);
+        if (!isNaN(n)) state.data.settings.NextInvoiceNo = String(n + 1);
+      }
+    }
+
+    // 3. Optimistic local update (1000x instant 0ms response)
+    const assignedInvNo = document.getElementById('fInvNo')?.value.trim();
+    if (assignedInvNo) payload.invoice.InvoiceNo = assignedInvNo;
+
+    const realInvId = invoiceId || ('INV-' + Date.now());
+    payload.invoice.InvoiceId = realInvId;
+    if (status === 'Free Issue') {
+      payload.invoice.SalesPerson = '';
+      payload.invoice.PaidAmount = 0;
+    }
+
+    if (invoiceId) {
+      const idx = state.data.invoices.findIndex(i => i.InvoiceId === invoiceId);
+      if (idx !== -1) state.data.invoices[idx] = payload.invoice;
+    } else {
+      state.data.invoices.unshift(payload.invoice);
+    }
+    state.data.invoiceItems = state.data.invoiceItems.filter(li => li.InvoiceId !== realInvId).concat(
+      payload.items.map(li => ({ ...li, InvoiceId: realInvId }))
+    );
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+
     closeModal();
-    showToast('Sales Invoice saved!');
-    await refreshData();
+    renderView();
+    showToast(invoiceId ? 'Sales Invoice updated!' : 'Sales Invoice issued! (Stock deducted)');
+
+    // 4. Background sync without blocking user
+    gas('saveInvoice', payload).catch(err => {
+      console.error('saveInvoice sync error:', err);
+      showToast('Warning: Background sync issue: ' + err.message);
+    });
   }
 
   async function removeInvoice(id) {
     verifyPinAndExecute('delete invoice ' + id, async () => {
-      await gas('deleteInvoice', id);
+      const oldInv = (state.data.invoices || []).find(i => i.InvoiceId === id);
+      const oldItems = (state.data.invoiceItems || []).filter(li => li.InvoiceId === id);
+      if (oldInv && oldInv.Status !== 'Draft' && oldInv.Status !== 'Cancelled') {
+        oldItems.forEach(li => {
+          const invItem = state.data.inventory.find(x => 
+            (li.ItemId && x.ItemId === li.ItemId) ||
+            (li.ItemCode && x.SKU && String(x.SKU).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase()) ||
+            (li.ItemName && x.Name && String(x.Name).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
+          );
+          if (invItem) {
+            invItem.StockQty = (Number(invItem.StockQty) || 0) + (Number(li.Qty) || 0);
+          }
+        });
+      }
+      state.data.invoices = state.data.invoices.filter(i => i.InvoiceId !== id);
+      state.data.invoiceItems = state.data.invoiceItems.filter(li => li.InvoiceId !== id);
+      try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+      renderView();
       showToast('Sales Invoice deleted.');
-      await refreshData();
+      gas('deleteInvoice', id).catch(err => console.error(err));
     });
   }
 
@@ -1823,6 +1939,25 @@
 
         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-top:8px;">
           <div style="font-weight:700; font-size:13px; margin-bottom:8px; color:#1e293b;">Bank Account Details (Displayed on Invoice)</div>
+        <div class="form-row" style="background:#f8fafc; padding:10px 12px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:12px;">
+          <div class="form-group">
+            <label style="font-weight:700; color:var(--text);">Invoice Prefix</label>
+            <input id="fCompInvPrefix" placeholder="e.g. PZ- or INV-" value="${esc(comp.InvoicePrefix || '')}">
+          </div>
+          <div class="form-group">
+            <label style="font-weight:700; color:var(--text);">Next Starting Invoice #</label>
+            <input id="fCompNextInv" placeholder="e.g. 1001" value="${esc(comp.NextInvoiceNo || '')}">
+          </div>
+          <div class="form-group">
+            <label style="font-weight:700; color:var(--text);">Quote Prefix</label>
+            <input id="fCompQuotPrefix" placeholder="e.g. PZ-QT- or QT-" value="${esc(comp.QuotePrefix || '')}">
+          </div>
+          <div class="form-group">
+            <label style="font-weight:700; color:var(--text);">Next Starting Quote #</label>
+            <input id="fCompNextQuot" placeholder="e.g. 754" value="${esc(comp.NextQuoteNo || '')}">
+          </div>
+        </div>
+
           <div class="form-row">
             <div class="form-group">
               <label>Bank Name *</label>
@@ -1868,7 +2003,7 @@
       return;
     }
     const payload = {
-      CompanyId: companyId || '',
+      CompanyId: companyId || ('COMP-' + Date.now()),
       CompanyName: name,
       Address: document.getElementById('fCompAddr').value.trim(),
       Phone: document.getElementById('fCompPhone').value.trim(),
@@ -1878,13 +2013,30 @@
       Branch: document.getElementById('fCompBranch').value.trim(),
       AccountNo: document.getElementById('fCompAcc').value.trim(),
       Logo: document.getElementById('fCompLogo').value.trim(),
+      InvoicePrefix: document.getElementById('fCompInvPrefix')?.value.trim() || '',
+      NextInvoiceNo: document.getElementById('fCompNextInv')?.value.trim() || '',
+      QuotePrefix: document.getElementById('fCompQuotPrefix')?.value.trim() || '',
+      NextQuoteNo: document.getElementById('fCompNextQuot')?.value.trim() || '',
       IsDefault: document.getElementById('fCompDefault').value
     };
 
-    await gas('saveCompanyProfile', payload);
+    // Optimistic local update (0ms response)
+    if (payload.IsDefault === 'Yes') {
+      (state.data.companyProfiles || []).forEach(c => { if (c.CompanyId !== payload.CompanyId) c.IsDefault = 'No'; });
+    }
+    if (companyId) {
+      const idx = (state.data.companyProfiles || []).findIndex(c => c.CompanyId === companyId);
+      if (idx !== -1) state.data.companyProfiles[idx] = payload;
+    } else {
+      (state.data.companyProfiles = state.data.companyProfiles || []).push(payload);
+    }
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+
     closeModal();
+    renderView();
     showToast('Company Profile saved!');
-    await refreshData();
+
+    gas('saveCompanyProfile', payload).catch(err => console.error(err));
   }
 
   async function setDefaultCompany(companyId) {
@@ -1914,7 +2066,16 @@
 
   let _quotLines = [];
 
-  function getNextQuotationNo() {
+  function getNextQuotationNo(companyId) {
+    if (companyId) {
+      const comp = (state.data.companyProfiles || []).find(c => c.CompanyId === companyId);
+      if (comp && comp.NextQuoteNo) {
+        return (comp.QuotePrefix || '') + comp.NextQuoteNo;
+      }
+    }
+    if (state.data.settings && state.data.settings.NextQuoteNo) {
+      return (state.data.settings.QuotePrefix || '') + state.data.settings.NextQuoteNo;
+    }
     const quotes = state.data.quotations || [];
     if (quotes.length === 0) return '754';
     const nums = quotes.map(q => {
@@ -2391,17 +2552,47 @@
       CreatedBy: state.user.Name
     };
 
-    await gas('saveQuotation', payload);
+    // Optimistic local update (0ms response)
+    const realQuotId = quotId || ('QT-' + Date.now());
+    payload.QuotationId = realQuotId;
+
+    if (!quotId) {
+      const comp = (state.data.companyProfiles || []).find(c => c.CompanyId === companyId);
+      if (comp && comp.NextQuoteNo) {
+        const n = parseInt(comp.NextQuoteNo, 10);
+        if (!isNaN(n)) comp.NextQuoteNo = String(n + 1);
+      }
+      if (state.data.settings && state.data.settings.NextQuoteNo) {
+        const n = parseInt(state.data.settings.NextQuoteNo, 10);
+        if (!isNaN(n)) state.data.settings.NextQuoteNo = String(n + 1);
+      }
+    }
+
+    if (quotId) {
+      const idx = (state.data.quotations || []).findIndex(q => q.QuotationId === quotId);
+      if (idx !== -1) state.data.quotations[idx] = payload;
+    } else {
+      (state.data.quotations = state.data.quotations || []).unshift(payload);
+    }
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+
     closeModal();
-    showToast('Quotation saved!');
-    await refreshData();
+    renderView();
+    showToast(quotId ? 'Quotation updated!' : 'Quotation saved!');
+
+    gas('saveQuotation', payload).catch(err => {
+      console.error(err);
+      showToast('Warning: Background sync issue: ' + err.message);
+    });
   }
 
   async function removeQuotation(id) {
     verifyPinAndExecute('delete this quotation', async () => {
-      await gas('deleteQuotation', id);
+      state.data.quotations = (state.data.quotations || []).filter(q => q.QuotationId !== id);
+      try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+      renderView();
       showToast('Quotation deleted.');
-      await refreshData();
+      gas('deleteQuotation', id).catch(err => console.error(err));
     });
   }
 
@@ -2626,154 +2817,367 @@
    * 2B. Outstanding (Debtors & Creditors + >120 Days Red Highlight)
    * ======================================================================== */
 
+  let _outFilterCompany = '';
+  let _outFilterStatus = 'All';
+  let _outSearch = '';
+
   function renderOutstandingView() {
-    const tab = state.outTab;
-    const debtors = state.data.invoices.filter(i =>
-      i.Status !== 'Paid' && i.Status !== 'Cancelled' && i.Status !== 'Draft' && i.Status !== 'Free Issue' &&
-      (Number(i.Total || 0) - Number(i.PaidAmount || 0)) > 0
-    );
-    const totalDebtors = debtors.reduce((s, i) => s + (Number(i.Total || 0) - Number(i.PaidAmount || 0)), 0);
-    const overdueDebtors = debtors.filter(i => daysBetween(i.DueDate || i.Date, state.data.today) > 0);
-    const overdueDebtorsSum = overdueDebtors.reduce((s, i) => s + (Number(i.Total || 0) - Number(i.PaidAmount || 0)), 0);
-
-    const creditors = state.data.creditors.filter(c =>
-      c.Status !== 'Paid' && (Number(c.TotalAmount || 0) - Number(c.PaidAmount || 0)) > 0
-    );
-    const totalCreditors = creditors.reduce((s, c) => s + (Number(c.TotalAmount || 0) - Number(c.PaidAmount || 0)), 0);
-    const overdue120Creditors = creditors.filter(c => daysBetween(c.DueDate || c.Date, state.data.today) > 120).length;
-
-    let body = '';
-    if (tab === 'debtors') {
-      const spMap = {};
-      (state.data.invoices || []).forEach(inv => {
-        if (inv.Status === 'Cancelled') return;
-        const sp = (inv.SalesPerson || '').trim() || 'Unassigned';
-        if (!spMap[sp]) {
-          spMap[sp] = { name: sp, totalSales: 0, collected: 0, credit: 0, overdueCredit: 0, count: 0 };
-        }
-        const tot = Number(inv.Total || 0);
-        const paidAmt = inv.Status === 'Paid' ? tot : Number(inv.PaidAmount || 0);
-        const bal = (inv.Status === 'Paid' || inv.Status === 'Free Issue') ? 0 : Math.max(0, tot - paidAmt);
-        const isOverdue = bal > 0 && daysBetween(inv.DueDate || inv.Date, state.data.today) > 0;
-
-        spMap[sp].totalSales += tot;
-        spMap[sp].collected += paidAmt;
-        spMap[sp].credit += bal;
-        if (isOverdue) spMap[sp].overdueCredit += bal;
-        spMap[sp].count++;
-      });
-      const spList = Object.values(spMap).sort((a, b) => b.totalSales - a.totalSales);
-
-      body = `
-        <div class="section-header">
-          <input class="search-input" placeholder="Search debtors..." oninput="filterTable('debtorsTable', this.value)">
-          <span style="font-size:12px; color:var(--danger); font-weight:600;">Red rows = Invoices past Due Date (New invoices blocked for customer unless Login PIN is entered)</span>
-        </div>
-        <div class="card table-wrap">
-          <table id="debtorsTable">
-            <thead><tr><th>Invoice #</th><th>Customer</th><th>Sales Person</th><th>Due Date</th><th>Status</th><th>Overdue</th><th>Total</th><th>Paid</th><th>Balance Due</th><th>Action</th></tr></thead>
-            <tbody>
-              ${debtors.map(i => {
-                const bal = Number(i.Total || 0) - Number(i.PaidAmount || 0);
-                const days = daysBetween(i.DueDate || i.Date, state.data.today);
-                const isOverdue = days > 0;
-                return `
-                  <tr class="${isOverdue ? 'row-overdue' : ''}">
-                    <td><b>${esc(i.InvoiceNo)}</b></td>
-                    <td>${esc(i.CustomerName)}</td>
-                    <td><b>${esc(i.SalesPerson || '-')}</b></td>
-                    <td>${esc(i.DueDate || i.Date)}</td>
-                    <td>${statusBadge(i.Status)}</td>
-                    <td>${isOverdue ? `<span class="badge badge-danger">${days} days (Blocked)</span>` : '<span class="badge badge-success">Within Term</span>'}</td>
-                    <td>${fmtMoney(i.Total)}</td>
-                    <td>${fmtMoney(i.PaidAmount || 0)}</td>
-                    <td><b style="color:var(--danger)">${fmtMoney(bal)}</b></td>
-                    <td><button class="btn btn-sm btn-success" onclick="openInvoiceModal('${esc(i.InvoiceId)}')">Update / Pay</button></td>
-                  </tr>
-                `;
-              }).join('') || '<tr><td colspan="10" style="color:var(--muted)">No outstanding debtors.</td></tr>'}
-            </tbody>
-          </table>
-        </div>
-
-        <div class="card table-wrap" style="margin-top:16px;">
-          <div style="padding:12px 14px 6px 14px; font-weight:700; font-size:14px; color:var(--text); display:flex; justify-content:space-between; align-items:center;">
-            <span>💼 Sales Person Credit &amp; Collections Summary</span>
-            <span style="font-size:12px; font-weight:normal; color:var(--muted);">Attributed per Sales Person from all Sales Invoices</span>
-          </div>
-          <table>
-            <thead>
-              <tr style="background:#f8fafc;">
-                <th>Sales Person</th>
-                <th style="text-align:right;">Total Sales</th>
-                <th style="text-align:right;">Total Collected (Paid)</th>
-                <th style="text-align:right;">Outstanding Credit</th>
-                <th style="text-align:right;">Overdue Credit (Past Due)</th>
-                <th style="text-align:center;">Invoices</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${spList.map(sp => `
-                <tr>
-                  <td><b>${esc(sp.name)}</b></td>
-                  <td style="text-align:right;">${fmtMoney(sp.totalSales)}</td>
-                  <td style="text-align:right; color:var(--success); font-weight:600;">${fmtMoney(sp.collected)}</td>
-                  <td style="text-align:right; color:var(--warning); font-weight:600;">${fmtMoney(sp.credit)}</td>
-                  <td style="text-align:right; color:var(--danger); font-weight:700;">${fmtMoney(sp.overdueCredit)}</td>
-                  <td style="text-align:center;"><span class="badge badge-muted">${sp.count}</span></td>
-                </tr>
-              `).join('') || '<tr><td colspan="6" style="color:var(--muted); text-align:center;">No sales person data yet.</td></tr>'}
-            </tbody>
-          </table>
-        </div>
-      `;
-    } else {
-      body = `
-        <div class="section-header">
-          <input class="search-input" placeholder="Search creditors..." oninput="filterTable('creditorsTable', this.value)">
-          <button class="btn btn-primary" onclick="openCreditorModal()">+ Add Creditor Bill</button>
-        </div>
-        <div class="card table-wrap">
-          <table id="creditorsTable">
-            <thead><tr><th>Bill #</th><th>Supplier / Creditor</th><th>Due Date</th><th>Days Overdue</th><th>Total</th><th>Paid</th><th>Balance Due</th><th>Actions</th></tr></thead>
-            <tbody>
-              ${creditors.map(c => {
-                const bal = Number(c.TotalAmount || 0) - Number(c.PaidAmount || 0);
-                const days = daysBetween(c.DueDate || c.Date, state.data.today);
-                const isOver120 = days > 120;
-                return `
-                  <tr class="${isOver120 ? 'row-overdue' : ''}">
-                    <td><b>${esc(c.BillNo)}</b></td>
-                    <td>${esc(c.SupplierName)}</td>
-                    <td>${esc(c.DueDate || c.Date)}</td>
-                    <td>${days > 0 ? `<span class="badge ${isOver120 ? 'badge-danger' : 'badge-warning'}">${days} days</span>` : '<span class="badge badge-success">Current</span>'}</td>
-                    <td>${fmtMoney(c.TotalAmount)}</td>
-                    <td>${fmtMoney(c.PaidAmount || 0)}</td>
-                    <td><b>${fmtMoney(bal)}</b></td>
-                    <td>
-                      <button class="btn btn-sm btn-secondary" onclick="openCreditorModal('${esc(c.CreditorId)}')">Pay / Edit</button>
-                      <button class="btn btn-sm btn-danger" onclick="removeCreditor('${esc(c.CreditorId)}')">Del</button>
-                    </td>
-                  </tr>
-                `;
-              }).join('') || '<tr><td colspan="8" style="color:var(--muted)">No outstanding creditors.</td></tr>'}
-            </tbody>
-          </table>
-        </div>
-      `;
+    ensureDataDefaults();
+    const companies = state.data.companyProfiles || [];
+    const defaultComp = companies.find(c => c.IsDefault === 'Yes') || companies[0];
+    if (!_outFilterCompany && defaultComp) {
+      _outFilterCompany = defaultComp.CompanyId;
     }
 
+    const selectedComp = companies.find(c => c.CompanyId === _outFilterCompany) || defaultComp || { CompanyName: 'Colour Max Lanka (pvt) Ltd' };
+
+    let allInvs = [...(state.data.invoices || [])];
+
+    // Filter by company
+    if (_outFilterCompany) {
+      allInvs = allInvs.filter(i => !i.CompanyId || i.CompanyId === _outFilterCompany);
+    }
+
+    // Filter by search
+    if (_outSearch) {
+      const q = _outSearch.toLowerCase().trim();
+      allInvs = allInvs.filter(i => 
+        (i.InvoiceNo || '').toLowerCase().includes(q) ||
+        (i.CustomerName || '').toLowerCase().includes(q) ||
+        (i.SalesPerson || '').toLowerCase().includes(q) ||
+        (i.ChequeNo || '').toLowerCase().includes(q) ||
+        (i.ChequeBank || '').toLowerCase().includes(q)
+      );
+    }
+
+    // Filter by status
+    if (_outFilterStatus === 'Pending') {
+      allInvs = allInvs.filter(i => i.Status !== 'Paid' && i.Status !== 'Cancelled' && i.Status !== 'Free Issue' && (Number(i.Total || 0) - Number(i.PaidAmount || 0)) > 0);
+    } else if (_outFilterStatus === 'Paid') {
+      allInvs = allInvs.filter(i => i.Status === 'Paid' || (Number(i.Total || 0) > 0 && Number(i.PaidAmount || 0) >= Number(i.Total || 0)));
+    } else if (_outFilterStatus === 'Cheque') {
+      allInvs = allInvs.filter(i => (i.ChequeNo || '').trim() !== '');
+    }
+
+    // Summary calculations
+    const totalInvAmt = allInvs.reduce((s, i) => s + (i.Status !== 'Cancelled' && i.Status !== 'Free Issue' ? Number(i.Total || 0) : 0), 0);
+    const totalChqAmt = allInvs.reduce((s, i) => s + Number(i.ChequeAmount || 0), 0);
+    const totalRealisedAmt = allInvs.reduce((s, i) => s + (i.Status === 'Paid' ? Number(i.Total || 0) : Number(i.PaidAmount || 0)), 0);
+    const totalPendingAmt = allInvs.reduce((s, i) => {
+      if (i.Status === 'Paid' || i.Status === 'Cancelled' || i.Status === 'Free Issue') return s;
+      return s + Math.max(0, Number(i.Total || 0) - Number(i.PaidAmount || 0));
+    }, 0);
+
+    const compOptions = `<option value="">-- All Companies --</option>` + companies.map(c => 
+      `<option value="${esc(c.CompanyId)}" ${_outFilterCompany === c.CompanyId ? 'selected' : ''}>${esc(c.CompanyName)}</option>`
+    ).join('');
+
+    const statusOptions = ['All', 'Pending', 'Paid', 'Cheque'].map(st =>
+      `<option value="${st}" ${_outFilterStatus === st ? 'selected' : ''}>${st === 'Pending' ? 'Outstanding (Pending/Unpaid)' : (st === 'Paid' ? 'Realised / Paid' : (st === 'Cheque' ? 'With Cheque' : 'All Statuses'))}</option>`
+    ).join('');
+
+    const rowsHtml = allInvs.map(inv => {
+      const invAmt = Number(inv.Total || 0);
+      const paidAmt = inv.Status === 'Paid' ? invAmt : Number(inv.PaidAmount || 0);
+      const pendingAmt = (inv.Status === 'Paid' || inv.Status === 'Free Issue') ? 0 : Math.max(0, invAmt - paidAmt);
+      const isPastDue = pendingAmt > 0 && daysBetween(inv.DueDate || inv.Date, state.data.today) > 0;
+      const dueDays = daysBetween(inv.DueDate || inv.Date, state.data.today);
+      const collDays = inv.RealisedDate ? daysBetween(inv.Date, inv.RealisedDate) : '-';
+
+      let realizedMonth = inv.RealizedMonth || '';
+      if (!realizedMonth && inv.RealisedDate) {
+        try {
+          const d = new Date(inv.RealisedDate);
+          realizedMonth = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        } catch (e) {}
+      }
+
+      const pStatus = inv.PaymentStatus || (inv.Status === 'Paid' ? 'Realised' : (pendingAmt > 0 ? (isPastDue ? 'Overdue' : 'Pending') : inv.Status));
+      const statusBadgeClass = pStatus === 'Realised' || pStatus === 'Paid' ? 'badge-success' : (pStatus === 'Overdue' ? 'badge-danger' : 'badge-warning');
+
+      return `
+        <tr class="${isPastDue ? 'row-overdue' : ''}">
+          <td style="text-align:center;">${esc(inv.Date || '-')}</td>
+          <td><b>${esc(inv.CustomerName || '-')}</b></td>
+          <td style="text-align:center;"><b>${esc(inv.InvoiceNo || '-')}</b></td>
+          <td style="text-align:right;">${fmtMoney(invAmt)}</td>
+          <td style="text-align:center;">${esc(inv.ChequeNo || '-')}</td>
+          <td>${esc(inv.ChequeBank || '-')}</td>
+          <td style="text-align:center;">${esc(inv.ChequeDate || '-')}</td>
+          <td style="text-align:right;">${inv.ChequeAmount ? fmtMoney(inv.ChequeAmount) : '-'}</td>
+          <td style="text-align:right; font-weight:700; color:var(--success);">${fmtMoney(paidAmt)}</td>
+          <td style="text-align:center;">${esc(inv.RealisedDate || '-')}</td>
+          <td style="text-align:center;">${esc(realizedMonth || '-')}</td>
+          <td style="text-align:right; font-weight:700; color:${pendingAmt > 0 ? 'var(--danger)' : 'var(--muted)'};">${fmtMoney(pendingAmt)}</td>
+          <td style="text-align:center;">${esc(inv.ReceiptNo || '-')}</td>
+          <td style="text-align:center;"><span class="badge ${statusBadgeClass}">${esc(pStatus)}</span></td>
+          <td>${esc(inv.SalesPerson || '-')}</td>
+          <td style="text-align:center; font-weight:700; color:${isPastDue ? 'var(--danger)' : 'inherit'};">${dueDays > 0 ? (dueDays + ' d') : (dueDays === 0 ? 'Due Today' : Math.abs(dueDays) + ' d left')}</td>
+          <td style="text-align:center;">${collDays !== '-' ? (collDays + ' d') : '-'}</td>
+          <td style="text-align:center; white-space:nowrap;">
+            <button class="btn btn-sm btn-primary" onclick="openOutstandingPaymentModal('${esc(inv.InvoiceId)}')">✏️ Update</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
     document.getElementById('mainContent').innerHTML = `
+      <!-- Top Title Header matching Excel layout -->
+      <div style="background:#fff; border:1px solid #7ea7d8; border-radius:8px; padding:14px 18px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; border-bottom:2px solid #8ea9db; padding-bottom:10px; margin-bottom:12px;">
+          <div>
+            <h2 style="margin:0; font-size:18px; color:#1e3a8a; font-weight:700; letter-spacing:0.02em;">
+              <u>${esc(selectedComp.CompanyName)} - Outstanding</u>
+            </h2>
+          </div>
+          <div style="font-size:14px; font-weight:700; color:#1e3a8a; border:1px solid #8ea9db; padding:4px 12px; border-radius:4px; background:#f2f5fb;">
+            📅 ${esc(state.data.today || new Date().toISOString().slice(0,10))}
+          </div>
+        </div>
+
+        <!-- Filter and Action Bar -->
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; flex:1;">
+            <select id="outCompSelect" style="min-width:200px;" onchange="_outFilterCompany=this.value; renderOutstandingView();">
+              ${compOptions}
+            </select>
+            <select id="outStatusSelect" style="min-width:180px;" onchange="_outFilterStatus=this.value; renderOutstandingView();">
+              ${statusOptions}
+            </select>
+            <input type="text" id="outSearchInput" class="search-input" placeholder="Search Customer, Invoice, Cheque, S.P..." value="${esc(_outSearch)}" oninput="_outSearch=this.value; renderOutstandingView();" style="min-width:240px;">
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button class="btn btn-success" onclick="exportOutstandingExcel()">📥 Export to Excel</button>
+            <button class="btn btn-secondary" onclick="printCleanDocument('#outstandingTableWrap')">🖨️ Print</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Summary Cards -->
       <div class="kpi-grid">
-        <div class="card"><div class="kpi-label">Debtors Receivable</div><div class="kpi-val">${fmtMoney(totalDebtors)}</div><div class="kpi-sub" style="color:var(--danger)">${overdueDebtors.length} past Due Date (${fmtMoney(overdueDebtorsSum)})</div></div>
-        <div class="card"><div class="kpi-label">Creditors Payable</div><div class="kpi-val">${fmtMoney(totalCreditors)}</div><div class="kpi-sub" style="color:var(--danger)">${overdue120Creditors} overdue &gt; 120 days</div></div>
+        <div class="card"><div class="kpi-label">Total Invoiced Amount</div><div class="kpi-val">${fmtMoney(totalInvAmt)}</div></div>
+        <div class="card"><div class="kpi-label">Total Realised (Collected)</div><div class="kpi-val" style="color:var(--success);">${fmtMoney(totalRealisedAmt)}</div></div>
+        <div class="card"><div class="kpi-label">Total Cheque Amount</div><div class="kpi-val" style="color:var(--primary);">${fmtMoney(totalChqAmt)}</div></div>
+        <div class="card"><div class="kpi-label">Pending Outstanding</div><div class="kpi-val" style="color:var(--danger);">${fmtMoney(totalPendingAmt)}</div></div>
       </div>
-      <div class="tabs">
-        <button class="tab-btn ${tab === 'debtors' ? 'active' : ''}" onclick="state.outTab='debtors'; renderOutstandingView()">Debtors (Receivables)</button>
-        <button class="tab-btn ${tab === 'creditors' ? 'active' : ''}" onclick="state.outTab='creditors'; renderOutstandingView()">Creditors (Payables)</button>
+
+      <!-- Main Excel-Styled Outstanding Table -->
+      <div class="card table-wrap" id="outstandingTableWrap" style="padding:0; overflow-x:auto;">
+        <table class="excel-grid-table" id="outstandingExcelTable">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Customer</th>
+              <th>Inv. No</th>
+              <th>Inv. Amt</th>
+              <th>Cq. No</th>
+              <th>Bank</th>
+              <th>Chq Date</th>
+              <th>Cq. Amt</th>
+              <th>Realised Amt</th>
+              <th>Realised Date</th>
+              <th>Realized month</th>
+              <th>Pending</th>
+              <th>Receipt No</th>
+              <th>Payment status</th>
+              <th>S.P</th>
+              <th>Due Days</th>
+              <th>Coll days</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="18" style="text-align:center; padding:20px; color:var(--muted);">No outstanding records found for selected filters.</td></tr>'}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" style="text-align:right; font-weight:700;">TOTAL:</td>
+              <td style="text-align:right; font-weight:700;">${fmtMoney(totalInvAmt)}</td>
+              <td colspan="3"></td>
+              <td style="text-align:right; font-weight:700;">${fmtMoney(totalChqAmt)}</td>
+              <td style="text-align:right; font-weight:700; color:var(--success);">${fmtMoney(totalRealisedAmt)}</td>
+              <td colspan="2"></td>
+              <td style="text-align:right; font-weight:700; color:var(--danger);">${fmtMoney(totalPendingAmt)}</td>
+              <td colspan="6"></td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
-      ${body}
     `;
+  }
+
+  function openOutstandingPaymentModal(invoiceId) {
+    const inv = (state.data.invoices || []).find(i => i.InvoiceId === invoiceId);
+    if (!inv) return;
+
+    const tot = Number(inv.Total || 0);
+    const paid = Number(inv.PaidAmount || 0);
+    const bal = Math.max(0, tot - paid);
+
+    let realizedMonth = inv.RealizedMonth || '';
+    if (!realizedMonth && inv.RealisedDate) {
+      try {
+        const d = new Date(inv.RealisedDate);
+        realizedMonth = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      } catch (e) {}
+    }
+
+    openModal(
+      'Update Payment / Cheque Details (' + inv.InvoiceNo + ')',
+      `
+        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-bottom:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <div><b>Customer:</b> ${esc(inv.CustomerName)}</div>
+            <div><b>Invoice Date:</b> ${esc(inv.Date)}</div>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div><b>Invoice Amount:</b> ${fmtMoney(tot)}</div>
+            <div><b>Current Balance Due:</b> <span style="color:var(--danger); font-weight:700;">${fmtMoney(bal)}</span></div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Cheque No (Cq. No)</label>
+            <input id="fOutCqNo" placeholder="e.g. 849201" value="${esc(inv.ChequeNo || '')}">
+          </div>
+          <div class="form-group">
+            <label>Bank Name</label>
+            <input id="fOutBank" placeholder="e.g. Commercial Bank / Sampath" value="${esc(inv.ChequeBank || '')}">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Cheque Date (Chq Date)</label>
+            <input type="date" id="fOutChqDate" value="${esc(inv.ChequeDate || '')}">
+          </div>
+          <div class="form-group">
+            <label>Cheque Amount (Cq. Amt)</label>
+            <input type="number" step="0.01" id="fOutCqAmt" placeholder="0.00" value="${inv.ChequeAmount || (bal > 0 ? bal : '')}">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Realised / Paid Amount (Realised Amt) *</label>
+            <input type="number" step="0.01" id="fOutRealisedAmt" placeholder="0.00" value="${paid > 0 ? paid : ''}">
+          </div>
+          <div class="form-group">
+            <label>Realised Date</label>
+            <input type="date" id="fOutRealisedDate" value="${esc(inv.RealisedDate || state.data.today)}" onchange="onRealisedDateChange(this.value)">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Realized Month</label>
+            <input id="fOutRealizedMonth" placeholder="e.g. November 2026" value="${esc(realizedMonth || '')}">
+          </div>
+          <div class="form-group">
+            <label>Receipt No</label>
+            <input id="fOutReceiptNo" placeholder="e.g. REC-1024" value="${esc(inv.ReceiptNo || '')}">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Payment Status *</label>
+          <select id="fOutPaymentStatus">
+            ${['Realised', 'Pending', 'Unpaid', 'Cheque Deposited', 'Cheque Returned', 'Cash Paid'].map(st =>
+              `<option value="${st}" ${(inv.PaymentStatus === st || (st === 'Realised' && inv.Status === 'Paid')) ? 'selected' : ''}>${st}</option>`
+            ).join('')}
+          </select>
+        </div>
+      `,
+      `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitOutstandingPayment('${esc(invoiceId)}')">Save Payment Details</button>
+      `
+    );
+  }
+
+  function onRealisedDateChange(val) {
+    if (!val) return;
+    try {
+      const d = new Date(val);
+      const mStr = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      const el = document.getElementById('fOutRealizedMonth');
+      if (el && !el.value) el.value = mStr;
+    } catch (e) {}
+  }
+
+  function submitOutstandingPayment(invoiceId) {
+    const inv = (state.data.invoices || []).find(i => i.InvoiceId === invoiceId);
+    if (!inv) return;
+
+    const cqNo = document.getElementById('fOutCqNo')?.value.trim() || '';
+    const bank = document.getElementById('fOutBank')?.value.trim() || '';
+    const cqDate = document.getElementById('fOutChqDate')?.value || '';
+    const cqAmt = Number(document.getElementById('fOutCqAmt')?.value || 0);
+    const realisedAmt = Number(document.getElementById('fOutRealisedAmt')?.value || 0);
+    const realisedDate = document.getElementById('fOutRealisedDate')?.value || '';
+    const realizedMonth = document.getElementById('fOutRealizedMonth')?.value.trim() || '';
+    const receiptNo = document.getElementById('fOutReceiptNo')?.value.trim() || '';
+    const pStatus = document.getElementById('fOutPaymentStatus')?.value || 'Pending';
+
+    // Update in-memory optimistically (0ms)
+    inv.ChequeNo = cqNo;
+    inv.ChequeBank = bank;
+    inv.ChequeDate = cqDate;
+    inv.ChequeAmount = cqAmt;
+    inv.PaidAmount = realisedAmt;
+    inv.RealisedDate = realisedDate;
+    inv.RealizedMonth = realizedMonth;
+    inv.ReceiptNo = receiptNo;
+    inv.PaymentStatus = pStatus;
+
+    if (pStatus === 'Realised' || realisedAmt >= Number(inv.Total || 0)) {
+      inv.Status = 'Paid';
+    } else if (realisedAmt > 0) {
+      inv.Status = 'Pending';
+    }
+
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+
+    closeModal();
+    renderOutstandingView();
+    showToast('Payment & Cheque details updated!');
+
+    // Background sync
+    gas('updateInvoicePayment', {
+      InvoiceId: invoiceId,
+      ChequeNo: cqNo,
+      ChequeBank: bank,
+      ChequeDate: cqDate,
+      ChequeAmount: cqAmt,
+      RealisedAmount: realisedAmt,
+      PaidAmount: realisedAmt,
+      RealisedDate: realisedDate,
+      RealizedMonth: realizedMonth,
+      ReceiptNo: receiptNo,
+      PaymentStatus: pStatus,
+      Status: inv.Status
+    }).catch(err => console.error('updateInvoicePayment error:', err));
+  }
+
+  function exportOutstandingExcel() {
+    if (typeof XLSX === 'undefined') {
+      showToast('SheetJS library is still loading, please wait a moment...');
+      return;
+    }
+    const table = document.getElementById('outstandingExcelTable');
+    if (!table) return;
+
+    const companies = state.data.companyProfiles || [];
+    const defaultComp = companies.find(c => c.IsDefault === 'Yes') || companies[0];
+    const comp = companies.find(c => c.CompanyId === _outFilterCompany) || defaultComp || { CompanyName: 'Colour Max Lanka (pvt) Ltd' };
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.table_to_sheet(table);
+    XLSX.utils.book_append_sheet(wb, ws, 'Outstanding');
+    const filename = `${comp.CompanyName} - Outstanding (${state.data.today || 'Report'}).xlsx`;
+    XLSX.writeFile(wb, filename);
+    showToast('Exported ' + filename);
   }
 
   function openCreditorModal(id) {
@@ -6220,107 +6624,247 @@
    * 7. Settings & 4-User Management
    * ======================================================================== */
 
+    function getTemplateCols(key) {
+    const defaultCols = {
+      CallReports: ['Date', 'Customer Name', 'Contact Person', 'Phone', 'Discussion / Purpose', 'Next Action / Follow-up', 'Status', 'Sales Officer'],
+      ProjectReports: ['Project Code', 'Project Name', 'Client', 'Location', 'Project Type', 'Estimated Value', 'Stage / Status', 'Assigned To', 'Start Date', 'Target Completion']
+    };
+    return defaultCols[key] || [];
+  }
+
   function renderSettingsView() {
+    ensureDataDefaults();
+    state.data.settings = state.data.settings || {};
     const s = state.data.settings;
-    const isAdmin = state.user.Role === 'Admin';
-    document.getElementById('mainContent').innerHTML = `
-      <div class="two-col">
-        <div class="card">
-          <h3 style="margin-bottom:14px;">Company Settings</h3>
-          <div class="form-group"><label>Company Name</label><input id="sComp" value="${esc(s.CompanyName)}"></div>
-          <div class="form-group"><label>Address</label><input id="sAddr" value="${esc(s.Address)}"></div>
-          <div class="form-row">
-            <div class="form-group"><label>Phone</label><input id="sPhone" value="${esc(s.Phone)}"></div>
-            <div class="form-group"><label>Email</label><input id="sEmail" value="${esc(s.Email)}"></div>
+    const isAdmin = state.user && state.user.Role === 'Admin';
+
+    if (isAdmin) {
+      document.getElementById('mainContent').innerHTML = `
+        <div class="two-col">
+          <!-- Card 1: Company Settings & Starting Sequences -->
+          <div class="card">
+            <h3 style="margin-bottom:14px; color:var(--text); font-size:16px;">🏢 Company Settings &amp; Issue Sequences</h3>
+            <div class="form-group"><label>Company Name</label><input id="sComp" value="${esc(s.CompanyName || '')}"></div>
+            <div class="form-group"><label>Address</label><input id="sAddr" value="${esc(s.Address || '')}"></div>
+            <div class="form-row">
+              <div class="form-group"><label>Phone</label><input id="sPhone" value="${esc(s.Phone || '')}"></div>
+              <div class="form-group"><label>Email</label><input id="sEmail" value="${esc(s.Email || '')}"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Currency</label><input id="sCur" value="${esc(s.Currency || 'LKR')}"></div>
+              <div class="form-group"><label>Default Tax %</label><input type="number" id="sTax" value="${esc(s.TaxRate || '0')}"></div>
+            </div>
+
+            <!-- Issue Sequences (Requirement 6) -->
+            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin:14px 0 16px 0;">
+              <div style="font-weight:700; font-size:13.5px; color:var(--primary); margin-bottom:8px;">🔢 Document Sequence &amp; Starting Numbers</div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label style="font-size:12px; font-weight:600;">Next Invoice #</label>
+                  <input id="sNextInvNo" placeholder="e.g. 1001" value="${esc(s.NextInvoiceNo || '1001')}">
+                </div>
+                <div class="form-group">
+                  <label style="font-size:12px; font-weight:600;">Invoice Prefix</label>
+                  <input id="sInvPrefix" placeholder="e.g. INV-" value="${esc(s.InvoicePrefix || 'INV-')}">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label style="font-size:12px; font-weight:600;">Next Quotation #</label>
+                  <input id="sNextQuotNo" placeholder="e.g. 754" value="${esc(s.NextQuoteNo || '754')}">
+                </div>
+                <div class="form-group">
+                  <label style="font-size:12px; font-weight:600;">Quotation Prefix</label>
+                  <input id="sQuotPrefix" placeholder="e.g. QT-" value="${esc(s.QuotePrefix || 'QT-')}">
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label style="font-size:12px; font-weight:600;">Next Petty Cash Voucher #</label>
+                <input id="sNextPcNo" placeholder="e.g. 1" value="${esc(s.NextPettyCashNo || '1')}">
+              </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="submitSettings()">Save Settings &amp; Sequences</button>
+            <button class="btn btn-secondary" style="margin-left:6px;" onclick="enableDriveTrigger()">⏱ Enable 5-Min Drive Auto-Sync</button>
+            ${s.LastDriveSync ? `<div style="margin-top:10px; font-size:12px; color:var(--muted);">Last Drive Auto-Sync: <b>${esc(s.LastDriveSync)}</b></div>` : ''}
+            ${s.DriveFolderUrl ? `<div style="margin-top:14px;"><a class="btn btn-sm btn-secondary" href="${esc(s.DriveFolderUrl)}" target="_blank">📁 Open Google Drive Folder</a></div>` : ''}
           </div>
-          <div class="form-row">
-            <div class="form-group"><label>Currency</label><input id="sCur" value="${esc(s.Currency || 'LKR')}"></div>
-            <div class="form-group"><label>Default Tax %</label><input type="number" id="sTax" value="${esc(s.TaxRate || '0')}"></div>
+
+          <!-- Card 2: Team Users & Tab Permissions (Requirement 4) -->
+          <div class="card">
+            <div class="section-header">
+              <div>
+                <h3 style="color:var(--text); font-size:16px;">👥 Team Members &amp; Permissions</h3>
+                <div style="font-size:11.5px; color:var(--muted);">Manage team accounts, PINs, and customize visible tabs for each user.</div>
+              </div>
+              <button class="btn btn-sm btn-primary" onclick="openUserModal()">+ Add New User</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Name</th><th>Role</th><th>Allowed Tabs</th><th>Status</th><th>Action</th></tr></thead>
+                <tbody>
+                  ${(state.data.users || []).map(u => {
+                    const isAdm = u.Role === 'Admin';
+                    const tabCount = isAdm ? 'All (Admin)' : (u.AllowedTabs ? u.AllowedTabs.split(',').filter(Boolean).length + ' Tabs' : 'All Standard');
+                    return `
+                      <tr>
+                        <td>
+                          <div style="display:flex; align-items:center; gap:8px;">
+                            <img src="${u.Avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(u.Name || 'User') + '&background=0f766e&color=fff'}" style="width:28px; height:28px; border-radius:50%; object-fit:cover; background:#e2e8f0;">
+                            <div>
+                              <b>${esc(u.Name)}</b>
+                              <div style="font-size:11px; color:var(--muted);">${esc(u.Email || '-')}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td><span class="badge ${isAdm ? 'badge-primary' : 'badge-muted'}">${esc(u.Role)}</span></td>
+                        <td><span class="badge ${isAdm ? 'badge-success' : 'badge-info'}">${esc(tabCount)}</span></td>
+                        <td>${statusBadge(u.Status || 'Active')}</td>
+                        <td><button class="btn btn-sm btn-secondary" onclick="openUserModal('${esc(u.UserId)}')">Edit</button></td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
           </div>
-          ${isAdmin ? `<button class="btn btn-primary" onclick="submitSettings()">Save Settings</button>
-          <button class="btn btn-secondary" style="margin-left:6px;" onclick="enableDriveTrigger()">⏱ Enable 5-Min Drive Auto-Sync</button>` : `<p style="color:var(--muted); font-size:12px;">Only Admin can update settings.</p>`}
-          ${s.LastDriveSync ? `<div style="margin-top:10px; font-size:12px; color:var(--muted);">Last Drive Auto-Sync: <b>${esc(s.LastDriveSync)}</b></div>` : ''}
-          ${s.DriveFolderUrl ? `<div style="margin-top:14px;"><a class="btn btn-sm btn-secondary" href="${esc(s.DriveFolderUrl)}" target="_blank">📁 Open Google Drive Folder</a></div>` : ''}
         </div>
 
-        <div class="card">
+        <!-- Card 3: Custom Tabs & Report Templates -->
+        <div class="card" style="margin-top:16px;">
           <div class="section-header">
-            <h3>Team Users (${state.data.users.length})</h3>
-            ${isAdmin ? `<button class="btn btn-sm btn-primary" onclick="openUserModal()">+ Add User</button>` : ''}
+            <div>
+              <h3>📋 Custom Tabs &amp; Report Templates</h3>
+              <p style="font-size:12px; color:var(--muted);">Create new sidebar tabs or customize Call/Project Report templates by uploading your own Excel/CSV file.</p>
+            </div>
+            <button class="btn btn-primary" onclick="openCustomTabModal()">+ Add New Custom Tab</button>
           </div>
+
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Action</th></tr></thead>
+              <thead><tr><th>Tab / Report</th><th>Columns</th><th>Actions</th></tr></thead>
               <tbody>
-                ${state.data.users.map(u => `
-                  <tr>
-                    <td><b>${esc(u.Name)}</b><div style="font-size:11px; color:var(--muted)">${esc(u.Email)}</div></td>
-                    <td>${esc(u.Role)}</td>
-                    <td>${statusBadge(u.Status || 'Active')}</td>
-                    <td>${isAdmin ? `<button class="btn btn-sm btn-secondary" onclick="openUserModal('${esc(u.UserId)}')">Edit</button>` : '-'}</td>
-                  </tr>
-                `).join('')}
+                <tr>
+                  <td><b>📞 Call Report</b> <span class="badge badge-muted">Built-in</span></td>
+                  <td>${getTemplateCols('CallReports').map(c => `<span class="badge badge-muted" style="margin-right:3px;">${esc(c)}</span>`).join('')}</td>
+                  <td>
+                    <label class="btn btn-sm btn-secondary" style="cursor:pointer; margin:0;">
+                      📤 Upload Template
+                      <input type="file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="uploadTemplateFile('CallReports', this.files[0])">
+                    </label>
+                  </td>
+                </tr>
+                <tr>
+                  <td><b>🏗️ Project Report</b> <span class="badge badge-muted">Built-in</span></td>
+                  <td>${getTemplateCols('ProjectReports').map(c => `<span class="badge badge-muted" style="margin-right:3px;">${esc(c)}</span>`).join('')}</td>
+                  <td>
+                    <label class="btn btn-sm btn-secondary" style="cursor:pointer; margin:0;">
+                      📤 Upload Template
+                      <input type="file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="uploadTemplateFile('ProjectReports', this.files[0])">
+                    </label>
+                  </td>
+                </tr>
+                ${(state.data.customTabs || []).map(t => {
+                  let cols = [];
+                  try { cols = JSON.parse(t.ColumnsJson || '[]'); } catch (e) {}
+                  return `
+                    <tr>
+                      <td><b>${esc(t.Icon)} ${esc(t.Name)}</b> <span class="badge badge-info">Custom Tab</span></td>
+                      <td>${cols.map(c => `<span class="badge badge-muted" style="margin-right:3px;">${esc(c)}</span>`).join('')}</td>
+                      <td>
+                        <button class="btn btn-sm btn-secondary" onclick="openCustomTabModal('${esc(t.TabId)}')">Edit</button>
+                        <button class="btn btn-sm btn-danger" onclick="removeCustomTab('${esc(t.TabId)}')">Del</button>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
               </tbody>
             </table>
           </div>
         </div>
-      </div>
+      `;
+    } else {
+      // Non-Admin User Settings & Profile (Requirement 5)
+      const myEmp = (state.data.employees || []).find(e => (e.Name || '').trim().toLowerCase() === (state.user.Name || '').trim().toLowerCase())
+        || (state.data.employees || []).find(e => (e.Email || '').trim().toLowerCase() === (state.user.Email || '').trim().toLowerCase())
+        || {};
 
-      <div class="card" style="margin-top:16px;">
-        <div class="section-header">
-          <div>
-            <h3>Custom Tabs &amp; Report Templates</h3>
-            <p style="font-size:12px; color:var(--muted);">Create new sidebar tabs or customize Call/Project Report templates by uploading your own Excel/CSV file.</p>
+      const currentAvatar = state.user.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(state.user.Name || 'User') + '&background=0f766e&color=fff');
+
+      document.getElementById('mainContent').innerHTML = `
+        <div class="two-col">
+          <!-- Card 1: My Profile Details & Avatar Cropper -->
+          <div class="card">
+            <h3 style="margin-bottom:14px; color:var(--text); font-size:16px;">👤 My Profile &amp; Login Details</h3>
+            
+            <div style="display:flex; align-items:center; gap:16px; margin-bottom:18px; padding-bottom:16px; border-bottom:1px solid #e2e8f0;">
+              <img id="myProfileAvatarPreview" src="${currentAvatar}" style="width:72px; height:72px; border-radius:50%; object-fit:cover; border:3px solid var(--primary); background:#e2e8f0; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+              <div>
+                <input type="file" id="avatarFileInput" accept="image/*" style="display:none;" onchange="handleAvatarFileSelect(this.files[0])">
+                <button class="btn btn-secondary" onclick="document.getElementById('avatarFileInput').click()">📸 Upload &amp; Crop Photo</button>
+                <div style="font-size:11px; color:var(--muted); margin-top:4px;">JPG, PNG, GIF up to 5MB. Circular crop tool included.</div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Profile Name</label>
+              <input id="myProfileName" value="${esc(state.user.Name || '')}">
+            </div>
+
+            <div class="form-group">
+              <label>Login PIN (Change Password/PIN)</label>
+              <input type="password" id="myProfilePin" placeholder="Enter new PIN" value="${esc(state.user.Pin || '')}">
+              <div style="font-size:11px; color:var(--muted); margin-top:2px;">Use this PIN when logging in or authorizing protected actions.</div>
+            </div>
+
+            <button class="btn btn-primary" onclick="saveMyProfile()">Save My Profile</button>
           </div>
-          <button class="btn btn-primary" onclick="openCustomTabModal()">+ Add New Custom Tab</button>
-        </div>
 
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Tab / Report</th><th>Columns</th><th>Actions</th></tr></thead>
-            <tbody>
-              <tr>
-                <td><b>📞 Call Report</b> <span class="badge badge-muted">Built-in</span></td>
-                <td>${getTemplateCols('CallReports').map(c => `<span class="badge badge-muted" style="margin-right:3px;">${esc(c)}</span>`).join('')}</td>
-                <td>
-                  <label class="btn btn-sm btn-secondary" style="cursor:pointer; margin:0;">
-                    📤 Upload Template
-                    <input type="file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="uploadTemplateFile('CallReports', this.files[0])">
-                  </label>
-                </td>
-              </tr>
-              <tr>
-                <td><b>🏗️ Project Report</b> <span class="badge badge-muted">Built-in</span></td>
-                <td>${getTemplateCols('ProjectReports').map(c => `<span class="badge badge-muted" style="margin-right:3px;">${esc(c)}</span>`).join('')}</td>
-                <td>
-                  <label class="btn btn-sm btn-secondary" style="cursor:pointer; margin:0;">
-                    📤 Upload Template
-                    <input type="file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="uploadTemplateFile('ProjectReports', this.files[0])">
-                  </label>
-                </td>
-              </tr>
-              ${(state.data.customTabs || []).map(t => {
-                let cols = [];
-                try { cols = JSON.parse(t.ColumnsJson || '[]'); } catch (e) {}
-                return `
-                  <tr>
-                    <td><b>${esc(t.Icon)} ${esc(t.Name)}</b> <span class="badge badge-info">Custom Tab</span></td>
-                    <td>${cols.map(c => `<span class="badge badge-muted" style="margin-right:3px;">${esc(c)}</span>`).join('')}</td>
-                    <td>
-                      <button class="btn btn-sm btn-secondary" onclick="openCustomTabModal('${esc(t.TabId)}')">Edit</button>
-                      <button class="btn btn-sm btn-danger" onclick="removeCustomTab('${esc(t.TabId)}')">Del</button>
-                    </td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
+          <!-- Card 2: Linked Employee Information -->
+          <div class="card">
+            <h3 style="margin-bottom:14px; color:var(--text); font-size:16px;">🧑‍💼 My Employee Record</h3>
+            <p style="font-size:12px; color:var(--muted); margin-bottom:14px;">Official company details matched from the Employee Directory.</p>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px;">
+              <div>
+                <div style="font-size:11px; color:var(--muted); font-weight:600;">DESIGNATION / ROLE</div>
+                <div style="font-size:13.5px; font-weight:700; color:var(--text);">${esc(myEmp.Designation || myEmp.Role || state.user.Role || '-')}</div>
+              </div>
+              <div>
+                <div style="font-size:11px; color:var(--muted); font-weight:600;">DEPARTMENT</div>
+                <div style="font-size:13.5px; font-weight:700; color:var(--text);">${esc(myEmp.Department || '-')}</div>
+              </div>
+              <div>
+                <div style="font-size:11px; color:var(--muted); font-weight:600;">DATE OF BIRTH (BIRTHDAY)</div>
+                <div style="font-size:13.5px; font-weight:700; color:var(--primary);">${esc(myEmp.DOB || myEmp.Birthday || myEmp.DateOfBirth || '-')}</div>
+              </div>
+              <div>
+                <div style="font-size:11px; color:var(--muted); font-weight:600;">PHONE NUMBER</div>
+                <div style="font-size:13.5px; font-weight:700; color:var(--text);">${esc(myEmp.Phone || '-')}</div>
+              </div>
+              <div>
+                <div style="font-size:11px; color:var(--muted); font-weight:600;">EMAIL ADDRESS</div>
+                <div style="font-size:13px; font-weight:600; color:var(--text); word-break:break-all;">${esc(myEmp.Email || state.user.Email || '-')}</div>
+              </div>
+              <div>
+                <div style="font-size:11px; color:var(--muted); font-weight:600;">NATIONAL ID (NIC)</div>
+                <div style="font-size:13.5px; font-weight:700; color:var(--text);">${esc(myEmp.NIC || '-')}</div>
+              </div>
+              <div>
+                <div style="font-size:11px; color:var(--muted); font-weight:600;">JOINED DATE</div>
+                <div style="font-size:13.5px; font-weight:600; color:var(--text);">${esc(myEmp.JoinDate || myEmp.JoinedDate || '-')}</div>
+              </div>
+              <div>
+                <div style="font-size:11px; color:var(--muted); font-weight:600;">EPF / ETF #</div>
+                <div style="font-size:13.5px; font-weight:600; color:var(--text);">${esc(myEmp.EPF || myEmp.ETF || '-')}</div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    `;
+      `;
+    }
   }
 
-  let _ctPendingRows = [];
   function openCustomTabModal(tabId) {
     const t = tabId ? (state.data.customTabs || []).find(x => x.TabId === tabId) : { Name: '', Icon: '📋', ColumnsJson: '["Date","Title","Amount","Status","Notes"]' };
     let cols = [];
@@ -6538,17 +7082,54 @@
     XLSX.writeFile(wb, `${tab.Name}_${state.data.today}.xlsx`);
   }
 
+  async   const allSystemTabs = [
+    { id: 'dashboard', label: '📊 Dashboard' },
+    { id: 'invoices', label: '🧾 Sales Invoices' },
+    { id: 'quotation', label: '📝 Quotation' },
+    { id: 'outstanding', label: '⏳ Outstanding' },
+    { id: 'inventory', label: '📦 Stock' },
+    { id: 'callReport', label: '📞 Call Report' },
+    { id: 'projectReport', label: '🏗️ Project Report' },
+    { id: 'pettyCash', label: '💵 Petty Cash' },
+    { id: 'customers', label: '👥 Customers' },
+    { id: 'companyProfile', label: '🏢 Company Profile' },
+    { id: 'employees', label: '🧑‍💼 Employees' },
+    { id: 'painterTraining', label: '🎨 Painter Training' },
+    { id: 'reports', label: '📈 Custom Reports' },
+    { id: 'import', label: '📥 Import Excel / CSV' },
+    { id: 'settings', label: '⚙️ Settings' }
+  ];
+
   async function submitSettings() {
-    await gas('saveSettings', {
+    const nextInv = document.getElementById('sNextInvNo')?.value.trim() || '1001';
+    const invPref = document.getElementById('sInvPrefix')?.value.trim() || 'INV-';
+    const nextQuot = document.getElementById('sNextQuotNo')?.value.trim() || '754';
+    const quotPref = document.getElementById('sQuotPrefix')?.value.trim() || 'QT-';
+    const nextPc = document.getElementById('sNextPcNo')?.value.trim() || '1';
+
+    const payload = {
       CompanyName: document.getElementById('sComp').value,
       Address: document.getElementById('sAddr').value,
       Phone: document.getElementById('sPhone').value,
       Email: document.getElementById('sEmail').value,
       Currency: document.getElementById('sCur').value,
-      TaxRate: document.getElementById('sTax').value
-    });
-    showToast('Settings saved!');
-    await refreshData();
+      TaxRate: document.getElementById('sTax').value,
+      NextInvoiceNo: nextInv,
+      InvoicePrefix: invPref,
+      NextQuoteNo: nextQuot,
+      QuotePrefix: quotPref,
+      NextPettyCashNo: nextPc
+    };
+
+    // Optimistic update
+    Object.assign(state.data.settings, payload);
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+    document.getElementById('brandName').textContent = payload.CompanyName || 'Jade Coatings';
+
+    showToast('Settings & Sequences saved!');
+    renderSettingsView();
+
+    gas('saveSettings', payload).catch(err => console.error(err));
   }
 
   async function enableDriveTrigger() {
@@ -6556,36 +7137,263 @@
     showToast(msg);
   }
 
+  function saveMyProfile() {
+    const newName = document.getElementById('myProfileName')?.value.trim();
+    const newPin = document.getElementById('myProfilePin')?.value.trim();
+    if (!newName) {
+      showToast('Please enter your name');
+      return;
+    }
+    state.user.Name = newName;
+    if (newPin) state.user.Pin = newPin;
+
+    const u = (state.data.users || []).find(x => x.UserId === state.user.UserId);
+    if (u) {
+      u.Name = newName;
+      if (newPin) u.Pin = newPin;
+      u.Avatar = state.user.Avatar;
+    }
+
+    try {
+      localStorage.setItem(CACHE_KEY_USER, JSON.stringify(state.user));
+      localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data));
+    } catch (e) {}
+
+    renderTopbarUserProfile();
+    showToast('Your profile has been saved!');
+    renderSettingsView();
+
+    gas('saveUser', state.user).catch(err => console.error(err));
+  }
+
+  let _cropState = { img: null, x: 0, y: 0, zoom: 1, isDragging: false, startX: 0, startY: 0 };
+
+  function handleAvatarFileSelect(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        _cropState.img = img;
+        _cropState.zoom = 1;
+        _cropState.x = 0;
+        _cropState.y = 0;
+        openModal(
+          'Crop Profile Picture',
+          `
+            <div style="text-align:center;">
+              <p style="font-size:12px; color:var(--muted); margin-bottom:12px;">Drag to adjust position and use the zoom slider to resize.</p>
+              <div style="position:relative; width:220px; height:220px; margin:0 auto; border-radius:50%; overflow:hidden; border:3px solid var(--primary); box-shadow:0 4px 15px rgba(0,0,0,0.15); background:#1e293b;">
+                <canvas id="cropCanvas" width="220" height="220" style="cursor:grab; display:block;"></canvas>
+              </div>
+              <div style="margin-top:14px; display:flex; align-items:center; justify-content:center; gap:10px;">
+                <span style="font-size:12px;">🔍 Small</span>
+                <input type="range" id="cropZoomSlider" min="0.3" max="3" step="0.05" value="1" oninput="onCropZoom(this.value)" style="width:160px;">
+                <span style="font-size:12px;">Large 🔎</span>
+              </div>
+            </div>
+          `,
+          `
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="applyAvatarCrop()">✓ Apply &amp; Set Avatar</button>
+          `
+        );
+        initCropCanvasEvents();
+        drawCropCanvas();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function initCropCanvasEvents() {
+    const canvas = document.getElementById('cropCanvas');
+    if (!canvas) return;
+
+    function getPos(e) {
+      if (e.touches && e.touches.length > 0) {
+        return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+      return { x: e.clientX, y: e.clientY };
+    }
+
+    function onStart(e) {
+      _cropState.isDragging = true;
+      const p = getPos(e);
+      _cropState.startX = p.x - _cropState.x;
+      _cropState.startY = p.y - _cropState.y;
+    }
+
+    function onMove(e) {
+      if (!_cropState.isDragging) return;
+      const p = getPos(e);
+      _cropState.x = p.x - _cropState.startX;
+      _cropState.y = p.y - _cropState.startY;
+      drawCropCanvas();
+    }
+
+    function onEnd() {
+      _cropState.isDragging = false;
+    }
+
+    canvas.addEventListener('mousedown', onStart);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onEnd);
+
+    canvas.addEventListener('touchstart', onStart, { passive: true });
+    window.addEventListener('touchmove', onMove, { passive: true });
+    window.addEventListener('touchend', onEnd);
+  }
+
+  function onCropZoom(val) {
+    _cropState.zoom = parseFloat(val) || 1;
+    drawCropCanvas();
+  }
+
+  function drawCropCanvas() {
+    const canvas = document.getElementById('cropCanvas');
+    if (!canvas || !_cropState.img) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.save();
+
+    const scale = Math.max(w / _cropState.img.width, h / _cropState.img.height) * _cropState.zoom;
+    const sw = _cropState.img.width * scale;
+    const sh = _cropState.img.height * scale;
+    const dx = (w - sw) / 2 + _cropState.x;
+    const dy = (h - sh) / 2 + _cropState.y;
+
+    ctx.drawImage(_cropState.img, dx, dy, sw, sh);
+    ctx.restore();
+  }
+
+  function applyAvatarCrop() {
+    const canvas = document.getElementById('cropCanvas');
+    if (!canvas) return;
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+    state.user.Avatar = dataUrl;
+    const u = (state.data.users || []).find(x => x.UserId === state.user.UserId);
+    if (u) u.Avatar = dataUrl;
+
+    try {
+      localStorage.setItem(CACHE_KEY_USER, JSON.stringify(state.user));
+      localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data));
+    } catch (e) {}
+
+    renderTopbarUserProfile();
+    closeModal();
+    showToast('Profile picture updated!');
+    renderSettingsView();
+
+    gas('saveUser', state.user).catch(err => console.error(err));
+  }
+
   function openUserModal(userId) {
-    const u = userId ? state.data.users.find(x => x.UserId === userId) : { Name: '', Email: '', Role: 'Staff', Status: 'Active' };
+    const u = userId ? state.data.users.find(x => x.UserId === userId) : { Name: '', Email: '', Role: 'Staff', Status: 'Active', AllowedTabs: '' };
+    const currentAllowed = u.AllowedTabs
+      ? u.AllowedTabs.split(',').map(s => s.trim().toLowerCase())
+      : (u.Role === 'Admin' ? allSystemTabs.map(t => t.id.toLowerCase()) : ['dashboard', 'invoices', 'quotation', 'outstanding']);
+
+    const tabsCheckboxes = allSystemTabs.map(t => `
+      <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; cursor:pointer; background:#fff; padding:6px 10px; border:1px solid #e2e8f0; border-radius:6px;">
+        <input type="checkbox" class="user-tab-checkbox" data-tab="${esc(t.id)}" ${currentAllowed.includes(t.id.toLowerCase()) ? 'checked' : ''}>
+        <span>${esc(t.label)}</span>
+      </label>
+    `).join('');
+
     openModal(
-      userId ? 'Edit User' : 'Add User',
+      userId ? 'Edit Team Member Profile' : 'Add New Team Member',
       `
-        <div class="form-group"><label>Name</label><input id="fUsName" value="${esc(u.Name)}"></div>
-        <div class="form-group"><label>Email</label><input id="fUsEmail" value="${esc(u.Email)}"></div>
         <div class="form-row">
-          <div class="form-group"><label>Role</label><select id="fUsRole"><option ${u.Role === 'Admin' ? 'selected' : ''}>Admin</option><option ${u.Role === 'Staff' ? 'selected' : ''}>Staff</option></select></div>
-          <div class="form-group"><label>Status</label><select id="fUsStat"><option ${u.Status === 'Active' ? 'selected' : ''}>Active</option><option ${u.Status === 'Inactive' ? 'selected' : ''}>Inactive</option></select></div>
+          <div class="form-group" style="flex:2;"><label>Full Name *</label><input id="fUsName" value="${esc(u.Name)}"></div>
+          <div class="form-group" style="flex:1;"><label>Role</label>
+            <select id="fUsRole">
+              ${['Admin', 'Staff', 'Sales', 'Accounts', 'Painter', 'Manager'].map(r => `<option ${u.Role === r ? 'selected' : ''}>${r}</option>`).join('')}
+            </select>
+          </div>
         </div>
-        <div class="form-group"><label>${userId ? 'New PIN (leave blank to keep current)' : 'PIN'}</label><input type="password" id="fUsPin" placeholder="4-digit PIN"></div>
+        <div class="form-row">
+          <div class="form-group"><label>Email Address</label><input id="fUsEmail" value="${esc(u.Email)}"></div>
+          <div class="form-group"><label>Status</label>
+            <select id="fUsStat">
+              <option ${u.Status === 'Active' ? 'selected' : ''}>Active</option>
+              <option ${u.Status === 'Inactive' ? 'selected' : ''}>Inactive</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group"><label>${userId ? 'Change PIN / Password (leave blank to keep current)' : 'Login PIN (e.g. 1234)'}</label><input type="password" id="fUsPin" placeholder="4-digit PIN"></div>
+
+        <!-- Allowed Tabs Checklist (Requirement 4) -->
+        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-top:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="font-weight:700; font-size:13px; color:var(--text);">Allowed Tabs &amp; Features for this User</div>
+            <div style="display:flex; gap:6px;">
+              <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAllUserTabs(true)" style="padding:2px 8px; font-size:11px;">✓ Select All</button>
+              <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAllUserTabs(false)" style="padding:2px 8px; font-size:11px;">✕ Clear All</button>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:6px;">
+            ${tabsCheckboxes}
+          </div>
+        </div>
       `,
       `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-       <button class="btn btn-primary" onclick="submitUser('${esc(userId || '')}')">Save User</button>`
+       <button class="btn btn-primary" onclick="submitUser('${esc(userId || '')}')">Save User Profile</button>`
     );
   }
 
+  function toggleAllUserTabs(checked) {
+    document.querySelectorAll('.user-tab-checkbox').forEach(cb => cb.checked = !!checked);
+  }
+
   async function submitUser(userId) {
-    await gas('saveUser', {
-      UserId: userId,
-      Name: document.getElementById('fUsName').value,
-      Email: document.getElementById('fUsEmail').value,
+    const name = document.getElementById('fUsName').value.trim();
+    if (!name) {
+      showToast('Please enter user name');
+      return;
+    }
+    const checkedTabs = Array.from(document.querySelectorAll('.user-tab-checkbox:checked'))
+      .map(cb => cb.getAttribute('data-tab'))
+      .join(',');
+
+    const payload = {
+      UserId: userId || ('U-' + Date.now()),
+      Name: name,
+      Email: document.getElementById('fUsEmail').value.trim(),
       Role: document.getElementById('fUsRole').value,
       Status: document.getElementById('fUsStat').value,
-      Pin: document.getElementById('fUsPin').value
-    });
+      AllowedTabs: checkedTabs
+    };
+    const pin = document.getElementById('fUsPin').value.trim();
+    if (pin) payload.Pin = pin;
+
+    // Optimistic local update (0ms)
+    if (userId) {
+      const idx = (state.data.users || []).findIndex(x => x.UserId === userId);
+      if (idx !== -1) Object.assign(state.data.users[idx], payload);
+      if (state.user.UserId === userId) {
+        Object.assign(state.user, payload);
+        renderTopbarUserProfile();
+        updateRestrictedTabsVisibility();
+      }
+    } else {
+      payload.Pin = payload.Pin || '1234';
+      (state.data.users = state.data.users || []).push(payload);
+    }
+    try {
+      localStorage.setItem(CACHE_KEY_USER, JSON.stringify(state.user));
+      localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data));
+    } catch (e) {}
+
     closeModal();
-    showToast('User saved!');
-    await refreshData();
+    showToast('User profile saved!');
+    renderSettingsView();
+
+    gas('saveUser', payload).catch(err => console.error(err));
   }
 
   /* ==========================================================================

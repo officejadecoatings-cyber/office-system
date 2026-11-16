@@ -8,12 +8,12 @@ const DRIVE_FOLDER_NAME = 'Office System Files';
 
 const SCHEMA = {
   Settings: ['Key', 'Value'],
-  Users: ['UserId', 'Name', 'Email', 'Role', 'Pin', 'Status'],
+  Users: ['UserId', 'Name', 'Email', 'Role', 'Pin', 'Status', 'AllowedTabs', 'Avatar'],
   Customers: ['CustomerId', 'CustomerCode', 'Name', 'BusinessIdentifier', 'BillingAddress', 'DeliveryAddress', 'Email', 'Phone', 'CreditLimit', 'SalesOfficerId', 'SalesOfficerName', 'Notes', 'CreatedAt'],
   Inventory: ['ItemId', 'SKU', 'Name', 'Category', 'UnitPrice', 'StockQty', 'ReorderLevel', 'Unit', 'UpdatedAt'],
-  Invoices: ['InvoiceId', 'InvoiceNo', 'CustomerId', 'CustomerName', 'Date', 'DueDate', 'Status', 'Subtotal', 'Discount', 'TaxAmount', 'Total', 'PaidAmount', 'Notes', 'CreatedBy', 'QuoteNo', 'SalesPerson', 'CustomerAddress', 'CustomerPhone', 'BankDetails', 'CompanyId'],
+  Invoices: ['InvoiceId', 'InvoiceNo', 'CustomerId', 'CustomerName', 'Date', 'DueDate', 'Status', 'Subtotal', 'Discount', 'TaxAmount', 'Total', 'PaidAmount', 'Notes', 'CreatedBy', 'QuoteNo', 'SalesPerson', 'CustomerAddress', 'CustomerPhone', 'BankDetails', 'CompanyId', 'ChequeNo', 'ChequeBank', 'ChequeDate', 'ChequeAmount', 'RealisedDate', 'RealizedMonth', 'ReceiptNo', 'PaymentStatus'],
   InvoiceItems: ['LineId', 'InvoiceId', 'ItemId', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal', 'ItemCode', 'DiscountPercent'],
-  CompanyProfiles: ['CompanyId', 'CompanyName', 'Address', 'Phone', 'Email', 'Website', 'BankName', 'Branch', 'AccountNo', 'Logo', 'IsDefault', 'CreatedAt'],
+  CompanyProfiles: ['CompanyId', 'CompanyName', 'Address', 'Phone', 'Email', 'Website', 'BankName', 'Branch', 'AccountNo', 'Logo', 'IsDefault', 'InvoicePrefix', 'NextInvoiceNo', 'QuotePrefix', 'NextQuoteNo', 'CreatedAt'],
   Quotations: ['QuotationId', 'QuotationNo', 'Date', 'CustomerId', 'CustomerName', 'BillingAddress', 'Description', 'TotalAmount', 'Status', 'DataJson', 'CompanyId', 'CreatedBy', 'CreatedAt'],
   Creditors: ['CreditorId', 'SupplierName', 'BillNo', 'Date', 'DueDate', 'TotalAmount', 'PaidAmount', 'Status', 'Notes'],
   PettyCash: ['PcId', 'VoucherNo', 'Date', 'Type', 'Category', 'Description', 'PaidTo', 'ReceiptNo', 'Amount', 'RecordedBy'],
@@ -368,7 +368,9 @@ function authenticateUser(userId, pin) {
       UserId: user.UserId,
       Name: user.Name,
       Email: user.Email,
-      Role: user.Role
+      Role: user.Role,
+      AllowedTabs: user.AllowedTabs || '',
+      Avatar: user.Avatar || ''
     },
     data: getAppData()
   };
@@ -416,7 +418,9 @@ function getAppData() {
       Name: u.Name,
       Email: u.Email,
       Role: u.Role,
-      Status: u.Status
+      Status: u.Status,
+      AllowedTabs: u.AllowedTabs || '',
+      Avatar: u.Avatar || ''
     })),
     customers: readFromSheet('Customers'),
     inventory: readFromSheet('Inventory'),
@@ -569,16 +573,45 @@ function saveInvoice(payload) {
 function adjustInventoryStock_(items, multiplier) {
   const inventory = readSheetObjects_('Inventory');
   items.forEach(li => {
-    if (!li.ItemId) return;
-    const invItem = inventory.find(x => x.ItemId === li.ItemId);
+    let invItem = null;
+    if (li.ItemId) {
+      invItem = inventory.find(x => x.ItemId === li.ItemId);
+    }
+    if (!invItem && li.ItemCode) {
+      invItem = inventory.find(x => x.SKU && String(x.SKU).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase());
+    }
+    if (!invItem && li.ItemName) {
+      invItem = inventory.find(x => x.Name && String(x.Name).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase());
+    }
     if (invItem) {
-      const newQty = (Number(invItem.StockQty) || 0) + (multiplier * (Number(li.Qty) || 0));
+      const newQty = Math.max(0, (Number(invItem.StockQty) || 0) + (multiplier * (Number(li.Qty) || 0)));
       invItem.StockQty = newQty;
       updateRowByKey_('Inventory', 'ItemId', invItem.ItemId, {
         StockQty: newQty,
         UpdatedAt: todayStr_()
       });
     }
+  });
+}
+
+function updateInvoicePayment(payload) {
+  return withLock_(() => {
+    const invId = payload.InvoiceId;
+    if (!invId) throw new Error('InvoiceId required');
+    const updates = {
+      ChequeNo: payload.ChequeNo || '',
+      ChequeBank: payload.ChequeBank || '',
+      ChequeDate: payload.ChequeDate || '',
+      ChequeAmount: Number(payload.ChequeAmount) || 0,
+      PaidAmount: Number(payload.RealisedAmount) || Number(payload.PaidAmount) || 0,
+      RealisedDate: payload.RealisedDate || '',
+      RealizedMonth: payload.RealizedMonth || '',
+      ReceiptNo: payload.ReceiptNo || '',
+      PaymentStatus: payload.PaymentStatus || 'Unpaid'
+    };
+    if (payload.Status) updates.Status = payload.Status;
+    updateRowByKey_('Invoices', 'InvoiceId', invId, updates);
+    return updates;
   });
 }
 
@@ -970,15 +1003,18 @@ function saveUser(user) {
         Role: user.Role,
         Status: user.Status
       };
-      if (user.Pin) updates.Pin = user.Pin;
+      if (user.Pin !== undefined) updates.Pin = user.Pin;
+      if (user.AllowedTabs !== undefined) updates.AllowedTabs = user.AllowedTabs;
+      if (user.Avatar !== undefined) updates.Avatar = user.Avatar;
       updateRowByKey_('Users', 'UserId', user.UserId, updates);
       return user;
     }
     const existing = readSheetObjects_('Users');
-    if (existing.length >= 10) throw new Error('User limit reached.');
     user.UserId = nextId_('U');
     user.Pin = user.Pin || '1234';
     user.Status = user.Status || 'Active';
+    user.AllowedTabs = user.AllowedTabs || '';
+    user.Avatar = user.Avatar || '';
     return appendRowObject_('Users', user);
   });
 }
