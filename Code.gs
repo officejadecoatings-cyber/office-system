@@ -58,6 +58,8 @@ function doPost(e) {
     const allowed = {
       getLoginUsers, authenticateUser, getAppData,
       saveCustomer, deleteCustomer,
+      saveCompanyProfile, deleteCompanyProfile,
+      saveQuotation, deleteQuotation,
       saveInventoryItem, deleteInventoryItem,
       saveInvoice, deleteInvoice,
       saveCreditor, deleteCreditor,
