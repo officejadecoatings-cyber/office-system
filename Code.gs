@@ -11,8 +11,10 @@ const SCHEMA = {
   Users: ['UserId', 'Name', 'Email', 'Role', 'Pin', 'Status'],
   Customers: ['CustomerId', 'CustomerCode', 'Name', 'BusinessIdentifier', 'BillingAddress', 'DeliveryAddress', 'Email', 'Phone', 'CreditLimit', 'SalesOfficerId', 'SalesOfficerName', 'Notes', 'CreatedAt'],
   Inventory: ['ItemId', 'SKU', 'Name', 'Category', 'UnitPrice', 'StockQty', 'ReorderLevel', 'Unit', 'UpdatedAt'],
-  Invoices: ['InvoiceId', 'InvoiceNo', 'CustomerId', 'CustomerName', 'Date', 'DueDate', 'Status', 'Subtotal', 'Discount', 'TaxAmount', 'Total', 'PaidAmount', 'Notes', 'CreatedBy', 'QuoteNo', 'SalesPerson', 'CustomerAddress', 'CustomerPhone', 'BankDetails'],
+  Invoices: ['InvoiceId', 'InvoiceNo', 'CustomerId', 'CustomerName', 'Date', 'DueDate', 'Status', 'Subtotal', 'Discount', 'TaxAmount', 'Total', 'PaidAmount', 'Notes', 'CreatedBy', 'QuoteNo', 'SalesPerson', 'CustomerAddress', 'CustomerPhone', 'BankDetails', 'CompanyId'],
   InvoiceItems: ['LineId', 'InvoiceId', 'ItemId', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal', 'ItemCode', 'DiscountPercent'],
+  CompanyProfiles: ['CompanyId', 'CompanyName', 'Address', 'Phone', 'Email', 'Website', 'BankName', 'Branch', 'AccountNo', 'Logo', 'IsDefault', 'CreatedAt'],
+  Quotations: ['QuotationId', 'QuotationNo', 'Date', 'CustomerName', 'TotalAmount', 'Status', 'DataJson', 'CreatedBy', 'CreatedAt'],
   Creditors: ['CreditorId', 'SupplierName', 'BillNo', 'Date', 'DueDate', 'TotalAmount', 'PaidAmount', 'Status', 'Notes'],
   PettyCash: ['PcId', 'VoucherNo', 'Date', 'Type', 'Category', 'Description', 'PaidTo', 'ReceiptNo', 'Amount', 'RecordedBy'],
   CallReports: ['CallId', 'ReportType', 'DataJson', 'CreatedBy', 'CreatedAt'],
@@ -198,6 +200,25 @@ function ensureDatabase_() {
       ['TaxRate', '0'],
       ['DriveFolderUrl', folder.getUrl()]
     ]);
+  }
+
+  // Seed default CompanyProfile if empty
+  const compSheet = ss.getSheetByName('CompanyProfiles');
+  if (compSheet && compSheet.getLastRow() <= 1) {
+    compSheet.getRange(2, 1, 1, 12).setValues([[
+      'COMP-001',
+      'Paint Zone (Pvt) Ltd',
+      '424/1/B Kottunna Rd, Biyagama, Sri Lanka, (10350)',
+      '(M): +(94)768760609 / (T): +(94)112468883',
+      'info@colourmax.lk',
+      'www.colourmax.lk',
+      'COMMERCIAL BANK',
+      'BATTARAMULLA',
+      '1000982266',
+      '',
+      'Yes',
+      todayStr_()
+    ]]);
   }
 
   // Seed 4 default users if empty
@@ -413,6 +434,8 @@ function getAppData() {
     leaves: readFromSheet('Leaves'),
     tasks: readFromSheet('Tasks'),
     savedReports: readFromSheet('SavedReports'),
+    companyProfiles: readFromSheet('CompanyProfiles'),
+    quotations: readFromSheet('Quotations'),
     today: todayStr_()
   };
 }
@@ -1049,6 +1072,66 @@ function saveReportToDrive(filename, csvContent) {
  * Installs a 5-minute time-based trigger to auto-sync backups to Google Drive.
  * Run once from Apps Script editor or via Settings > Enable 5-Min Drive Auto-Sync.
  */
+function saveCompanyProfile(comp) {
+  return withLock_(() => {
+    if (comp.CompanyId) {
+      if (comp.IsDefault === 'Yes') {
+        const allComps = readSheetObjects_('CompanyProfiles');
+        allComps.forEach(c => {
+          if (c.CompanyId !== comp.CompanyId && c.IsDefault === 'Yes') {
+            c.IsDefault = 'No';
+            updateRowByKey_('CompanyProfiles', 'CompanyId', c.CompanyId, c);
+          }
+        });
+      }
+      updateRowByKey_('CompanyProfiles', 'CompanyId', comp.CompanyId, comp);
+      return comp;
+    }
+    const existing = readSheetObjects_('CompanyProfiles');
+    comp.CompanyId = nextId_('COMP');
+    comp.CreatedAt = todayStr_();
+    if (existing.length === 0 || comp.IsDefault === 'Yes') {
+      comp.IsDefault = 'Yes';
+      existing.forEach(c => {
+        if (c.IsDefault === 'Yes') {
+          c.IsDefault = 'No';
+          updateRowByKey_('CompanyProfiles', 'CompanyId', c.CompanyId, c);
+        }
+      });
+    } else {
+      comp.IsDefault = comp.IsDefault || 'No';
+    }
+    return appendRowObject_('CompanyProfiles', comp);
+  });
+}
+
+function deleteCompanyProfile(id) {
+  return withLock_(() => {
+    return deleteRowByKey_('CompanyProfiles', 'CompanyId', id);
+  });
+}
+
+function saveQuotation(q) {
+  return withLock_(() => {
+    if (q.QuotationId) {
+      updateRowByKey_('Quotations', 'QuotationId', q.QuotationId, q);
+      return q;
+    }
+    const existing = readSheetObjects_('Quotations');
+    q.QuotationId = nextId_('QUOT');
+    q.QuotationNo = q.QuotationNo || ('QT-' + String(existing.length + 1001));
+    q.Date = q.Date || todayStr_();
+    q.CreatedAt = todayStr_();
+    return appendRowObject_('Quotations', q);
+  });
+}
+
+function deleteQuotation(id) {
+  return withLock_(() => {
+    return deleteRowByKey_('Quotations', 'QuotationId', id);
+  });
+}
+
 function setupAutoSyncTrigger() {
   const triggers = ScriptApp.getProjectTriggers();
   triggers.forEach(t => {

@@ -27,6 +27,8 @@
       leaves: [],
       tasks: [],
       savedReports: [],
+      companyProfiles: [],
+      quotations: [],
       today: ''
     }
   };
@@ -316,6 +318,7 @@
         if (cachedUser && cachedData && cachedData.settings) {
           state.user = cachedUser;
           state.data = cachedData;
+        ensureDataDefaults();
           document.getElementById('loginView').classList.add('hidden');
           document.getElementById('appShell').classList.remove('hidden');
           document.getElementById('sidebarUser').textContent = cachedUser.Name || 'User';
@@ -398,6 +401,7 @@
     try {
       const data = await gas('getAppData');
       state.data = data;
+      ensureDataDefaults();
       try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(data)); } catch (e) {}
       if (data.settings) {
         document.getElementById('brandName').textContent = data.settings.CompanyName || 'Jade Coatings';
@@ -520,6 +524,8 @@
     const titles = {
       dashboard: 'Dashboard',
       invoices: 'Sales Invoices',
+      quotation: 'Quotation',
+      companyProfile: 'Company Profile',
       outstanding: 'Outstanding (Debtors & Creditors)',
       callReport: 'Call Report',
       projectReport: 'Project Report',
@@ -538,6 +544,8 @@
     const handlers = {
       dashboard: renderDashboard,
       invoices: renderInvoicesView,
+      quotation: renderQuotationView,
+      companyProfile: renderCompanyProfileView,
       outstanding: renderOutstandingView,
       callReport: renderCallReportsView,
       projectReport: renderProjectReportsView,
@@ -794,19 +802,60 @@
     return `${mm}/${dd}/${yyyy}`;
   }
 
+  function ensureDataDefaults() {
+    if (!state.data.companyProfiles || !Array.isArray(state.data.companyProfiles) || state.data.companyProfiles.length === 0) {
+      state.data.companyProfiles = [{
+        CompanyId: 'COMP-001',
+        CompanyName: 'Paint Zone (Pvt) Ltd',
+        Address: '424/1/B Kottunna Rd, Biyagama, Sri Lanka, (10350)',
+        Phone: '(M): +(94)768760609 / (T): +(94)112468883',
+        Email: 'info@colourmax.lk',
+        Website: 'www.colourmax.lk',
+        BankName: 'COMMERCIAL BANK',
+        Branch: 'BATTARAMULLA',
+        AccountNo: '1000982266',
+        Logo: '',
+        IsDefault: 'Yes',
+        CreatedAt: state.data.today || '2026-11-16'
+      }];
+    }
+    if (!state.data.quotations || !Array.isArray(state.data.quotations)) {
+      state.data.quotations = [];
+    }
+  }
+
   let _invLines = [];
 
   function openInvoiceModal(invoiceId) {
+    ensureDataDefaults();
+    const defaultComp = (state.data.companyProfiles || []).find(c => c.IsDefault === 'Yes') || (state.data.companyProfiles || [])[0];
+    const defaultBank = defaultComp ? `AC NAME :${defaultComp.CompanyName.toUpperCase()}/ AC NO : ${defaultComp.AccountNo} /${(defaultComp.BankName || '').toUpperCase()} / ${(defaultComp.Branch || '').toUpperCase()}` : '';
+
     const inv = invoiceId ? state.data.invoices.find(i => i.InvoiceId === invoiceId) : {
       InvoiceNo: '', CustomerId: '', CustomerName: '', Date: state.data.today, DueDate: state.data.today, Status: 'Pending', Discount: 0, PaidAmount: 0, Notes: '',
-      QuoteNo: '', SalesPerson: '', CustomerAddress: '', CustomerPhone: '', BankDetails: 'AC NAME :PAINT ZONE (PVT) LTD/ AC NO : 1000982266 /COMMERCIAL BANK / BATTARAMULLA'
+      QuoteNo: '', SalesPerson: '', CustomerAddress: '', CustomerPhone: '',
+      CompanyId: defaultComp ? defaultComp.CompanyId : '',
+      BankDetails: defaultBank
     };
+    if (!inv.BankDetails && defaultBank) {
+      inv.BankDetails = defaultBank;
+    }
+    if (!inv.CompanyId && defaultComp) {
+      inv.CompanyId = defaultComp.CompanyId;
+    }
+
     _invLines = invoiceId
       ? state.data.invoiceItems.filter(li => li.InvoiceId === invoiceId).map(x => ({ ...x, ItemCode: x.ItemCode || '', DiscountPercent: Number(x.DiscountPercent) || 0 }))
       : [{ ItemId: '', ItemCode: '', ItemName: '', Qty: 1, UnitPrice: 0, DiscountPercent: 0, LineTotal: 0 }];
 
     const custOpts = state.data.customers.map(c =>
       `<option value="${esc(c.CustomerId)}" ${inv.CustomerId === c.CustomerId ? 'selected' : ''}>${esc(c.Name)}${c.Company ? ' - ' + esc(c.Company) : ''}</option>`
+    ).join('');
+
+    const compOpts = (state.data.companyProfiles || []).map(c =>
+      `<option value="${esc(c.CompanyId)}" ${(inv.CompanyId === c.CompanyId || (!inv.CompanyId && c.IsDefault === 'Yes')) ? 'selected' : ''}>
+        ${esc(c.CompanyName)}${c.IsDefault === 'Yes' ? ' (Default)' : ''} - ${esc(c.BankName || '')} (${esc(c.AccountNo || '')})
+      </option>`
     ).join('');
 
     openModal(
@@ -819,6 +868,20 @@
             <input type="password" id="fInvOverridePin" placeholder="Enter your Login PIN (${esc(state.user.Name)})">
           </div>
         </div>
+
+        <div class="form-row">
+          <div class="form-group" style="flex:2;">
+            <label>Company Profile (Bank &amp; Header Info) *</label>
+            <select id="fInvCompany" onchange="onInvCompanyChange()">
+              ${compOpts}
+            </select>
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>Quote Number</label>
+            <input id="fInvQuote" placeholder="e.g. 754" value="${esc(inv.QuoteNo || '')}">
+          </div>
+        </div>
+
         <div class="form-row">
           <div class="form-group">
             <label>Customer</label>
@@ -834,21 +897,31 @@
             </select>
           </div>
         </div>
+
         <div class="form-row">
           <div class="form-group"><label>Customer Address</label><textarea id="fInvCustAddr" rows="2" placeholder="e.g. No. 08, Kandy Road, Mawathagama">${esc(inv.CustomerAddress || '')}</textarea></div>
           <div class="form-group">
             <label>Customer Phone</label><input id="fInvCustPhone" placeholder="e.g. 037- 2299592 / 076- 6550425" value="${esc(inv.CustomerPhone || '')}">
-            <label style="margin-top:6px;">Quote Number</label><input id="fInvQuote" placeholder="e.g. 754" value="${esc(inv.QuoteNo || '')}">
+            <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">Address and phone auto-populate when a customer is selected.</div>
           </div>
         </div>
+
         <div class="form-row">
           <div class="form-group"><label>Invoice Date</label><input type="date" id="fInvDate" value="${esc(inv.Date)}"></div>
           <div class="form-group"><label>Due Date</label><input type="date" id="fInvDue" value="${esc(inv.DueDate)}"></div>
         </div>
+
         <div class="form-row">
-          <div class="form-group"><label>Sales Person (S.P)</label><input id="fInvSP" placeholder="e.g. S.P - Name" value="${esc(inv.SalesPerson || '')}"></div>
-          <div class="form-group"><label>Bank Details</label><input id="fInvBank" placeholder="AC NAME :PAINT ZONE (PVT) LTD..." value="${esc(inv.BankDetails || 'AC NAME :PAINT ZONE (PVT) LTD/ AC NO : 1000982266 /COMMERCIAL BANK / BATTARAMULLA')}"></div>
+          <div class="form-group">
+            <label>Sales Person (S.P) <span style="font-weight:normal; color:var(--muted);">(Optional)</span></label>
+            <input id="fInvSP" placeholder="e.g. S.P - Name (Optional)" value="${esc(inv.SalesPerson || '')}">
+          </div>
+          <div class="form-group">
+            <label>Bank Details (Auto-filled from Company)</label>
+            <input id="fInvBank" placeholder="AC NAME :..." value="${esc(inv.BankDetails || '')}">
+          </div>
         </div>
+
         <div style="margin:12px 0;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
             <b>Line Items (Code, Description, Qty, Unit Price, Discount %)</b>
@@ -866,10 +939,12 @@
           </div>
           <div id="invLinesContainer"></div>
         </div>
+
         <div class="form-row">
           <div class="form-group"><label>Additional Bill Discount</label><input type="number" step="0.01" id="fInvDisc" value="${Number(inv.Discount || 0)}" oninput="updateInvTotals()"></div>
           <div class="form-group"><label>Paid Amount</label><input type="number" step="0.01" id="fInvPaid" value="${Number(inv.PaidAmount || 0)}" oninput="updateInvTotals()"></div>
         </div>
+
         <div style="text-align:right; font-size:15px; margin-top:6px;" id="invTotalsPreview"></div>
         <div class="form-group" style="margin-top:10px;"><label>Terms &amp; Notes</label><textarea id="fInvNotes" rows="2">${esc(inv.Notes || '')}</textarea></div>
       `,
@@ -879,6 +954,17 @@
     );
     renderInvLines();
     checkInvCustomerBlock();
+  }
+
+  function onInvCompanyChange() {
+    const compId = document.getElementById('fInvCompany')?.value;
+    const comp = (state.data.companyProfiles || []).find(c => c.CompanyId === compId);
+    if (comp) {
+      const bankEl = document.getElementById('fInvBank');
+      if (bankEl) {
+        bankEl.value = `AC NAME :${comp.CompanyName.toUpperCase()}/ AC NO : ${comp.AccountNo} /${(comp.BankName || '').toUpperCase()} / ${(comp.Branch || '').toUpperCase()}`;
+      }
+    }
   }
 
   function onInvCustomerChange() {
@@ -1013,6 +1099,7 @@
       invoice: {
         InvoiceId: invoiceId || '',
         InvoiceNo: existing ? existing.InvoiceNo : '',
+        CompanyId: document.getElementById('fInvCompany')?.value || '',
         CustomerId: custId,
         CustomerName: cust ? cust.Name : (custId ? 'Customer' : 'Walk-in Customer'),
         CustomerAddress: document.getElementById('fInvCustAddr')?.value || (cust ? (cust.BillingAddress || cust.DeliveryAddress || '') : ''),
@@ -1057,13 +1144,32 @@
   }
 
   function printInvoice(invoiceId) {
+    ensureDataDefaults();
     const inv = state.data.invoices.find(i => i.InvoiceId === invoiceId);
     if (!inv) return;
     const items = state.data.invoiceItems.filter(li => li.InvoiceId === invoiceId);
-    const s = state.data.settings;
 
+    // Resolve company profile
+    const comp = (inv.CompanyId && (state.data.companyProfiles || []).find(c => c.CompanyId === inv.CompanyId))
+      || (state.data.companyProfiles || []).find(c => c.IsDefault === 'Yes')
+      || (state.data.companyProfiles || [])[0]
+      || {
+        CompanyName: 'Paint Zone (Pvt) Ltd',
+        Address: '424/1/B Kottunna Rd, Biyagama, Sri Lanka, (10350)',
+        Phone: '(M): +(94)768760609 / (T): +(94)112468883',
+        Email: 'info@colourmax.lk',
+        Website: 'www.colourmax.lk',
+        AccountNo: '1000982266',
+        BankName: 'COMMERCIAL BANK',
+        Branch: 'BATTARAMULLA'
+      };
+
+    const compAddrLines = (comp.Address || '').split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
+    const compPhoneLines = (comp.Phone || '').split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
     const custAddrLines = (inv.CustomerAddress || '').split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
     const invNoDisplay = (inv.InvoiceNo || '').replace(/^INV-0*/, '') || inv.InvoiceNo || '';
+
+    const companyBankDetails = inv.BankDetails || `AC NAME :${comp.CompanyName.toUpperCase()}/ AC NO : ${comp.AccountNo} /${(comp.BankName || '').toUpperCase()} / ${(comp.Branch || '').toUpperCase()}`;
 
     openModal(
       'Sales Invoice ' + inv.InvoiceNo,
@@ -1076,42 +1182,39 @@
               Invoice
             </div>
             <div style="text-align:right;">
-              <svg width="150" height="68" viewBox="0 0 150 68" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <!-- 4 vertical striped bars on left -->
-                <g fill="#000">
-                  <rect x="2" y="6" width="3.5" height="5.5" />
-                  <rect x="2" y="14" width="3.5" height="5.5" />
-                  <rect x="2" y="22" width="3.5" height="5.5" />
-                  <rect x="2" y="30" width="3.5" height="5.5" />
-                  
-                  <rect x="8" y="2" width="3.5" height="5.5" />
-                  <rect x="8" y="10" width="3.5" height="5.5" />
-                  <rect x="8" y="18" width="3.5" height="5.5" />
-                  <rect x="8" y="26" width="3.5" height="5.5" />
-                  <rect x="8" y="34" width="3.5" height="5.5" />
-
-                  <rect x="14" y="0" width="3.5" height="5.5" />
-                  <rect x="14" y="8" width="3.5" height="5.5" />
-                  <rect x="14" y="16" width="3.5" height="5.5" />
-                  <rect x="14" y="24" width="3.5" height="5.5" />
-                  <rect x="14" y="32" width="3.5" height="5.5" />
-                  <rect x="14" y="40" width="3.5" height="5.5" />
-
-                  <rect x="20" y="0" width="3.5" height="5.5" />
-                  <rect x="20" y="8" width="3.5" height="5.5" />
-                  <rect x="20" y="16" width="3.5" height="5.5" />
-                  <rect x="20" y="24" width="3.5" height="5.5" />
-                  <rect x="20" y="32" width="3.5" height="5.5" />
-                  <rect x="20" y="40" width="3.5" height="5.5" />
-                  <rect x="20" y="48" width="3.5" height="5.5" />
-                </g>
-                <!-- Slanted roof triangle & polygon -->
-                <polygon points="28,48 52,14 62,14 38,48" fill="#000" />
-                <polygon points="56,14 100,64 88,64 48,18" fill="#000" />
-                <!-- Text -->
-                <text x="56" y="38" font-family="'Arial Black', Arial, sans-serif" font-weight="900" font-size="19" fill="#000" letter-spacing="1">PAINT</text>
-                <text x="44" y="62" font-family="'Arial Black', Arial, sans-serif" font-weight="900" font-size="23" fill="#000" letter-spacing="2">ZONE</text>
-              </svg>
+              ${comp.Logo
+                ? `<img src="${esc(comp.Logo)}" style="max-height:68px; max-width:160px; object-fit:contain;" alt="${esc(comp.CompanyName)} Logo">`
+                : `<svg width="150" height="68" viewBox="0 0 150 68" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <g fill="#000">
+                      <rect x="2" y="6" width="3.5" height="5.5" />
+                      <rect x="2" y="14" width="3.5" height="5.5" />
+                      <rect x="2" y="22" width="3.5" height="5.5" />
+                      <rect x="2" y="30" width="3.5" height="5.5" />
+                      <rect x="8" y="2" width="3.5" height="5.5" />
+                      <rect x="8" y="10" width="3.5" height="5.5" />
+                      <rect x="8" y="18" width="3.5" height="5.5" />
+                      <rect x="8" y="26" width="3.5" height="5.5" />
+                      <rect x="8" y="34" width="3.5" height="5.5" />
+                      <rect x="14" y="0" width="3.5" height="5.5" />
+                      <rect x="14" y="8" width="3.5" height="5.5" />
+                      <rect x="14" y="16" width="3.5" height="5.5" />
+                      <rect x="14" y="24" width="3.5" height="5.5" />
+                      <rect x="14" y="32" width="3.5" height="5.5" />
+                      <rect x="14" y="40" width="3.5" height="5.5" />
+                      <rect x="20" y="0" width="3.5" height="5.5" />
+                      <rect x="20" y="8" width="3.5" height="5.5" />
+                      <rect x="20" y="16" width="3.5" height="5.5" />
+                      <rect x="20" y="24" width="3.5" height="5.5" />
+                      <rect x="20" y="32" width="3.5" height="5.5" />
+                      <rect x="20" y="40" width="3.5" height="5.5" />
+                      <rect x="20" y="48" width="3.5" height="5.5" />
+                    </g>
+                    <polygon points="28,48 52,14 62,14 38,48" fill="#000" />
+                    <polygon points="56,14 100,64 88,64 48,18" fill="#000" />
+                    <text x="56" y="38" font-family="'Arial Black', Arial, sans-serif" font-weight="900" font-size="19" fill="#000" letter-spacing="1">PAINT</text>
+                    <text x="44" y="62" font-family="'Arial Black', Arial, sans-serif" font-weight="900" font-size="23" fill="#000" letter-spacing="2">ZONE</text>
+                  </svg>`
+              }
             </div>
           </div>
 
@@ -1142,14 +1245,11 @@
 
             <!-- Right: Company Info with left solid border -->
             <div style="border-left:1.5px solid #000; padding-left:14px;">
-              <div style="font-weight:600;">Paint Zone (Pvt) Ltd</div>
-              <div>424/1/B Kottunna Rd,</div>
-              <div>Biyagama</div>
-              <div>Sri Lanka, (10350)</div>
-              <div>(M): +(94)768760609</div>
-              <div>(T): +(94)112468883</div>
-              <div>info@colourmax.lk</div>
-              <div>www.colourmax.lk</div>
+              <div style="font-weight:600;">${esc(comp.CompanyName)}</div>
+              ${compAddrLines.map(l => `<div>${esc(l)}</div>`).join('')}
+              ${compPhoneLines.map(l => `<div>${esc(l)}</div>`).join('')}
+              ${comp.Email ? `<div>${esc(comp.Email)}</div>` : ''}
+              ${comp.Website ? `<div>${esc(comp.Website)}</div>` : ''}
             </div>
 
           </div>
@@ -1195,7 +1295,7 @@
             <div style="font-weight:700; margin-bottom:2px;">Total amount in words</div>
             <div style="margin-bottom:18px;">${numberToWords(inv.Total)}</div>
 
-            <div style="margin-bottom:2px;">For Paint Zone (PVT) LTD.</div>
+            <div style="margin-bottom:2px;">For ${esc(comp.CompanyName).toUpperCase()}.</div>
             <div style="margin-bottom:28px;">-</div>
 
             <!-- Signatures line with dotted lines -->
@@ -1214,7 +1314,7 @@
             </div>
 
             <div style="font-weight:700; font-size:11.5px; margin-bottom:3px;">
-              All payments to be made by cheques drawn in favor of PAINT ZONE (PVT) LTD and crossed Account Payee Only. (ORIGINAL COPY)
+              All payments to be made by cheques drawn in favor of ${esc(comp.CompanyName).toUpperCase()} and crossed Account Payee Only. (ORIGINAL COPY)
             </div>
             <div style="font-size:11.5px; margin-bottom:16px;">
               Goods once sold will not be taken back..
@@ -1227,7 +1327,7 @@
 
             <div style="font-size:11.5px;">
               <div style="font-weight:700; margin-bottom:2px;">Bank Details</div>
-              <div>${esc(inv.BankDetails || 'AC NAME :PAINT ZONE (PVT) LTD/ AC NO : 1000982266 /COMMERCIAL BANK / BATTARAMULLA')}</div>
+              <div>${esc(companyBankDetails)}</div>
             </div>
 
           </div>
@@ -1239,6 +1339,337 @@
        <button class="btn btn-primary" onclick="window.print()">🖨 Print</button>`,
       true
     );
+  }
+
+  /* ==========================================================================
+   * 2A. Company Profile Management
+   * ======================================================================== */
+
+  function renderCompanyProfileView() {
+    ensureDataDefaults();
+    const list = state.data.companyProfiles || [];
+    document.getElementById('mainContent').innerHTML = `
+      <div class="section-header">
+        <input class="search-input" placeholder="Search companies by name, bank or city..." oninput="filterTable('compTable', this.value)">
+        <button class="btn btn-primary" onclick="openCompanyProfileModal()">+ Add Company Profile</button>
+      </div>
+
+      <div class="card table-wrap" style="margin-top:12px;">
+        <table id="compTable">
+          <thead>
+            <tr>
+              <th>Logo</th>
+              <th>Company Name</th>
+              <th>Address &amp; Contact</th>
+              <th>Bank Account Details</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${list.map(c => `
+              <tr>
+                <td style="width:70px; text-align:center;">
+                  ${c.Logo
+                    ? `<img src="${esc(c.Logo)}" style="max-height:36px; max-width:60px; object-fit:contain; border-radius:4px;">`
+                    : `<span style="font-weight:700; font-size:11px; background:#f1f5f9; padding:4px 6px; border-radius:4px; border:1px solid #cbd5e1;">PAINT ZONE</span>`}
+                </td>
+                <td>
+                  <b>${esc(c.CompanyName)}</b>
+                  ${c.Website ? `<div style="font-size:12px; color:var(--muted);"><a href="${esc(c.Website.startsWith('http') ? c.Website : 'https://' + c.Website)}" target="_blank" style="color:var(--primary);">${esc(c.Website)}</a></div>` : ''}
+                </td>
+                <td style="font-size:12.5px;">
+                  <div>${esc(c.Address || '-')}</div>
+                  <div style="color:var(--muted); font-size:12px;">${esc(c.Phone || '')} ${c.Email ? ' | ' + esc(c.Email) : ''}</div>
+                </td>
+                <td style="font-size:12.5px;">
+                  <div><b>${esc(c.BankName || '-')}</b> (${esc(c.Branch || '-')})</div>
+                  <div style="font-family:monospace; color:#0f766e; font-weight:600;">A/C: ${esc(c.AccountNo || '-')}</div>
+                </td>
+                <td>
+                  ${c.IsDefault === 'Yes'
+                    ? '<span class="badge badge-success">Default</span>'
+                    : `<button class="btn btn-sm btn-secondary" onclick="setDefaultCompany('${esc(c.CompanyId)}')">Set Default</button>`}
+                </td>
+                <td>
+                  <button class="btn btn-sm btn-secondary" onclick="openCompanyProfileModal('${esc(c.CompanyId)}')">Edit</button>
+                  <button class="btn btn-sm btn-danger" onclick="removeCompanyProfile('${esc(c.CompanyId)}')">Del</button>
+                </td>
+              </tr>
+            `).join('') || '<tr><td colspan="6" style="color:var(--muted); text-align:center;">No company profiles added yet.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function openCompanyProfileModal(companyId) {
+    ensureDataDefaults();
+    const comp = companyId ? (state.data.companyProfiles || []).find(c => c.CompanyId === companyId) : {
+      CompanyName: '', Address: '', Phone: '', Email: '', Website: '', BankName: '', Branch: '', AccountNo: '', Logo: '', IsDefault: (state.data.companyProfiles || []).length === 0 ? 'Yes' : 'No'
+    };
+    if (!comp) return;
+
+    openModal(
+      companyId ? 'Edit Company Profile: ' + comp.CompanyName : 'Add New Company Profile',
+      `
+        <div class="form-row">
+          <div class="form-group" style="flex:2;">
+            <label>Company Name *</label>
+            <input id="fCompName" placeholder="e.g. Paint Zone (Pvt) Ltd" value="${esc(comp.CompanyName)}">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>Default Company?</label>
+            <select id="fCompDefault">
+              <option value="Yes" ${comp.IsDefault === 'Yes' ? 'selected' : ''}>Yes (Default)</option>
+              <option value="No" ${comp.IsDefault !== 'Yes' ? 'selected' : ''}>No</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Address *</label>
+          <textarea id="fCompAddr" rows="2" placeholder="e.g. 424/1/B Kottunna Rd, Biyagama, Sri Lanka, (10350)">${esc(comp.Address)}</textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Phone Number(s) *</label>
+            <input id="fCompPhone" placeholder="e.g. (M): +(94)768760609 / (T): +(94)112468883" value="${esc(comp.Phone)}">
+          </div>
+          <div class="form-group">
+            <label>Email Address</label>
+            <input id="fCompEmail" type="email" placeholder="e.g. info@colourmax.lk" value="${esc(comp.Email)}">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Website Address</label>
+            <input id="fCompWeb" placeholder="e.g. www.colourmax.lk" value="${esc(comp.Website)}">
+          </div>
+          <div class="form-group">
+            <label>Company Logo (Image URL or Upload)</label>
+            <div style="display:flex; gap:6px;">
+              <input id="fCompLogo" placeholder="https://... or choose image file" value="${esc(comp.Logo)}" style="flex:1;">
+              <input type="file" id="fCompLogoFile" accept="image/*" style="display:none;" onchange="handleCompLogoUpload(this)">
+              <button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById('fCompLogoFile').click()">Browse</button>
+            </div>
+            <div id="compLogoPreview" style="margin-top:6px;">
+              ${comp.Logo ? `<img src="${esc(comp.Logo)}" style="max-height:40px; max-width:120px; object-fit:contain; border:1px solid #e2e8f0; border-radius:4px; padding:2px;">` : ''}
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-top:8px;">
+          <div style="font-weight:700; font-size:13px; margin-bottom:8px; color:#1e293b;">Bank Account Details (Displayed on Invoice)</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Bank Name *</label>
+              <input id="fCompBank" placeholder="e.g. Commercial Bank" value="${esc(comp.BankName)}">
+            </div>
+            <div class="form-group">
+              <label>Branch *</label>
+              <input id="fCompBranch" placeholder="e.g. Battaramulla" value="${esc(comp.Branch)}">
+            </div>
+            <div class="form-group">
+              <label>Bank Account Number *</label>
+              <input id="fCompAcc" placeholder="e.g. 1000982266" value="${esc(comp.AccountNo)}">
+            </div>
+          </div>
+          <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">
+            Invoice Bank Preview: <code>AC NAME : [Company Name] / AC NO : [A/C No] / [Bank] / [Branch]</code>
+          </div>
+        </div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="submitCompanyProfile('${esc(companyId || '')}')">Save Company Profile</button>`,
+      true
+    );
+  }
+
+  function handleCompLogoUpload(input) {
+    if (input.files && input.files[0]) {
+      const file = input.files[0];
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        document.getElementById('fCompLogo').value = e.target.result;
+        document.getElementById('compLogoPreview').innerHTML =
+          `<img src="${e.target.result}" style="max-height:40px; max-width:120px; object-fit:contain; border:1px solid #e2e8f0; border-radius:4px; padding:2px;">`;
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  async function submitCompanyProfile(companyId) {
+    const name = document.getElementById('fCompName').value.trim();
+    if (!name) {
+      showToast('Please enter Company Name');
+      return;
+    }
+    const payload = {
+      CompanyId: companyId || '',
+      CompanyName: name,
+      Address: document.getElementById('fCompAddr').value.trim(),
+      Phone: document.getElementById('fCompPhone').value.trim(),
+      Email: document.getElementById('fCompEmail').value.trim(),
+      Website: document.getElementById('fCompWeb').value.trim(),
+      BankName: document.getElementById('fCompBank').value.trim(),
+      Branch: document.getElementById('fCompBranch').value.trim(),
+      AccountNo: document.getElementById('fCompAcc').value.trim(),
+      Logo: document.getElementById('fCompLogo').value.trim(),
+      IsDefault: document.getElementById('fCompDefault').value
+    };
+
+    await gas('saveCompanyProfile', payload);
+    closeModal();
+    showToast('Company Profile saved!');
+    await refreshData();
+  }
+
+  async function setDefaultCompany(companyId) {
+    const comp = (state.data.companyProfiles || []).find(c => c.CompanyId === companyId);
+    if (!comp) return;
+    comp.IsDefault = 'Yes';
+    await gas('saveCompanyProfile', comp);
+    showToast(`${comp.CompanyName} set as default company!`);
+    await refreshData();
+  }
+
+  async function removeCompanyProfile(id) {
+    verifyPinAndExecute('delete this company profile', async () => {
+      await gas('deleteCompanyProfile', id);
+      showToast('Company profile deleted.');
+      await refreshData();
+    });
+  }
+
+  /* ==========================================================================
+   * 2B. Quotations Management (Placeholder structure ready for user's specs)
+   * ======================================================================== */
+
+  function renderQuotationView() {
+    ensureDataDefaults();
+    const quotes = state.data.quotations || [];
+    document.getElementById('mainContent').innerHTML = `
+      <div style="background:#f0fdf4; border:1px solid #86efac; border-radius:8px; padding:12px 16px; margin-bottom:16px; color:#166534; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <b>📝 Quotation Management Module:</b> Tab created and ready. You can record quotations or provide your custom structure to be fully applied.
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="openQuotationModal()">+ New Quotation</button>
+      </div>
+
+      <div class="section-header">
+        <input class="search-input" placeholder="Search quotations..." oninput="filterTable('quotTable', this.value)">
+        <button class="btn btn-primary" onclick="openQuotationModal()">+ New Quotation</button>
+      </div>
+
+      <div class="card table-wrap" style="margin-top:12px;">
+        <table id="quotTable">
+          <thead>
+            <tr>
+              <th>Quotation #</th>
+              <th>Date</th>
+              <th>Customer</th>
+              <th>Total Amount</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${quotes.map(q => `
+              <tr>
+                <td><b>${esc(q.QuotationNo)}</b></td>
+                <td>${esc(q.Date)}</td>
+                <td>${esc(q.CustomerName || '-')}</td>
+                <td><b>${fmtMoney(q.TotalAmount || 0)}</b></td>
+                <td>${statusBadge(q.Status || 'Draft')}</td>
+                <td>
+                  <button class="btn btn-sm btn-secondary" onclick="openQuotationModal('${esc(q.QuotationId)}')">Edit</button>
+                  <button class="btn btn-sm btn-danger" onclick="removeQuotation('${esc(q.QuotationId)}')">Del</button>
+                </td>
+              </tr>
+            `).join('') || '<tr><td colspan="6" style="color:var(--muted); text-align:center;">No quotations created yet. (Awaiting structure from user)</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function openQuotationModal(quotId) {
+    ensureDataDefaults();
+    const q = quotId ? (state.data.quotations || []).find(x => x.QuotationId === quotId) : {
+      QuotationNo: '', Date: state.data.today, CustomerName: '', TotalAmount: 0, Status: 'Draft', Notes: ''
+    };
+    if (!q) return;
+
+    openModal(
+      quotId ? 'Edit Quotation ' + q.QuotationNo : 'New Quotation',
+      `
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px; margin-bottom:12px; font-size:12.5px; color:#64748b;">
+          ℹ️ Standard Quotation placeholder. The full structure will be configured once you provide it.
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Customer Name *</label>
+            <input id="fQuotCust" placeholder="Customer or company name" value="${esc(q.CustomerName || '')}">
+          </div>
+          <div class="form-group">
+            <label>Date *</label>
+            <input type="date" id="fQuotDate" value="${esc(q.Date || state.data.today)}">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Total Amount (LKR)</label>
+            <input type="number" step="0.01" id="fQuotAmt" placeholder="0.00" value="${Number(q.TotalAmount || 0)}">
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="fQuotStatus">
+              ${['Draft', 'Pending', 'Approved', 'Rejected'].map(s => `<option ${q.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Notes / Requirements</label>
+          <textarea id="fQuotNotes" rows="3" placeholder="Enter any initial quotation details...">${esc(q.Notes || '')}</textarea>
+        </div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="submitQuotation('${esc(quotId || '')}')">Save Quotation</button>`,
+      true
+    );
+  }
+
+  async function submitQuotation(quotId) {
+    const cust = document.getElementById('fQuotCust').value.trim();
+    if (!cust) {
+      showToast('Please enter Customer Name');
+      return;
+    }
+    const payload = {
+      QuotationId: quotId || '',
+      CustomerName: cust,
+      Date: document.getElementById('fQuotDate').value,
+      TotalAmount: Number(document.getElementById('fQuotAmt').value) || 0,
+      Status: document.getElementById('fQuotStatus').value,
+      Notes: document.getElementById('fQuotNotes').value,
+      CreatedBy: state.user.Name
+    };
+
+    await gas('saveQuotation', payload);
+    closeModal();
+    showToast('Quotation saved!');
+    await refreshData();
+  }
+
+  async function removeQuotation(id) {
+    verifyPinAndExecute('delete this quotation', async () => {
+      await gas('deleteQuotation', id);
+      showToast('Quotation deleted.');
+      await refreshData();
+    });
   }
 
   function openTxModal() {
