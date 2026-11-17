@@ -3910,8 +3910,8 @@
     };
 
     // Optimistic local update (0ms response)
-    const realQuotId = quotId || ('QT-' + Date.now());
-    payload.QuotationId = realQuotId;
+    const localQuotId = quotId || ('QT-' + Date.now());
+    payload.QuotationId = localQuotId;
 
     if (!quotId) {
       const comp = (state.data.companyProfiles || []).find(c => c.CompanyId === companyId);
@@ -3937,10 +3937,22 @@
     renderView();
     showToast(quotId ? 'Quotation updated!' : 'Quotation saved!');
 
-    gas('saveQuotation', payload).catch(err => {
-      console.error(err);
+    try {
+      const saved = await gas('saveQuotation', {
+        ...payload,
+        QuotationId: quotId || ''
+      });
+      if (saved && saved.QuotationId && saved.QuotationId !== localQuotId) {
+        const idx = (state.data.quotations || []).findIndex(q => q.QuotationId === localQuotId);
+        if (idx !== -1) {
+          state.data.quotations[idx].QuotationId = saved.QuotationId;
+          try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+        }
+      }
+    } catch (err) {
+      console.error('saveQuotation error:', err);
       showToast('Warning: Background sync issue: ' + err.message);
-    });
+    }
   }
 
   async function removeQuotation(id) {

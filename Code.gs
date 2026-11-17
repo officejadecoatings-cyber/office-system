@@ -78,7 +78,8 @@ function doPost(e) {
       saveSettings, saveUser,
       importRecords,
       saveCustomReport, deleteCustomReport, saveReportToDrive,
-      setupAutoSyncTrigger, autoSyncDriveBackup
+      setupAutoSyncTrigger, autoSyncDriveBackup,
+      setupMidnightBackupTrigger, midnightDriveBackup
     };
     if (!allowed[action]) {
       throw new Error('Unknown API action: ' + action);
@@ -352,6 +353,17 @@ function deleteRowByKey_(sheetName, keyField, keyValue) {
   return false;
 }
 
+function upsertRowByKey_(sheetName, keyField, keyValue, record, fallbackPrefix) {
+  if (keyValue) {
+    const updated = updateRowByKey_(sheetName, keyField, keyValue, record);
+    if (updated) return record;
+  }
+  if (!record[keyField]) {
+    record[keyField] = nextId_(fallbackPrefix);
+  }
+  return appendRowObject_(sheetName, record);
+}
+
 function nextId_(prefix) {
   return prefix + '-' + Utilities.formatDate(new Date(), 'Asia/Colombo', 'yyMMddHHmmss') + '-' + Math.floor(100 + Math.random() * 900);
 }
@@ -529,14 +541,9 @@ function getAppData() {
 function saveCustomer(customer) {
   return withLock_(() => {
     customer.CreditLimit = Number(customer.CreditLimit) || 0;
-    if (customer.CustomerId) {
-      updateRowByKey_('Customers', 'CustomerId', customer.CustomerId, customer);
-      return customer;
-    }
-    customer.CustomerId = nextId_('CUS');
     customer.CustomerCode = customer.CustomerCode || ('C-' + Math.floor(1000 + Math.random() * 9000));
-    customer.CreatedAt = todayStr_();
-    return appendRowObject_('Customers', customer);
+    customer.CreatedAt = customer.CreatedAt || todayStr_();
+    return upsertRowByKey_('Customers', 'CustomerId', customer.CustomerId, customer, 'CUS');
   });
 }
 
@@ -554,12 +561,7 @@ function saveInventoryItem(item) {
     item.StockQty = Number(item.StockQty) || 0;
     item.ReorderLevel = Number(item.ReorderLevel) || 0;
     item.UpdatedAt = todayStr_();
-    if (item.ItemId) {
-      updateRowByKey_('Inventory', 'ItemId', item.ItemId, item);
-      return item;
-    }
-    item.ItemId = nextId_('ITM');
-    return appendRowObject_('Inventory', item);
+    return upsertRowByKey_('Inventory', 'ItemId', item.ItemId, item, 'ITM');
   });
 }
 
@@ -724,12 +726,7 @@ function saveCreditor(cred) {
     cred.TotalAmount = Number(cred.TotalAmount) || 0;
     cred.PaidAmount = Number(cred.PaidAmount) || 0;
     cred.Status = cred.PaidAmount >= cred.TotalAmount ? 'Paid' : (cred.PaidAmount > 0 ? 'Partial' : 'Pending');
-    if (cred.CreditorId) {
-      updateRowByKey_('Creditors', 'CreditorId', cred.CreditorId, cred);
-      return cred;
-    }
-    cred.CreditorId = nextId_('CRD');
-    return appendRowObject_('Creditors', cred);
+    return upsertRowByKey_('Creditors', 'CreditorId', cred.CreditorId, cred, 'CRD');
   });
 }
 
@@ -740,15 +737,12 @@ function deleteCreditor(id) {
 function savePettyCash(pc) {
   return withLock_(() => {
     pc.Amount = Number(pc.Amount) || 0;
-    if (pc.PcId) {
-      updateRowByKey_('PettyCash', 'PcId', pc.PcId, pc);
-      return pc;
-    }
-    const existing = readSheetObjects_('PettyCash');
-    pc.PcId = nextId_('PC');
-    pc.VoucherNo = pc.VoucherNo || ('PCV-' + String(existing.length + 1001));
     pc.Date = pc.Date || todayStr_();
-    return appendRowObject_('PettyCash', pc);
+    if (!pc.VoucherNo) {
+      const existing = readSheetObjects_('PettyCash');
+      pc.VoucherNo = 'PCV-' + String(existing.length + 1001);
+    }
+    return upsertRowByKey_('PettyCash', 'PcId', pc.PcId, pc, 'PC');
   });
 }
 
@@ -758,17 +752,10 @@ function deletePettyCash(id) {
 
 function saveEmployee(emp) {
   return withLock_(() => {
-    const existing = readSheetObjects_('Employees');
-    const isExisting = emp.EmpId && existing.some(e => e.EmpId === emp.EmpId);
-    if (isExisting) {
-      updateRowByKey_('Employees', 'EmpId', emp.EmpId, emp);
-      return emp;
-    }
-    emp.EmpId = emp.EmpId || nextId_('EMP');
     emp.Status = emp.Status || 'Active';
     emp.Gender = emp.Gender || 'Male';
     emp.Position = emp.Position || 'Office Staff';
-    return appendRowObject_('Employees', emp);
+    return upsertRowByKey_('Employees', 'EmpId', emp.EmpId, emp, 'EMP');
   });
 }
 
@@ -780,13 +767,8 @@ function saveReportEntry(sheetName, entry) {
   const keyField = sheetName === 'CallReports' ? 'CallId' : 'ProjId';
   const prefix = sheetName === 'CallReports' ? 'CALL' : 'PRJ';
   return withLock_(() => {
-    if (entry[keyField]) {
-      updateRowByKey_(sheetName, keyField, entry[keyField], entry);
-      return entry;
-    }
-    entry[keyField] = nextId_(prefix);
-    entry.CreatedAt = todayStr_();
-    return appendRowObject_(sheetName, entry);
+    entry.CreatedAt = entry.CreatedAt || todayStr_();
+    return upsertRowByKey_(sheetName, keyField, entry[keyField], entry, prefix);
   });
 }
 
@@ -836,14 +818,10 @@ function importReportEntries(sheetName, rows, createdBy, reportType) {
 
 function savePainterQuotation(entry) {
   return withLock_(() => {
-    if (entry.QuotationId) {
-      updateRowByKey_('PainterQuotations', 'QuotationId', entry.QuotationId, entry);
-      return entry;
-    }
-    entry.QuotationId = nextId_('PTQ');
-    if (!entry.QuotationNo) entry.QuotationNo = entry.QuotationId;
-    entry.CreatedAt = todayStr_();
-    return appendRowObject_('PainterQuotations', entry);
+    entry.CreatedAt = entry.CreatedAt || todayStr_();
+    const res = upsertRowByKey_('PainterQuotations', 'QuotationId', entry.QuotationId, entry, 'PTQ');
+    if (!res.QuotationNo) res.QuotationNo = res.QuotationId;
+    return res;
   });
 }
 
@@ -853,13 +831,8 @@ function deletePainterQuotation(id) {
 
 function savePainterBillBalance(entry) {
   return withLock_(() => {
-    if (entry.BalanceId) {
-      updateRowByKey_('PainterBillBalances', 'BalanceId', entry.BalanceId, entry);
-      return entry;
-    }
-    entry.BalanceId = nextId_('PBB');
-    entry.CreatedAt = todayStr_();
-    return appendRowObject_('PainterBillBalances', entry);
+    entry.CreatedAt = entry.CreatedAt || todayStr_();
+    return upsertRowByKey_('PainterBillBalances', 'BalanceId', entry.BalanceId, entry, 'PBB');
   });
 }
 
@@ -916,13 +889,8 @@ function importPainterBillBalances(rows, createdBy) {
 function saveCustomTab(tab) {
   return withLock_(() => {
     tab.UpdatedAt = todayStr_();
-    if (tab.TabId) {
-      updateRowByKey_('CustomTabs', 'TabId', tab.TabId, tab);
-      return tab;
-    }
-    tab.TabId = nextId_('TAB');
     tab.Icon = tab.Icon || '📋';
-    return appendRowObject_('CustomTabs', tab);
+    return upsertRowByKey_('CustomTabs', 'TabId', tab.TabId, tab, 'TAB');
   });
 }
 
@@ -942,13 +910,8 @@ function deleteCustomTab(tabId) {
 
 function saveCustomTabRow(row) {
   return withLock_(() => {
-    if (row.RowId) {
-      updateRowByKey_('CustomTabRows', 'RowId', row.RowId, row);
-      return row;
-    }
-    row.RowId = nextId_('CTR');
-    row.CreatedAt = todayStr_();
-    return appendRowObject_('CustomTabRows', row);
+    row.CreatedAt = row.CreatedAt || todayStr_();
+    return upsertRowByKey_('CustomTabRows', 'RowId', row.RowId, row, 'CTR');
   });
 }
 
@@ -983,13 +946,8 @@ function importCustomTabRows(tabId, rows, createdBy) {
 function saveTransaction(tx) {
   return withLock_(() => {
     tx.Amount = Number(tx.Amount) || 0;
-    if (tx.TxId) {
-      updateRowByKey_('Transactions', 'TxId', tx.TxId, tx);
-      return tx;
-    }
-    tx.TxId = nextId_('TX');
     tx.Date = tx.Date || todayStr_();
-    return appendRowObject_('Transactions', tx);
+    return upsertRowByKey_('Transactions', 'TxId', tx.TxId, tx, 'TX');
   });
 }
 
@@ -1036,13 +994,9 @@ function clockOutUser(userId) {
 
 function saveLeaveRequest(leave) {
   return withLock_(() => {
-    if (leave.LeaveId) {
-      updateRowByKey_('Leaves', 'LeaveId', leave.LeaveId, leave);
-      return leave;
-    }
-    leave.LeaveId = nextId_('LV');
-    leave.Status = 'Pending';
-    return appendRowObject_('Leaves', leave);
+    leave.Days = Number(leave.Days) || 1;
+    leave.Status = leave.Status || 'Pending';
+    return upsertRowByKey_('Leaves', 'LeaveId', leave.LeaveId, leave, 'LV');
   });
 }
 
@@ -1065,13 +1019,8 @@ function deleteLeaveRequest(leaveId) {
 
 function saveTask(task) {
   return withLock_(() => {
-    if (task.TaskId) {
-      updateRowByKey_('Tasks', 'TaskId', task.TaskId, task);
-      return task;
-    }
-    task.TaskId = nextId_('TSK');
-    task.CreatedAt = todayStr_();
-    return appendRowObject_('Tasks', task);
+    task.CreatedAt = task.CreatedAt || todayStr_();
+    return upsertRowByKey_('Tasks', 'TaskId', task.TaskId, task, 'TSK');
   });
 }
 
@@ -1264,13 +1213,10 @@ function deleteCompanyProfile(id) {
 
 function saveQuotation(q) {
   return withLock_(() => {
-    if (q.QuotationId) {
-      updateRowByKey_('Quotations', 'QuotationId', q.QuotationId, q);
-      return q;
-    }
-    const existing = readSheetObjects_('Quotations');
-    q.QuotationId = nextId_('QUOT');
+    q.Date = q.Date || todayStr_();
+    q.CreatedAt = q.CreatedAt || todayStr_();
     if (!q.QuotationNo) {
+      const existing = readSheetObjects_('Quotations');
       const nums = existing.map(x => {
         const m = String(x.QuotationNo || '').match(/\d+/);
         return m ? parseInt(m[0], 10) : 0;
@@ -1278,9 +1224,7 @@ function saveQuotation(q) {
       const nextNum = nums.length ? Math.max(...nums) + 1 : (existing.length + 754);
       q.QuotationNo = String(nextNum);
     }
-    q.Date = q.Date || todayStr_();
-    q.CreatedAt = todayStr_();
-    return appendRowObject_('Quotations', q);
+    return upsertRowByKey_('Quotations', 'QuotationId', q.QuotationId, q, 'QUOT');
   });
 }
 
@@ -1288,6 +1232,44 @@ function deleteQuotation(id) {
   return withLock_(() => {
     return deleteRowByKey_('Quotations', 'QuotationId', id);
   });
+}
+
+function setupMidnightBackupTrigger() {
+  const triggers = ScriptApp.getProjectTriggers();
+  triggers.forEach(t => {
+    if (t.getHandlerFunction() === 'midnightDriveBackup') {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+  ScriptApp.newTrigger('midnightDriveBackup')
+    .timeBased()
+    .atHour(0)
+    .everyDays(1)
+    .inTimezone(Session.getScriptTimeZone() || 'Asia/Colombo')
+    .create();
+  return 'Daily Midnight 12:00 AM Google Drive backup trigger enabled.';
+}
+
+function midnightDriveBackup() {
+  ensureDatabase_();
+  const folder = getOrCreateDriveFolder_();
+  const snapshot = getAppData();
+  const content = JSON.stringify(snapshot, null, 2);
+  const dateStr = Utilities.formatDate(new Date(), 'Asia/Colombo', 'yyyy-MM-dd');
+  const backupName = 'Office_System_Backup_' + dateStr + '.json';
+  folder.createFile(backupName, content, MimeType.PLAIN_TEXT);
+
+  // Also update latest snapshot
+  const latestFiles = folder.getFilesByName('Office_System_AutoSync_Backup.json');
+  if (latestFiles.hasNext()) {
+    latestFiles.next().setContent(content);
+  } else {
+    folder.createFile('Office_System_AutoSync_Backup.json', content, MimeType.PLAIN_TEXT);
+  }
+
+  const syncTime = Utilities.formatDate(new Date(), 'Asia/Colombo', 'yyyy-MM-dd HH:mm:ss');
+  saveSettings({ LastDriveBackup: syncTime });
+  return syncTime;
 }
 
 function setupAutoSyncTrigger() {
