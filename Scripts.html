@@ -172,17 +172,25 @@
     },
 
     loadConfig() {
+      const DEFAULT_URL = 'https://ftucnvtpmkftjzoobrfq.supabase.co';
+      const DEFAULT_KEY = 'sb_publishable_T4O1XsAawck_ix9z_acpdA_EWcNkJtR';
       let cfg = null;
       try {
         cfg = JSON.parse(localStorage.getItem('office_supabase_config') || 'null');
       } catch (e) {}
 
       if (!cfg || !cfg.url) {
-        if (state && state.data && state.data.settings) {
+        if (state && state.data && state.data.settings && state.data.settings.SupabaseUrl) {
           cfg = {
-            url: state.data.settings.SupabaseUrl || '',
-            key: state.data.settings.SupabaseKey || '',
-            enabled: state.data.settings.UseSupabase === 'Yes'
+            url: state.data.settings.SupabaseUrl,
+            key: state.data.settings.SupabaseKey || DEFAULT_KEY,
+            enabled: state.data.settings.UseSupabase !== 'No'
+          };
+        } else {
+          cfg = {
+            url: DEFAULT_URL,
+            key: DEFAULT_KEY,
+            enabled: true
           };
         }
       }
@@ -214,6 +222,9 @@
         const { data, error } = await testClient.from('Settings').select('Key').limit(1);
         const latency = Date.now() - start;
         if (error) {
+          if (error.code === 'PGRST205' || (error.message && error.message.includes('schema cache'))) {
+            return { ok: false, isSchemaMissing: true, error: 'Connected to Supabase successfully, but database tables are not created yet! Please click "Copy SQL Schema" and run it in the Supabase SQL Editor.' };
+          }
           return { ok: false, error: error.message || JSON.stringify(error) };
         }
         return { ok: true, latency: latency };
@@ -8791,13 +8802,13 @@
 
             <div class="form-group">
               <label style="font-weight:600; font-size:13px;">Supabase Project URL *</label>
-              <input id="sbUrl" placeholder="https://your-project-id.supabase.co" value="${esc(sbCfg.url || s.SupabaseUrl || '')}" style="font-family:monospace; font-size:13px;">
+              <input id="sbUrl" placeholder="https://your-project-id.supabase.co" value="${esc(sbCfg.url || s.SupabaseUrl || 'https://ftucnvtpmkftjzoobrfq.supabase.co')}" style="font-family:monospace; font-size:13px;">
               <div style="font-size:11px; color:var(--muted); margin-top:3px;">Found in Supabase: Project Settings &rarr; API &rarr; Project URL</div>
             </div>
 
             <div class="form-group">
               <label style="font-weight:600; font-size:13px;">Supabase Public Anon Key *</label>
-              <input id="sbKey" type="password" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." value="${esc(sbCfg.key || s.SupabaseKey || '')}" style="font-family:monospace; font-size:13px;">
+              <input id="sbKey" type="password" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." value="${esc(sbCfg.key || s.SupabaseKey || 'sb_publishable_T4O1XsAawck_ix9z_acpdA_EWcNkJtR')}" style="font-family:monospace; font-size:13px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-top:3px;">
                 <span style="font-size:11px; color:var(--muted);">Found in Supabase: Project Settings &rarr; API &rarr; Project API keys (anon public)</span>
                 <button type="button" class="btn btn-sm btn-secondary" style="padding:2px 8px; font-size:11px;" onclick="const k=document.getElementById('sbKey'); k.type = k.type==='password'?'text':'password';">👁️ Show / Hide</button>

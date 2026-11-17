@@ -484,6 +484,11 @@ function getAppData() {
   const settingsRows = readFromSheet('Settings');
   const settings = {};
   settingsRows.forEach(r => { settings[r.Key] = r.Value; });
+  if (!settings['SupabaseUrl']) {
+    settings['SupabaseUrl'] = 'https://ftucnvtpmkftjzoobrfq.supabase.co';
+    settings['SupabaseKey'] = 'sb_publishable_T4O1XsAawck_ix9z_acpdA_EWcNkJtR';
+    settings['UseSupabase'] = 'Yes';
+  }
 
   return {
     settings: settings,
