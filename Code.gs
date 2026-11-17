@@ -21,7 +21,7 @@ const SCHEMA = {
   ProjectReports: ['ProjId', 'DataJson', 'CreatedBy', 'CreatedAt'],
   PainterQuotations: ['QuotationId', 'QuotationNo', 'Date', 'Title', 'QuotationFor', 'Supplier', 'Receivers', 'Place', 'Time', 'TotalAmount', 'AdvanceAmount', 'RemainingAmount', 'ItemsJson', 'Status', 'CreatedBy', 'CreatedAt'],
   PainterBillBalances: ['BalanceId', 'ProgramName', 'Date', 'Description', 'Withdrawal', 'Deposit', 'Balance', 'CreatedBy', 'CreatedAt'],
-  Employees: ['EmpId', 'Name', 'Designation', 'Address', 'NIC', 'EpfEtfNo', 'DOB', 'Gender', 'Position', 'Email', 'Phone', 'EmergencyContactName', 'EmergencyContactPhone', 'JoinDate', 'Status'],
+  Employees: ['EmpId', 'Name', 'Designation', 'Address', 'NIC', 'EpfEtfNo', 'DOB', 'Gender', 'Position', 'Email', 'Phone', 'EmergencyContactName', 'EmergencyContactPhone', 'JoinDate', 'Status', 'BankName', 'BankBranch', 'BankAccountNo'],
   CustomTabs: ['TabId', 'Name', 'Icon', 'ColumnsJson', 'CreatedBy', 'UpdatedAt'],
   CustomTabRows: ['RowId', 'TabId', 'DataJson', 'CreatedBy', 'CreatedAt'],
   Transactions: ['TxId', 'Date', 'Type', 'Category', 'Description', 'Amount', 'RefId', 'RecordedBy'],
@@ -707,11 +707,13 @@ function deletePettyCash(id) {
 
 function saveEmployee(emp) {
   return withLock_(() => {
-    if (emp.EmpId) {
+    const existing = readSheetObjects_('Employees');
+    const isExisting = emp.EmpId && existing.some(e => e.EmpId === emp.EmpId);
+    if (isExisting) {
       updateRowByKey_('Employees', 'EmpId', emp.EmpId, emp);
       return emp;
     }
-    emp.EmpId = nextId_('EMP');
+    emp.EmpId = emp.EmpId || nextId_('EMP');
     emp.Status = emp.Status || 'Active';
     emp.Gender = emp.Gender || 'Male';
     emp.Position = emp.Position || 'Office Staff';
@@ -1148,10 +1150,11 @@ function saveReportToDrive(filename, csvContent) {
  */
 function saveCompanyProfile(comp) {
   return withLock_(() => {
-    if (comp.CompanyId) {
+    const existing = readSheetObjects_('CompanyProfiles');
+    const isExisting = comp.CompanyId && existing.some(c => c.CompanyId === comp.CompanyId);
+    if (isExisting) {
       if (comp.IsDefault === 'Yes') {
-        const allComps = readSheetObjects_('CompanyProfiles');
-        allComps.forEach(c => {
+        existing.forEach(c => {
           if (c.CompanyId !== comp.CompanyId && c.IsDefault === 'Yes') {
             c.IsDefault = 'No';
             updateRowByKey_('CompanyProfiles', 'CompanyId', c.CompanyId, c);
@@ -1161,8 +1164,10 @@ function saveCompanyProfile(comp) {
       updateRowByKey_('CompanyProfiles', 'CompanyId', comp.CompanyId, comp);
       return comp;
     }
-    const existing = readSheetObjects_('CompanyProfiles');
-    comp.CompanyId = nextId_('COMP');
+    // New company profile
+    if (!comp.CompanyId || !comp.CompanyId.startsWith('COMP-') || comp.CompanyId.length > 20) {
+      comp.CompanyId = nextId_('COMP');
+    }
     comp.CreatedAt = todayStr_();
     if (existing.length === 0 || comp.IsDefault === 'Yes') {
       comp.IsDefault = 'Yes';
@@ -1175,7 +1180,8 @@ function saveCompanyProfile(comp) {
     } else {
       comp.IsDefault = comp.IsDefault || 'No';
     }
-    return appendRowObject_('CompanyProfiles', comp);
+    appendRowObject_('CompanyProfiles', comp);
+    return comp;
   });
 }
 

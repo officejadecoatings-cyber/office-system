@@ -2039,8 +2039,8 @@
             </div>
             <div style="text-align:right;">
               ${comp.Logo
-                ? `<img src="${esc(comp.Logo)}" style="max-height:68px; max-width:160px; object-fit:contain;" alt="${esc(comp.CompanyName)} Logo">`
-                : `<svg width="150" height="68" viewBox="0 0 150 68" fill="none" xmlns="http://www.w3.org/2000/svg">
+                ? `<img src="${esc(comp.Logo)}" style="max-height:160px; max-width:320px; object-fit:contain;" alt="${esc(comp.CompanyName)} Logo">`
+                : `<svg width="280" height="126" viewBox="0 0 150 68" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <g fill="#000">
                       <rect x="2" y="6" width="3.5" height="5.5" />
                       <rect x="2" y="14" width="3.5" height="5.5" />
@@ -2177,7 +2177,7 @@
             </div>
 
             <div style="margin-bottom:16px; font-size:12.5px; color:#111;">
-              <div><b>Checked by :</b> ${esc(inv.SalesPerson || '................................................')}</div>
+              <div><b>Checked by :</b> ................................................ ${inv.SalesPerson ? `(${esc(inv.SalesPerson)})` : ''}</div>
             </div>
 
             <div style="font-size:11.5px;">
@@ -2382,7 +2382,7 @@
       return;
     }
     const payload = {
-      CompanyId: companyId || ('COMP-' + Date.now()),
+      CompanyId: companyId || '',
       CompanyName: name,
       Address: document.getElementById('fCompAddr').value.trim(),
       Phone: document.getElementById('fCompPhone').value.trim(),
@@ -2399,23 +2399,29 @@
       IsDefault: document.getElementById('fCompDefault').value
     };
 
-    // Optimistic local update (0ms response)
-    if (payload.IsDefault === 'Yes') {
-      (state.data.companyProfiles || []).forEach(c => { if (c.CompanyId !== payload.CompanyId) c.IsDefault = 'No'; });
-    }
-    if (companyId) {
-      const idx = (state.data.companyProfiles || []).findIndex(c => c.CompanyId === companyId);
-      if (idx !== -1) state.data.companyProfiles[idx] = payload;
-    } else {
-      (state.data.companyProfiles = state.data.companyProfiles || []).push(payload);
-    }
-    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
-
     closeModal();
-    renderView();
-    showToast('Company Profile saved!');
-
-    gas('saveCompanyProfile', payload).catch(err => console.error(err));
+    showToast('Saving Company Profile...');
+    try {
+      const saved = await gas('saveCompanyProfile', payload);
+      if (saved && saved.CompanyId) {
+        if (saved.IsDefault === 'Yes') {
+          (state.data.companyProfiles || []).forEach(c => { if (c.CompanyId !== saved.CompanyId) c.IsDefault = 'No'; });
+        }
+        const idx = (state.data.companyProfiles || []).findIndex(c => c.CompanyId === saved.CompanyId);
+        if (idx !== -1) {
+          state.data.companyProfiles[idx] = saved;
+        } else {
+          (state.data.companyProfiles = state.data.companyProfiles || []).push(saved);
+        }
+      }
+      try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+      renderView();
+      showToast('Company Profile saved successfully!');
+      await refreshData();
+    } catch (err) {
+      console.error(err);
+      showToast('Error saving company: ' + (err.message || err));
+    }
   }
 
   async function setDefaultCompany(companyId) {
@@ -3028,8 +3034,8 @@
             </div>
             <div style="text-align:right;">
               ${comp.Logo
-                ? `<img src="${esc(comp.Logo)}" style="max-height:68px; max-width:160px; object-fit:contain;" alt="${esc(comp.CompanyName)} Logo">`
-                : `<svg width="150" height="68" viewBox="0 0 150 68" fill="none" xmlns="http://www.w3.org/2000/svg">
+                ? `<img src="${esc(comp.Logo)}" style="max-height:160px; max-width:320px; object-fit:contain;" alt="${esc(comp.CompanyName)} Logo">`
+                : `<svg width="280" height="126" viewBox="0 0 150 68" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <g fill="#000">
                       <rect x="2" y="6" width="3.5" height="5.5" />
                       <rect x="2" y="14" width="3.5" height="5.5" />
@@ -6521,6 +6527,33 @@
    * 5. Employees, Attendance & Leave
    * ======================================================================== */
 
+  const SRI_LANKA_BANKS = [
+    'Amana Bank PLC',
+    'Bank of Ceylon (BOC)',
+    'Bank of China Limited',
+    'Cargills Bank PLC',
+    'Citibank, N.A.',
+    'Commercial Bank of Ceylon PLC',
+    'DFCC Bank PLC',
+    'Hatton National Bank PLC (HNB)',
+    'Habib Bank Ltd',
+    'ICICI Bank Ltd',
+    'Indian Bank',
+    'Indian Overseas Bank',
+    'MCB Bank Ltd',
+    'National Development Bank PLC (NDB)',
+    'Nations Trust Bank PLC (NTB)',
+    'Pan Asia Banking Corporation PLC',
+    "People's Bank",
+    'Public Bank Berhad',
+    'Sampath Bank PLC',
+    'Seylan Bank PLC',
+    'Standard Chartered Bank',
+    'State Bank of India',
+    'The Hongkong and Shanghai Banking Corporation Ltd (HSBC)',
+    'Union Bank of Colombo PLC'
+  ];
+
   function renderEmployeesView() {
     ensureDataDefaults();
     const tab = state.empTab || 'directory';
@@ -6591,6 +6624,66 @@
                   </td>
                 </tr>
               `).join('') || '<tr><td colspan="11" style="color:var(--muted)">No employees added yet. Click "+ Add Employee" to create one.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      `;
+    } else if (tab === 'bank') {
+      body = `
+        <div class="section-header">
+          <div>
+            <h3 style="margin:0; font-size:15px; color:var(--text);">Employee Bank Details</h3>
+            <div style="font-size:12px; color:var(--muted);">Manage employee bank account numbers, banks, and branch information.</div>
+          </div>
+          <div class="section-actions">
+            <input class="search-input" placeholder="Search by name, bank, branch, account..." oninput="filterTable('empBankTable', this.value)" style="width:260px;">
+            <button class="btn btn-secondary" onclick="exportEmployeeBankExcel()">⬇ Export Excel</button>
+            <button class="btn btn-primary" onclick="openEmployeeBankModal()">+ Add / Update Bank Details</button>
+          </div>
+        </div>
+        <div class="card table-wrap">
+          <table id="empBankTable">
+            <thead>
+              <tr style="background:#f1f5f9;">
+                <th>Employee Name</th>
+                <th>Designation / Role</th>
+                <th>Bank Name</th>
+                <th>Branch</th>
+                <th>Account Number</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${emps.map(e => `
+                <tr>
+                  <td>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <img src="${e.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(e.Name || 'User') + '&background=0f766e&color=fff')}" style="width:28px; height:28px; border-radius:50%; object-fit:cover; background:#e2e8f0;">
+                      <div>
+                        <b>${esc(e.Name)}</b>
+                        ${e.NIC ? `<div style="font-size:11px; color:var(--muted);">NIC: ${esc(e.NIC)}</div>` : ''}
+                      </div>
+                    </div>
+                  </td>
+                  <td><b>${esc(e.Designation || e.Position || 'Staff')}</b></td>
+                  <td>
+                    ${e.BankName 
+                      ? `<span class="badge badge-primary" style="font-weight:600; font-size:12px;">🏦 ${esc(e.BankName)}</span>` 
+                      : '<span class="badge badge-warning">Not Set</span>'}
+                  </td>
+                  <td>${esc(e.BankBranch || '-')}</td>
+                  <td>
+                    ${e.BankAccountNo 
+                      ? `<span style="font-family:monospace; font-weight:700; color:#0f766e; font-size:13px;">${esc(e.BankAccountNo)}</span>` 
+                      : '-'}
+                  </td>
+                  <td>${statusBadge(e.Status || 'Active')}</td>
+                  <td>
+                    <button class="btn btn-sm btn-secondary" onclick="openEmployeeBankModal('${esc(e.EmpId)}')">Edit Bank</button>
+                  </td>
+                </tr>
+              `).join('') || '<tr><td colspan="7" style="color:var(--muted)">No employees found.</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -6704,6 +6797,7 @@
       <!-- Employee Sub-Tabs -->
       <div class="tabs" style="margin-bottom:16px;">
         <button class="tab-btn ${tab === 'directory' ? 'active' : ''}" onclick="state.empTab='directory'; renderEmployeesView()">👥 Employee Directory (${emps.length})</button>
+        <button class="tab-btn ${tab === 'bank' ? 'active' : ''}" onclick="state.empTab='bank'; renderEmployeesView()">🏦 Bank Details (${emps.filter(e => e.BankName || e.BankAccountNo).length}/${emps.length})</button>
         <button class="tab-btn ${tab === 'attendance' ? 'active' : ''}" onclick="state.empTab='attendance'; renderEmployeesView()">🕒 Daily Attendance (${(state.data.attendance || []).length})</button>
         <button class="tab-btn ${tab === 'leaves' ? 'active' : ''}" onclick="state.empTab='leaves'; renderEmployeesView()">🏖️ Leaves Taken &amp; Requests (${leaves.length})</button>
       </div>
@@ -6818,6 +6912,27 @@
             <input id="fEmEmergPhone" value="${esc(e.EmergencyContactPhone)}" placeholder="e.g. 071 987 6543">
           </div>
         </div>
+
+        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-top:8px;">
+          <div style="font-weight:700; font-size:12.5px; color:#1e293b; margin-bottom:8px;">🏦 Salary Bank Account Details</div>
+          <div class="form-group">
+            <label>Bank Name</label>
+            <select id="fEmBank">
+              <option value="">-- Select Bank --</option>
+              ${SRI_LANKA_BANKS.map(b => `<option value="${esc(b)}" ${b === (e.BankName || '') ? 'selected' : ''}>${esc(b)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Branch</label>
+              <input id="fEmBranch" value="${esc(e.BankBranch || '')}" placeholder="e.g. Battaramulla">
+            </div>
+            <div class="form-group">
+              <label>Account Number</label>
+              <input id="fEmAcc" value="${esc(e.BankAccountNo || '')}" placeholder="e.g. 1000982266">
+            </div>
+          </div>
+        </div>
       `,
       `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
        <button class="btn btn-primary" onclick="submitEmployee('${esc(id || '')}')">Save Employee</button>`
@@ -6845,11 +6960,118 @@
       EmergencyContactName: document.getElementById('fEmEmergName').value.trim(),
       EmergencyContactPhone: document.getElementById('fEmEmergPhone').value.trim(),
       JoinDate: document.getElementById('fEmJoin').value,
-      Status: document.getElementById('fEmStat').value
+      Status: document.getElementById('fEmStat').value,
+      BankName: document.getElementById('fEmBank') ? document.getElementById('fEmBank').value : '',
+      BankBranch: document.getElementById('fEmBranch') ? document.getElementById('fEmBranch').value.trim() : '',
+      BankAccountNo: document.getElementById('fEmAcc') ? document.getElementById('fEmAcc').value.trim() : ''
     });
     closeModal();
     showToast('Employee saved successfully!');
     await refreshData();
+  }
+
+  function openEmployeeBankModal(empId = null) {
+    const emps = state.data.employees || [];
+    if (!emps.length) {
+      showToast('Please add employees in the directory first.');
+      return;
+    }
+    const selectedEmp = empId ? emps.find(x => x.EmpId === empId) : emps[0];
+    const curBank = selectedEmp ? (selectedEmp.BankName || '') : '';
+    const curBranch = selectedEmp ? (selectedEmp.BankBranch || '') : '';
+    const curAcc = selectedEmp ? (selectedEmp.BankAccountNo || '') : '';
+
+    const empOptions = emps.map(e => 
+      `<option value="${esc(e.EmpId)}" ${e.EmpId === selectedEmp?.EmpId ? 'selected' : ''}>${esc(e.Name)} (${esc(e.Designation || e.Position || 'Staff')})</option>`
+    ).join('');
+
+    const bankOptions = SRI_LANKA_BANKS.map(b => 
+      `<option value="${esc(b)}" ${b === curBank ? 'selected' : ''}>${esc(b)}</option>`
+    ).join('');
+
+    openModal(
+      'Employee Bank Details',
+      `
+        <div class="form-group">
+          <label>Select Employee *</label>
+          <select id="fEbEmp" onchange="onEmployeeBankSelect(this.value)">
+            ${empOptions}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Select Bank *</label>
+          <select id="fEbBank">
+            <option value="">-- Select Bank --</option>
+            ${bankOptions}
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Branch *</label>
+            <input id="fEbBranch" placeholder="e.g. Colombo Fort / Battaramulla / Kandy" value="${esc(curBranch)}">
+          </div>
+          <div class="form-group">
+            <label>Account Number *</label>
+            <input id="fEbAcc" placeholder="e.g. 1000982266" value="${esc(curAcc)}">
+          </div>
+        </div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="submitEmployeeBank()">Save Bank Details</button>`
+    );
+  }
+
+  function onEmployeeBankSelect(empId) {
+    const e = (state.data.employees || []).find(x => x.EmpId === empId);
+    if (!e) return;
+    if (document.getElementById('fEbBank')) document.getElementById('fEbBank').value = e.BankName || '';
+    if (document.getElementById('fEbBranch')) document.getElementById('fEbBranch').value = e.BankBranch || '';
+    if (document.getElementById('fEbAcc')) document.getElementById('fEbAcc').value = e.BankAccountNo || '';
+  }
+
+  async function submitEmployeeBank() {
+    const empId = document.getElementById('fEbEmp')?.value;
+    const bank = document.getElementById('fEbBank')?.value.trim();
+    const branch = document.getElementById('fEbBranch')?.value.trim();
+    const acc = document.getElementById('fEbAcc')?.value.trim();
+
+    if (!empId) {
+      showToast('Please select an employee.');
+      return;
+    }
+    const emp = (state.data.employees || []).find(x => x.EmpId === empId);
+    if (!emp) return;
+
+    emp.BankName = bank;
+    emp.BankBranch = branch;
+    emp.BankAccountNo = acc;
+
+    closeModal();
+    showToast('Saving bank details...');
+    await gas('saveEmployee', emp);
+    showToast('Bank details saved successfully for ' + emp.Name + '!');
+    await refreshData();
+  }
+
+  function exportEmployeeBankExcel() {
+    if (typeof XLSX === 'undefined') return;
+    const emps = state.data.employees || [];
+    const rows = emps.map(e => ({
+      'Employee ID': e.EmpId,
+      'Name': e.Name,
+      'NIC': e.NIC,
+      'Designation': e.Designation || e.Position,
+      'Bank Name': e.BankName || '',
+      'Branch': e.BankBranch || '',
+      'Account Number': e.BankAccountNo || '',
+      'Status': e.Status || 'Active'
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Bank Details');
+    XLSX.writeFile(wb, `Employee_Bank_Details_${state.data.today || new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
   async function removeEmployee(id) {
