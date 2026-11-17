@@ -7883,10 +7883,14 @@
     emp.BankAccountNo = acc;
 
     closeModal();
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+    renderEmployeesView();
     showToast('Saving bank details...');
-    await gas('saveEmployee', emp);
+    const saved = await gas('saveEmployee', emp);
+    if (saved && saved.EmpId) Object.assign(emp, saved);
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+    renderEmployeesView();
     showToast('Bank details saved successfully for ' + emp.Name + '!');
-    await refreshData();
   }
 
   function exportEmployeeBankExcel() {

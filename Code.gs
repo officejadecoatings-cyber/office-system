@@ -52,6 +52,7 @@ function doGet(e) {
  */
 function doPost(e) {
   try {
+    ensureDatabase_();
     const payload = JSON.parse(e.postData.contents || '{}');
     const action = payload.action;
     const args = payload.args || [];
@@ -276,7 +277,17 @@ function appendRowObject_(sheetName, obj) {
     ensureDatabase_();
     sheet = ss.getSheetByName(sheetName);
   }
-  const headers = SCHEMA[sheetName];
+  let headers = sheet.getDataRange().getValues()[0] || SCHEMA[sheetName];
+  if (SCHEMA[sheetName]) {
+    const missing = SCHEMA[sheetName].filter(h => headers.indexOf(h) === -1);
+    if (missing.length > 0) {
+      if (sheet.getMaxColumns() < headers.length + missing.length) {
+        sheet.insertColumnsAfter(sheet.getMaxColumns(), (headers.length + missing.length) - sheet.getMaxColumns());
+      }
+      sheet.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]).setFontWeight('bold');
+      headers = sheet.getDataRange().getValues()[0];
+    }
+  }
   const row = headers.map(h => (obj[h] !== undefined && obj[h] !== null ? obj[h] : ''));
   sheet.appendRow(row);
   return obj;
@@ -289,9 +300,23 @@ function updateRowByKey_(sheetName, keyField, keyValue, updates) {
     ensureDatabase_();
     sheet = ss.getSheetByName(sheetName);
   }
-  const data = sheet.getDataRange().getValues();
+  let data = sheet.getDataRange().getValues();
   if (data.length <= 1) return false;
-  const headers = data[0];
+  let headers = data[0];
+
+  // Auto-expand sheet headers if updates or SCHEMA defines columns missing from the sheet
+  if (SCHEMA[sheetName]) {
+    const missing = SCHEMA[sheetName].filter(h => headers.indexOf(h) === -1);
+    if (missing.length > 0) {
+      if (sheet.getMaxColumns() < headers.length + missing.length) {
+        sheet.insertColumnsAfter(sheet.getMaxColumns(), (headers.length + missing.length) - sheet.getMaxColumns());
+      }
+      sheet.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]).setFontWeight('bold');
+      data = sheet.getDataRange().getValues();
+      headers = data[0];
+    }
+  }
+
   const keyIdx = headers.indexOf(keyField);
   if (keyIdx === -1) return false;
 
@@ -394,6 +419,7 @@ function authenticateUser(userId, pin) {
 }
 
 function getAppData() {
+  ensureDatabase_();
   const ss = getSpreadsheet_();
   const allSheets = ss.getSheets();
   const sheetsMap = {};
