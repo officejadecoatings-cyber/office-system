@@ -7099,24 +7099,26 @@
   }
 
   function findEmployeeForUser(user, inputNic = null) {
-    const rawNic = (inputNic !== null ? inputNic : (user?.NIC || '')).trim();
+    const rawNic = String(inputNic !== null ? inputNic : (user?.NIC || '')).trim();
     const nicNorm = rawNic.replace(/[\s\-]/g, '').toUpperCase();
     const emps = state.data.employees || [];
     
     // 1. Primary identification: Match by NIC
     if (nicNorm) {
-      const matchNic = emps.find(e => (e.NIC || '').replace(/[\s\-]/g, '').toUpperCase() === nicNorm);
+      const matchNic = emps.find(e => String(e.NIC || '').replace(/[\s\-]/g, '').toUpperCase() === nicNorm);
       if (matchNic) return { emp: matchNic, matchedBy: 'NIC Number', nic: rawNic };
     }
     
     // 2. Fallback: Match by email or name if NIC is not entered or not matched
-    if (user?.Email) {
-      const matchEmail = emps.find(e => (e.Email || '').trim().toLowerCase() === user.Email.trim().toLowerCase());
-      if (matchEmail) return { emp: matchEmail, matchedBy: 'Email Address', nic: rawNic || matchEmail.NIC || '' };
+    const userEmail = String(user?.Email || '').trim().toLowerCase();
+    if (userEmail) {
+      const matchEmail = emps.find(e => String(e.Email || '').trim().toLowerCase() === userEmail);
+      if (matchEmail) return { emp: matchEmail, matchedBy: 'Email Address', nic: rawNic || String(matchEmail.NIC || '') };
     }
-    if (user?.Name) {
-      const matchName = emps.find(e => (e.Name || '').trim().toLowerCase() === user.Name.trim().toLowerCase());
-      if (matchName) return { emp: matchName, matchedBy: 'Full Name', nic: rawNic || matchName.NIC || '' };
+    const userName = String(user?.Name || '').trim().toLowerCase();
+    if (userName) {
+      const matchName = emps.find(e => String(e.Name || '').trim().toLowerCase() === userName);
+      if (matchName) return { emp: matchName, matchedBy: 'Full Name', nic: rawNic || String(matchName.NIC || '') };
     }
     return { emp: null, matchedBy: 'None', nic: rawNic };
   }
