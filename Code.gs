@@ -11,7 +11,7 @@ const SCHEMA = {
   Users: ['UserId', 'Name', 'Email', 'Role', 'Pin', 'Status', 'AllowedTabs', 'Avatar', 'NIC'],
   Customers: ['CustomerId', 'CustomerCode', 'Name', 'BusinessIdentifier', 'BillingAddress', 'DeliveryAddress', 'Email', 'Phone', 'CreditLimit', 'SalesOfficerId', 'SalesOfficerName', 'Notes', 'CreatedAt'],
   Inventory: ['ItemId', 'SKU', 'Name', 'Category', 'UnitPrice', 'StockQty', 'ReorderLevel', 'Unit', 'UpdatedAt'],
-  Invoices: ['InvoiceId', 'InvoiceNo', 'CustomerId', 'CustomerName', 'Date', 'DueDate', 'Status', 'Subtotal', 'Discount', 'TaxAmount', 'Total', 'PaidAmount', 'Notes', 'CreatedBy', 'QuoteNo', 'SalesPerson', 'CustomerAddress', 'CustomerPhone', 'BankDetails', 'CompanyId', 'ChequeNo', 'ChequeBank', 'ChequeDate', 'ChequeAmount', 'RealisedDate', 'RealizedMonth', 'ReceiptNo', 'PaymentStatus'],
+  Invoices: ['InvoiceId', 'InvoiceNo', 'CustomerId', 'CustomerName', 'Date', 'DueDate', 'Status', 'Subtotal', 'Discount', 'TaxAmount', 'Total', 'PaidAmount', 'Notes', 'CreatedBy', 'QuoteNo', 'SalesPerson', 'CustomerAddress', 'CustomerPhone', 'BankDetails', 'CompanyId', 'ChequeNo', 'ChequeBank', 'ChequeDate', 'ChequeAmount', 'RealisedDate', 'RealizedMonth', 'ReceiptNo', 'PaymentStatus', 'TokenAmount', 'ReturnAmount'],
   InvoiceItems: ['LineId', 'InvoiceId', 'ItemId', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal', 'ItemCode', 'DiscountPercent'],
   CompanyProfiles: ['CompanyId', 'CompanyName', 'Address', 'Phone', 'Email', 'Website', 'BankName', 'Branch', 'AccountNo', 'Logo', 'IsDefault', 'InvoicePrefix', 'NextInvoiceNo', 'QuotePrefix', 'NextQuoteNo', 'CreatedAt'],
   Quotations: ['QuotationId', 'QuotationNo', 'Date', 'CustomerId', 'CustomerName', 'BillingAddress', 'Description', 'TotalAmount', 'Status', 'DataJson', 'CompanyId', 'CreatedBy', 'CreatedAt'],
@@ -21,6 +21,7 @@ const SCHEMA = {
   ProjectReports: ['ProjId', 'DataJson', 'CreatedBy', 'CreatedAt'],
   PainterQuotations: ['QuotationId', 'QuotationNo', 'Date', 'Title', 'QuotationFor', 'Supplier', 'Receivers', 'Place', 'Time', 'TotalAmount', 'AdvanceAmount', 'RemainingAmount', 'ItemsJson', 'Status', 'CreatedBy', 'CreatedAt'],
   PainterBillBalances: ['BalanceId', 'ProgramName', 'Date', 'Description', 'Withdrawal', 'Deposit', 'Balance', 'CreatedBy', 'CreatedAt'],
+  PainterParticipants: ['ParticipantId', 'ProgramName', 'Date', 'Name', 'Address', 'NIC', 'Phone', 'CreatedBy', 'CreatedAt'],
   Employees: ['EmpId', 'Name', 'Designation', 'Address', 'NIC', 'EpfEtfNo', 'DOB', 'Gender', 'Position', 'Email', 'Phone', 'EmergencyContactName', 'EmergencyContactPhone', 'JoinDate', 'Status', 'BankName', 'BankBranch', 'BankAccountNo'],
   CustomTabs: ['TabId', 'Name', 'Icon', 'ColumnsJson', 'CreatedBy', 'UpdatedAt'],
   CustomTabRows: ['RowId', 'TabId', 'DataJson', 'CreatedBy', 'CreatedAt'],
@@ -68,6 +69,7 @@ function doPost(e) {
       saveReportEntry, deleteReportEntry, importReportEntries, clearReportEntries,
       savePainterQuotation, deletePainterQuotation,
       savePainterBillBalance, deletePainterBillBalance, importPainterBillBalances,
+      savePainterParticipant, deletePainterParticipant,
       saveEmployee, deleteEmployee,
       saveCustomTab, deleteCustomTab, saveCustomTabRow, deleteCustomTabRow, importCustomTabRows,
       saveTransaction, deleteTransaction,
@@ -505,6 +507,7 @@ function getAppData() {
     projectReports: readFromSheet('ProjectReports'),
     painterQuotations: readFromSheet('PainterQuotations'),
     painterBillBalances: readFromSheet('PainterBillBalances'),
+    painterParticipants: dedupeRows_(readFromSheet('PainterParticipants'), 'ParticipantId'),
     employees: dedupeRows_(readFromSheet('Employees'), 'EmployeeId'),
     customTabs: readFromSheet('CustomTabs'),
     customTabRows: readFromSheet('CustomTabRows'),
@@ -685,6 +688,8 @@ function updateInvoicePayment(payload) {
       ReceiptNo: payload.ReceiptNo || '',
       PaymentStatus: payload.PaymentStatus || 'Unpaid'
     };
+    if (payload.TokenAmount !== undefined) updates.TokenAmount = Number(payload.TokenAmount) || 0;
+    if (payload.ReturnAmount !== undefined) updates.ReturnAmount = Number(payload.ReturnAmount) || 0;
     if (payload.Status) updates.Status = payload.Status;
     updateRowByKey_('Invoices', 'InvoiceId', invId, updates);
     return updates;
@@ -860,6 +865,24 @@ function savePainterBillBalance(entry) {
 
 function deletePainterBillBalance(id) {
   return withLock_(() => deleteRowByKey_('PainterBillBalances', 'BalanceId', id));
+}
+
+function savePainterParticipant(entry) {
+  return withLock_(() => {
+    const existing = readSheetRows_('PainterParticipants');
+    const isExisting = entry.ParticipantId && existing.some(p => String(p.ParticipantId) === String(entry.ParticipantId));
+    if (isExisting) {
+      updateRowByKey_('PainterParticipants', 'ParticipantId', entry.ParticipantId, entry);
+      return entry;
+    }
+    entry.ParticipantId = entry.ParticipantId || nextId_('PTP');
+    entry.CreatedAt = entry.CreatedAt || todayStr_();
+    return appendRowObject_('PainterParticipants', entry);
+  });
+}
+
+function deletePainterParticipant(id) {
+  return withLock_(() => deleteRowByKey_('PainterParticipants', 'ParticipantId', id));
 }
 
 function importPainterBillBalances(rows, createdBy) {

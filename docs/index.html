@@ -2130,11 +2130,17 @@
     if (Array.isArray(data.quotations)) {
       data.quotations = dedupe(data.quotations, q => (q.QuotationId || q.QuoteNo || '').toString().trim().toLowerCase());
     }
+    if (Array.isArray(data.painterParticipants)) {
+      data.painterParticipants = dedupe(data.painterParticipants, p => (p.ParticipantId || '').toString().trim().toLowerCase());
+    }
     return data;
   }
 
   function ensureDataDefaults() {
     if (state.data) cleanDataRedundancy(state.data);
+    if (!state.data.painterParticipants || !Array.isArray(state.data.painterParticipants)) {
+      state.data.painterParticipants = [];
+    }
     if (!state.data.companyProfiles || !Array.isArray(state.data.companyProfiles) || state.data.companyProfiles.length === 0) {
       state.data.companyProfiles = [{
         CompanyId: 'COMP-001',
@@ -2209,6 +2215,74 @@
     }
   }
 
+  function onInvQuoteSelectChange(quotIdOrNo) {
+    if (!quotIdOrNo) return;
+    const q = (state.data.quotations || []).find(x => x.QuotationId === quotIdOrNo || x.QuotationNo === quotIdOrNo);
+    if (!q) return;
+
+    const qNo = q.QuotationNo || q.QuotationId;
+    const quoteInput = document.getElementById('fInvQuote');
+    if (quoteInput) quoteInput.value = qNo;
+
+    let parsed = {};
+    if (q.DataJson) {
+      try { parsed = JSON.parse(q.DataJson); } catch (e) {}
+    }
+
+    // 1. Company Profile
+    const compId = q.CompanyId || parsed.CompanyId;
+    if (compId) {
+      const compEl = document.getElementById('fInvCompany');
+      if (compEl) {
+        compEl.value = compId;
+        onInvCompanyChange();
+      }
+    }
+
+    // 2. Customer
+    const custId = q.CustomerId || parsed.CustomerId;
+    if (custId) {
+      selectInvCust(custId);
+    } else if (q.CustomerName || parsed.CustomerName) {
+      const custInputEl = document.getElementById('fInvCustInput');
+      const custAddrEl = document.getElementById('fInvCustAddr');
+      if (custInputEl) custInputEl.value = q.CustomerName || parsed.CustomerName;
+      if (custAddrEl) custAddrEl.value = q.BillingAddress || parsed.BillingAddress || '';
+    }
+
+    // 3. Sales Person
+    const sp = q.SalesPerson || parsed.SalesPerson;
+    if (sp) {
+      selectInvSP(sp);
+    }
+
+    // 4. Line Items
+    const items = parsed.Items || q.Items || [];
+    if (items.length > 0) {
+      _invLines = items.map(it => ({
+        ItemId: it.ItemId || '',
+        ItemCode: it.ItemCode || '',
+        ItemName: it.Description || it.ItemName || '',
+        Qty: Number(it.Qty || it.Quantity || 1),
+        UnitPrice: Number(it.UnitPrice || 0),
+        DiscountPercent: Number(it.Discount || 0),
+        LineTotal: Number(it.Amount || it.Total || 0)
+      }));
+      renderInvLines();
+      updateInvTotals();
+    }
+
+    // 5. Notes / Terms
+    if (q.Description || parsed.Description || parsed.Notes) {
+      const notesEl = document.getElementById('fInvNotes');
+      if (notesEl && !notesEl.value) {
+        notesEl.value = q.Description || parsed.Description || parsed.Notes || '';
+      }
+    }
+
+    showToast('Auto-filled from Quotation ' + qNo);
+  }
+
   function openInvoiceModal(invoiceId) {
     ensureDataDefaults();
     _currentEditingInvoiceId = invoiceId || null;
@@ -2277,9 +2351,18 @@
             <label>Invoice Number *</label>
             <input id="fInvNo" placeholder="e.g. INV-1001" value="${esc(inv.InvoiceNo || '')}">
           </div>
-          <div class="form-group" style="flex:1;">
-            <label>Quote Number</label>
-            <input id="fInvQuote" placeholder="e.g. 754" value="${esc(inv.QuoteNo || '')}">
+          <div class="form-group" style="flex:1.2;">
+            <label>Quote Number <span style="font-size:11px; color:var(--muted); font-weight:normal;">(Select to Auto-fill)</span></label>
+            <select id="fInvQuoteSelect" onchange="onInvQuoteSelectChange(this.value)" style="margin-bottom:4px;">
+              <option value="">-- Select Quotation --</option>
+              ${(state.data.quotations || []).map(q => {
+                const qNo = q.QuotationNo || q.QuotationId;
+                const cName = q.CustomerName || '';
+                const isSel = String(inv.QuoteNo || '').trim() === String(qNo).trim();
+                return `<option value="${esc(q.QuotationId || qNo)}" ${isSel ? 'selected' : ''}>${esc(qNo)}${cName ? ' (' + esc(cName) + ')' : ''}</option>`;
+              }).join('')}
+            </select>
+            <input id="fInvQuote" placeholder="Or type Quote #" value="${esc(inv.QuoteNo || '')}" style="font-size:12px; padding:4px 8px;">
           </div>
         </div>
 
@@ -4097,6 +4180,32 @@
   let _outEndDate = '';
   let _outSearch = '';
 
+  function getInvOutstandingPending(inv) {
+    if (!inv) return 0;
+    const invAmt = Number(inv.Total || 0);
+    const pStatus = inv.PaymentStatus || (inv.Status === 'Paid' ? 'Paid' : 'Unpaid');
+    if (pStatus === 'Paid' || pStatus === 'Realised' || inv.Status === 'Paid' || inv.Status === 'Free Issue' || pStatus === 'Cancel' || inv.Status === 'Cancelled') {
+      return 0;
+    }
+    const paidAmt = Number(inv.PaidAmount || 0);
+    const tokenAmt = Number(inv.TokenAmount || 0);
+    const returnAmt = Number(inv.ReturnAmount || 0);
+    if (pStatus === 'Return') {
+      return Math.max(0, invAmt - paidAmt - (returnAmt > 0 ? returnAmt : (invAmt - paidAmt)));
+    }
+    return Math.max(0, invAmt - paidAmt - tokenAmt);
+  }
+
+  function getPaymentStatusBadgeClass(pStatus) {
+    if (pStatus === 'Paid' || pStatus === 'Realised') return 'badge-success';
+    if (pStatus === 'Unpaid' || pStatus === 'Cheque Bounce') return 'badge-danger';
+    if (pStatus === 'Cancel' || pStatus === 'Cheque Cancel') return 'badge-secondary';
+    if (pStatus === 'Token') return 'badge-info';
+    if (pStatus === 'Return') return 'badge-warning';
+    if (pStatus === 'Unrealized') return 'badge-warning';
+    return 'badge-warning';
+  }
+
   function renderOutstandingView() {
     ensureDataDefaults();
     const companies = state.data.companyProfiles || [];
@@ -4134,36 +4243,36 @@
       );
     }
 
-    // Filter by status
-    if (_outFilterStatus === 'Pending') {
-      allInvs = allInvs.filter(i => i.Status !== 'Paid' && i.Status !== 'Cancelled' && i.Status !== 'Free Issue' && (Number(i.Total || 0) - Number(i.PaidAmount || 0)) > 0);
-    } else if (_outFilterStatus === 'Paid') {
-      allInvs = allInvs.filter(i => i.Status === 'Paid' || (Number(i.Total || 0) > 0 && Number(i.PaidAmount || 0) >= Number(i.Total || 0)));
-    } else if (_outFilterStatus === 'Cheque') {
-      allInvs = allInvs.filter(i => (i.ChequeNo || '').trim() !== '');
+    // Filter by status (8 User Payment Statuses + All)
+    if (_outFilterStatus && _outFilterStatus !== 'All') {
+      allInvs = allInvs.filter(i => {
+        const curStatus = i.PaymentStatus || (i.Status === 'Paid' ? 'Paid' : (i.Status === 'Cancelled' ? 'Cancel' : 'Unpaid'));
+        if (_outFilterStatus === curStatus) return true;
+        if (_outFilterStatus === 'Paid' && (curStatus === 'Realised' || i.Status === 'Paid')) return true;
+        if (_outFilterStatus === 'Cancel' && curStatus === 'Cancelled') return true;
+        return false;
+      });
     }
 
     // Summary calculations
-    const totalInvAmt = allInvs.reduce((s, i) => s + (i.Status !== 'Cancelled' && i.Status !== 'Free Issue' ? Number(i.Total || 0) : 0), 0);
+    const totalInvAmt = allInvs.reduce((s, i) => s + (i.Status !== 'Cancelled' && i.Status !== 'Free Issue' && i.PaymentStatus !== 'Cancel' ? Number(i.Total || 0) : 0), 0);
     const totalChqAmt = allInvs.reduce((s, i) => s + Number(i.ChequeAmount || 0), 0);
-    const totalRealisedAmt = allInvs.reduce((s, i) => s + (i.Status === 'Paid' ? Number(i.Total || 0) : Number(i.PaidAmount || 0)), 0);
-    const totalPendingAmt = allInvs.reduce((s, i) => {
-      if (i.Status === 'Paid' || i.Status === 'Cancelled' || i.Status === 'Free Issue') return s;
-      return s + Math.max(0, Number(i.Total || 0) - Number(i.PaidAmount || 0));
-    }, 0);
+    const totalRealisedAmt = allInvs.reduce((s, i) => s + ((i.PaymentStatus === 'Paid' || i.Status === 'Paid') ? Number(i.Total || 0) : Number(i.PaidAmount || 0)), 0);
+    const totalPendingAmt = allInvs.reduce((s, i) => s + getInvOutstandingPending(i), 0);
 
     const compOptions = `<option value="">-- All Companies --</option>` + companies.map(c => 
       `<option value="${esc(c.CompanyId)}" ${_outFilterCompany === c.CompanyId ? 'selected' : ''}>${esc(c.CompanyName)}</option>`
     ).join('');
 
-    const statusOptions = ['All', 'Pending', 'Paid', 'Cheque'].map(st =>
-      `<option value="${st}" ${_outFilterStatus === st ? 'selected' : ''}>${st === 'Pending' ? 'Outstanding (Pending/Unpaid)' : (st === 'Paid' ? 'Realised / Paid' : (st === 'Cheque' ? 'With Cheque' : 'All Statuses'))}</option>`
+    const OUT_STATUS_LIST = ['All', 'Paid', 'Unpaid', 'Cheque Bounce', 'Unrealized', 'Cancel', 'Token', 'Return', 'Cheque Cancel'];
+    const statusOptions = OUT_STATUS_LIST.map(st =>
+      `<option value="${st}" ${_outFilterStatus === st ? 'selected' : ''}>${st === 'All' ? 'All Payment Statuses' : st}</option>`
     ).join('');
 
     const rowsHtml = allInvs.map(inv => {
       const invAmt = Number(inv.Total || 0);
-      const paidAmt = inv.Status === 'Paid' ? invAmt : Number(inv.PaidAmount || 0);
-      const pendingAmt = (inv.Status === 'Paid' || inv.Status === 'Free Issue') ? 0 : Math.max(0, invAmt - paidAmt);
+      const paidAmt = (inv.PaymentStatus === 'Paid' || inv.Status === 'Paid') ? invAmt : Number(inv.PaidAmount || 0);
+      const pendingAmt = getInvOutstandingPending(inv);
       const isPastDue = pendingAmt > 0 && daysBetween(inv.DueDate || inv.Date, state.data.today) > 0;
       const dueDays = daysBetween(inv.DueDate || inv.Date, state.data.today);
       const collDays = inv.RealisedDate ? daysBetween(inv.Date, inv.RealisedDate) : '-';
@@ -4176,8 +4285,8 @@
         } catch (e) {}
       }
 
-      const pStatus = inv.PaymentStatus || (inv.Status === 'Paid' ? 'Realised' : (pendingAmt > 0 ? (isPastDue ? 'Overdue' : 'Pending') : inv.Status));
-      const statusBadgeClass = pStatus === 'Realised' || pStatus === 'Paid' ? 'badge-success' : (pStatus === 'Overdue' ? 'badge-danger' : 'badge-warning');
+      const pStatus = inv.PaymentStatus || (inv.Status === 'Paid' ? 'Paid' : (inv.Status === 'Cancelled' ? 'Cancel' : (pendingAmt > 0 ? (isPastDue ? 'Unpaid' : 'Unpaid') : inv.Status)));
+      const statusBadgeClass = getPaymentStatusBadgeClass(pStatus);
 
       return `
         <tr class="${isPastDue ? 'row-overdue' : ''}" data-invamt="${invAmt}" data-chqamt="${Number(inv.ChequeAmount || 0)}" data-paidamt="${paidAmt}" data-pendingamt="${pendingAmt}">
@@ -4330,6 +4439,33 @@
     if (kpiPend) kpiPend.textContent = fmtMoney(visiblePendingAmt);
   }
 
+  function onOutPaymentStatusChange(status, tot, bal) {
+    const tokenRow = document.getElementById('fOutTokenGroup');
+    const returnRow = document.getElementById('fOutReturnGroup');
+    const rAmtInput = document.getElementById('fOutRealisedAmt');
+    const cqAmtInput = document.getElementById('fOutCqAmt');
+
+    if (tokenRow) tokenRow.style.display = (status === 'Token') ? '' : 'none';
+    if (returnRow) returnRow.style.display = (status === 'Return') ? '' : 'none';
+
+    if (status === 'Paid') {
+      if (rAmtInput && (!Number(rAmtInput.value) || Number(rAmtInput.value) < tot)) {
+        rAmtInput.value = tot;
+      }
+    } else if (status === 'Unpaid') {
+      if (rAmtInput) rAmtInput.value = '0.00';
+      if (cqAmtInput) cqAmtInput.value = '0.00';
+    } else if (status === 'Cheque Bounce') {
+      if (rAmtInput) rAmtInput.value = '0.00';
+    } else if (status === 'Unrealized') {
+      if (rAmtInput) rAmtInput.value = '0.00';
+    } else if (status === 'Cancel') {
+      if (rAmtInput) rAmtInput.value = '0.00';
+    } else if (status === 'Cheque Cancel') {
+      if (rAmtInput) rAmtInput.value = '0.00';
+    }
+  }
+
   function openOutstandingPaymentModal(invoiceId) {
     const inv = (state.data.invoices || []).find(i => i.InvoiceId === invoiceId);
     if (!inv) return;
@@ -4345,6 +4481,8 @@
         realizedMonth = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
       } catch (e) {}
     }
+
+    const curStatus = inv.PaymentStatus || (inv.Status === 'Paid' ? 'Paid' : 'Unpaid');
 
     openModal(
       'Update Payment / Cheque Details (' + inv.InvoiceNo + ')',
@@ -4406,11 +4544,23 @@
 
         <div class="form-group">
           <label>Payment Status *</label>
-          <select id="fOutPaymentStatus">
-            ${['Realised', 'Pending', 'Unpaid', 'Cheque Deposited', 'Cheque Returned', 'Cash Paid'].map(st =>
-              `<option value="${st}" ${(inv.PaymentStatus === st || (st === 'Realised' && inv.Status === 'Paid')) ? 'selected' : ''}>${st}</option>`
+          <select id="fOutPaymentStatus" onchange="onOutPaymentStatusChange(this.value, ${tot}, ${bal})">
+            ${['Paid', 'Unpaid', 'Cheque Bounce', 'Unrealized', 'Cancel', 'Token', 'Return', 'Cheque Cancel'].map(st =>
+              `<option value="${st}" ${(curStatus === st || (curStatus === 'Realised' && st === 'Paid')) ? 'selected' : ''}>${st}</option>`
             ).join('')}
           </select>
+        </div>
+
+        <div class="form-group" id="fOutTokenGroup" style="display:${curStatus === 'Token' ? '' : 'none'}; background:#f3e8ff; border:1px solid #d8b4fe; padding:10px; border-radius:6px; margin-top:8px;">
+          <label style="color:#6b21a8; font-weight:700;">Token / Discount Deduction Amount</label>
+          <input type="number" step="0.01" id="fOutTokenAmt" placeholder="0.00" value="${inv.TokenAmount || ''}">
+          <div style="font-size:11.5px; color:#7e22ce; margin-top:3px;">This token deduction amount is deducted from the outstanding invoice balance.</div>
+        </div>
+
+        <div class="form-group" id="fOutReturnGroup" style="display:${curStatus === 'Return' ? '' : 'none'}; background:#fff7ed; border:1px solid #fdba74; padding:10px; border-radius:6px; margin-top:8px;">
+          <label style="color:#9a3412; font-weight:700;">Returned Goods Amount</label>
+          <input type="number" step="0.01" id="fOutReturnAmt" placeholder="0.00" value="${inv.ReturnAmount !== undefined ? inv.ReturnAmount : bal}">
+          <div style="font-size:11.5px; color:#c2410c; margin-top:3px;">Returned goods value is deducted from the invoice outstanding amount.</div>
         </div>
       `,
       `
@@ -4443,6 +4593,8 @@
     const realizedMonth = document.getElementById('fOutRealizedMonth')?.value.trim() || '';
     const receiptNo = document.getElementById('fOutReceiptNo')?.value.trim() || '';
     const pStatus = document.getElementById('fOutPaymentStatus')?.value || 'Pending';
+    const tokenAmt = Number(document.getElementById('fOutTokenAmt')?.value || 0);
+    const returnAmt = Number(document.getElementById('fOutReturnAmt')?.value || 0);
 
     // Update in-memory optimistically (0ms)
     inv.ChequeNo = cqNo;
@@ -4454,9 +4606,22 @@
     inv.RealizedMonth = realizedMonth;
     inv.ReceiptNo = receiptNo;
     inv.PaymentStatus = pStatus;
+    inv.TokenAmount = tokenAmt;
+    inv.ReturnAmount = returnAmt;
 
-    if (pStatus === 'Realised' || realisedAmt >= Number(inv.Total || 0)) {
+    const tot = Number(inv.Total || 0);
+    if (pStatus === 'Paid' || realisedAmt >= tot) {
       inv.Status = 'Paid';
+    } else if (pStatus === 'Cancel') {
+      inv.Status = 'Cancelled';
+    } else if (pStatus === 'Return') {
+      inv.Status = (returnAmt >= tot) ? 'Cancelled' : 'Pending';
+    } else if (pStatus === 'Token') {
+      inv.Status = (realisedAmt + tokenAmt >= tot) ? 'Paid' : 'Pending';
+    } else if (pStatus === 'Unrealized') {
+      inv.Status = 'Pending';
+    } else if (pStatus === 'Cheque Bounce' || pStatus === 'Cheque Cancel' || pStatus === 'Unpaid') {
+      inv.Status = (realisedAmt > 0) ? 'Pending' : 'Unpaid';
     } else if (realisedAmt > 0) {
       inv.Status = 'Pending';
     }
@@ -4480,6 +4645,8 @@
       RealizedMonth: realizedMonth,
       ReceiptNo: receiptNo,
       PaymentStatus: pStatus,
+      TokenAmount: tokenAmt,
+      ReturnAmount: returnAmt,
       Status: inv.Status
     }).catch(err => console.error('updateInvoicePayment error:', err));
   }
@@ -4523,20 +4690,22 @@
         (i.ChequeBank || '').toLowerCase().includes(q)
       );
     }
-    if (_outFilterStatus === 'Pending') {
-      allInvs = allInvs.filter(i => i.Status !== 'Paid' && i.Status !== 'Cancelled' && i.Status !== 'Free Issue' && (Number(i.Total || 0) - Number(i.PaidAmount || 0)) > 0);
-    } else if (_outFilterStatus === 'Paid') {
-      allInvs = allInvs.filter(i => i.Status === 'Paid' || (Number(i.Total || 0) > 0 && Number(i.PaidAmount || 0) >= Number(i.Total || 0)));
-    } else if (_outFilterStatus === 'Cheque') {
-      allInvs = allInvs.filter(i => (i.ChequeNo || '').trim() !== '');
+    if (_outFilterStatus && _outFilterStatus !== 'All') {
+      allInvs = allInvs.filter(i => {
+        const curStatus = i.PaymentStatus || (i.Status === 'Paid' ? 'Paid' : (i.Status === 'Cancelled' ? 'Cancel' : 'Unpaid'));
+        if (_outFilterStatus === curStatus) return true;
+        if (_outFilterStatus === 'Paid' && (curStatus === 'Realised' || i.Status === 'Paid')) return true;
+        if (_outFilterStatus === 'Cancel' && curStatus === 'Cancelled') return true;
+        return false;
+      });
     }
 
     let totInv = 0, totChq = 0, totPaid = 0, totPending = 0;
 
     const rows = allInvs.map(inv => {
       const invAmt = Number(inv.Total || 0);
-      const paidAmt = inv.Status === 'Paid' ? invAmt : Number(inv.PaidAmount || 0);
-      const pendingAmt = (inv.Status === 'Paid' || inv.Status === 'Free Issue') ? 0 : Math.max(0, invAmt - paidAmt);
+      const paidAmt = (inv.PaymentStatus === 'Paid' || inv.Status === 'Paid') ? invAmt : Number(inv.PaidAmount || 0);
+      const pendingAmt = getInvOutstandingPending(inv);
       const chqAmt = Number(inv.ChequeAmount || 0);
       const dueDays = daysBetween(inv.DueDate || inv.Date, state.data.today);
       const collDays = inv.RealisedDate ? daysBetween(inv.Date, inv.RealisedDate) : '-';
@@ -4547,9 +4716,9 @@
           realizedMonth = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
         } catch (e) {}
       }
-      const pStatus = inv.PaymentStatus || (inv.Status === 'Paid' ? 'Realised' : (pendingAmt > 0 ? (dueDays > 0 ? 'Overdue' : 'Pending') : inv.Status));
+      const pStatus = inv.PaymentStatus || (inv.Status === 'Paid' ? 'Paid' : (inv.Status === 'Cancelled' ? 'Cancel' : (pendingAmt > 0 ? (dueDays > 0 ? 'Unpaid' : 'Unpaid') : inv.Status)));
 
-      if (inv.Status !== 'Cancelled' && inv.Status !== 'Free Issue') {
+      if (inv.Status !== 'Cancelled' && inv.Status !== 'Free Issue' && inv.PaymentStatus !== 'Cancel') {
         totInv += invAmt;
         totChq += chqAmt;
         totPaid += paidAmt;
@@ -6205,7 +6374,7 @@
    * 2E. Painter Training (Quotation & Bill Balance)
    * ======================================================================== */
 
-  let _painterTab = 'quotation'; // 'quotation' | 'billBalance'
+  let _painterTab = 'quotation'; // 'quotation' | 'billBalance' | 'participants'
   let _selectedQuotationId = '';
   let _selectedBbProgram = '';
   const _bbFilter = {
@@ -6213,6 +6382,10 @@
     endDate: '',
     search: ''
   };
+
+  let _partFilterProgram = '';
+  let _partFilterDate = '';
+  let _partFilterSearch = '';
 
   const DEFAULT_QUOTATION_ITEMS = [
     { no: 1, desc: '', qty: 0, price: 0, amount: 0 },
@@ -6244,15 +6417,18 @@
       <div class="card no-print" style="margin-bottom:16px;">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
           <div class="btn-group" style="display:inline-flex;">
-            <button class="btn ${isQuot ? 'btn-primary' : 'btn-secondary'}" onclick="_painterTab='quotation'; renderPainterTrainingView()">
+            <button class="btn ${_painterTab === 'quotation' ? 'btn-primary' : 'btn-secondary'}" onclick="_painterTab='quotation'; renderPainterTrainingView()">
               📄 Painter Training Quotation
             </button>
-            <button class="btn ${!isQuot ? 'btn-primary' : 'btn-secondary'}" onclick="_painterTab='billBalance'; renderPainterTrainingView()">
+            <button class="btn ${_painterTab === 'billBalance' ? 'btn-primary' : 'btn-secondary'}" onclick="_painterTab='billBalance'; renderPainterTrainingView()">
               ⚖️ Painter Training Bill Balance
+            </button>
+            <button class="btn ${_painterTab === 'participants' ? 'btn-primary' : 'btn-secondary'}" onclick="_painterTab='participants'; renderPainterTrainingView()">
+              👥 Participants
             </button>
           </div>
           <div class="section-actions" style="margin:0;">
-            ${isQuot ? `
+            ${_painterTab === 'quotation' ? `
               <label class="btn btn-sm btn-secondary" style="cursor:pointer; margin:0;">
                 📤 Upload / Import Quotation
                 <input type="file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importPainterQuotationExcel(this.files[0])">
@@ -6261,7 +6437,7 @@
               <button class="btn btn-sm btn-secondary" onclick="exportElementPdf('#painterQuotationTable', 'Painter_Quotation')">📄 Download PDF</button>
               <button class="btn btn-sm btn-secondary" onclick="window.print()">🖨 Print Quotation</button>
               <button class="btn btn-sm btn-primary" onclick="openPainterQuotationModal()">+ New Quotation</button>
-            ` : `
+            ` : (_painterTab === 'billBalance' ? `
               <label class="btn btn-sm btn-secondary" style="cursor:pointer; margin:0;">
                 📤 Upload / Import Bill Balance
                 <input type="file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importPainterBillBalanceExcel(this.files[0])">
@@ -6270,17 +6446,297 @@
               <button class="btn btn-sm btn-secondary" onclick="exportElementPdf('#painterBillBalanceTable', 'Painter_Bill_Balance', 'landscape')">📄 Download PDF</button>
               <button class="btn btn-sm btn-secondary" onclick="window.print()">🖨 Print</button>
               <button class="btn btn-sm btn-primary" onclick="openPainterBillBalanceModal()">+ Add Ledger Entry</button>
-            `}
+            ` : `
+              <button class="btn btn-sm btn-secondary" onclick="exportPainterParticipantsExcel()">⬇ Export Excel</button>
+              <button class="btn btn-sm btn-secondary" onclick="exportElementPdf('#painterParticipantsTable', 'Painter_Participants', 'landscape')">📄 Download PDF</button>
+              <button class="btn btn-sm btn-secondary" onclick="window.print()">🖨 Print</button>
+              <button class="btn btn-sm btn-primary" onclick="openPainterParticipantModal()">+ Add Participant</button>
+            `)}
           </div>
         </div>
       </div>
     `;
 
-    if (isQuot) {
+    if (_painterTab === 'quotation') {
       renderPainterQuotationView(subTabHtml, quotations);
-    } else {
+    } else if (_painterTab === 'billBalance') {
       renderPainterBillBalanceView(subTabHtml, balances, programs);
+    } else {
+      renderPainterParticipantsView(subTabHtml);
     }
+  }
+
+  function renderPainterParticipantsView(subTabHtml) {
+    const participants = state.data.painterParticipants || [];
+    const quotations = state.data.painterQuotations || [];
+    const balances = state.data.painterBillBalances || [];
+
+    // Unique program names
+    const programSet = new Set();
+    participants.forEach(p => { if (p.ProgramName) programSet.add(p.ProgramName.trim()); });
+    quotations.forEach(q => {
+      if (q.QuotationFor) programSet.add(q.QuotationFor.trim());
+      if (q.Title) programSet.add(q.Title.trim());
+    });
+    balances.forEach(b => { if (b.ProgramName) programSet.add(b.ProgramName.trim()); });
+    const allPrograms = Array.from(programSet).filter(Boolean).sort();
+
+    // Filter participants
+    let filtered = [...participants];
+    if (_partFilterProgram) {
+      filtered = filtered.filter(p => (p.ProgramName || '').trim() === _partFilterProgram.trim());
+    }
+    if (_partFilterDate) {
+      filtered = filtered.filter(p => p.Date === _partFilterDate);
+    }
+    if (_partFilterSearch) {
+      const q = _partFilterSearch.toLowerCase();
+      filtered = filtered.filter(p =>
+        (p.Name || '').toLowerCase().includes(q) ||
+        (p.NIC || '').toLowerCase().includes(q) ||
+        (p.Phone || '').toLowerCase().includes(q) ||
+        (p.Address || '').toLowerCase().includes(q) ||
+        (p.ProgramName || '').toLowerCase().includes(q)
+      );
+    }
+
+    const progOptions = `<option value="">-- All Programs --</option>` + allPrograms.map(p =>
+      `<option value="${esc(p)}" ${_partFilterProgram === p ? 'selected' : ''}>${esc(p)}</option>`
+    ).join('');
+
+    const rowsHtml = filtered.map((part, idx) => `
+      <tr>
+        <td style="text-align:center;">${idx + 1}</td>
+        <td><b>${esc(part.ProgramName || '-')}</b></td>
+        <td style="text-align:center;">${esc(part.Date || '-')}</td>
+        <td><b>${esc(part.Name || '-')}</b></td>
+        <td>${esc(part.Address || '-')}</td>
+        <td style="text-align:center;"><code>${esc(part.NIC || '-')}</code></td>
+        <td style="text-align:center;">${esc(part.Phone || '-')}</td>
+        <td style="text-align:center; white-space:nowrap;" class="no-print">
+          <button class="btn btn-sm btn-secondary" onclick="openPainterParticipantModal('${esc(part.ParticipantId)}')">✏️ Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="deletePainterParticipantAction('${esc(part.ParticipantId)}')">🗑️ Delete</button>
+        </td>
+      </tr>
+    `).join('');
+
+    document.getElementById('mainContent').innerHTML = `
+      ${subTabHtml}
+
+      <!-- Filter Bar -->
+      <div class="card no-print" style="margin-bottom:14px; padding:12px;">
+        <div style="display:flex; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div style="display:inline-flex; align-items:center; gap:6px;">
+            <label style="font-size:12px; font-weight:600; color:var(--muted); margin:0;">Program:</label>
+            <select style="width:220px; margin:0; padding:6px 8px;" onchange="_partFilterProgram=this.value; renderPainterTrainingView()">
+              ${progOptions}
+            </select>
+          </div>
+          <div style="display:inline-flex; align-items:center; gap:6px;">
+            <label style="font-size:12px; font-weight:600; color:var(--muted); margin:0;">Date:</label>
+            <input type="date" style="width:150px; margin:0; padding:6px 8px;" value="${esc(_partFilterDate)}" onchange="_partFilterDate=this.value; renderPainterTrainingView()">
+          </div>
+          <input type="text" placeholder="Search by name, NIC, phone..." style="flex:1; min-width:180px; margin:0; padding:6px 8px;" value="${esc(_partFilterSearch)}" oninput="_partFilterSearch=this.value; filterTable('painterParticipantsTable', this.value)">
+          ${(_partFilterProgram || _partFilterDate || _partFilterSearch) ? `
+            <button class="btn btn-sm btn-secondary" style="margin:0;" onclick="_partFilterProgram=''; _partFilterDate=''; _partFilterSearch=''; renderPainterTrainingView()">Reset</button>
+          ` : ''}
+        </div>
+      </div>
+
+      <!-- KPI Summary -->
+      <div class="kpi-grid no-print" style="margin-bottom:16px;">
+        <div class="card"><div class="kpi-label">Total Participants</div><div class="kpi-val">${participants.length}</div></div>
+        <div class="card"><div class="kpi-label">Filtered Results</div><div class="kpi-val" style="color:var(--primary);">${filtered.length}</div></div>
+        <div class="card"><div class="kpi-label">Active Programs</div><div class="kpi-val">${allPrograms.length}</div></div>
+      </div>
+
+      <!-- Participants Table -->
+      <div class="card table-wrap" style="padding:0;">
+        <table id="painterParticipantsTable">
+          <thead>
+            <tr>
+              <th style="width:40px; text-align:center;">#</th>
+              <th>Training Program Name</th>
+              <th style="width:110px; text-align:center;">Date</th>
+              <th>Participant Name</th>
+              <th>Address</th>
+              <th style="width:130px; text-align:center;">NIC Number</th>
+              <th style="width:120px; text-align:center;">Phone Number</th>
+              <th style="width:120px; text-align:center;" class="no-print">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filtered.length > 0 ? rowsHtml : `
+              <tr>
+                <td colspan="8" style="text-align:center; padding:32px; color:var(--muted);">
+                  No training participants found. Click <b>+ Add Participant</b> above to register participants.
+                </td>
+              </tr>
+            `}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function openPainterParticipantModal(participantId) {
+    const participants = state.data.painterParticipants || [];
+    const part = participantId ? participants.find(p => p.ParticipantId === participantId) : null;
+
+    // Collect available program names
+    const programSet = new Set();
+    participants.forEach(p => { if (p.ProgramName) programSet.add(p.ProgramName.trim()); });
+    (state.data.painterQuotations || []).forEach(q => {
+      if (q.QuotationFor) programSet.add(q.QuotationFor.trim());
+      if (q.Title) programSet.add(q.Title.trim());
+    });
+    (state.data.painterBillBalances || []).forEach(b => { if (b.ProgramName) programSet.add(b.ProgramName.trim()); });
+    const allPrograms = Array.from(programSet).filter(Boolean).sort();
+
+    const datalistOptions = allPrograms.map(p => `<option value="${esc(p)}">`).join('');
+
+    openModal(
+      participantId ? 'Edit Training Participant' : 'Add New Training Participant',
+      `
+        <div class="form-row">
+          <div class="form-group" style="flex:2;">
+            <label>Painter Training Program Name *</label>
+            <input list="partProgramList" id="fPartProgram" placeholder="Select or type program name..." value="${esc(part ? part.ProgramName : (_partFilterProgram || ''))}">
+            <datalist id="partProgramList">
+              ${datalistOptions}
+            </datalist>
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>Training Date *</label>
+            <input type="date" id="fPartDate" value="${esc(part ? part.Date : (_partFilterDate || state.data.today))}">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Participant Full Name *</label>
+          <input type="text" id="fPartName" placeholder="e.g. S.K. Kamal Perera" value="${esc(part ? part.Name : '')}">
+        </div>
+
+        <div class="form-group">
+          <label>Residential / Workshop Address</label>
+          <textarea id="fPartAddress" rows="2" placeholder="e.g. No. 45, Kandy Road, Kiribathgoda">${esc(part ? part.Address : '')}</textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>National ID (NIC Number)</label>
+            <input type="text" id="fPartNIC" placeholder="e.g. 199012345678 or 901234567V" value="${esc(part ? part.NIC : '')}">
+          </div>
+          <div class="form-group">
+            <label>Phone / Mobile Number</label>
+            <input type="text" id="fPartPhone" placeholder="e.g. 077 123 4567" value="${esc(part ? part.Phone : '')}">
+          </div>
+        </div>
+      `,
+      `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitPainterParticipant('${esc(participantId || '')}')">Save Participant</button>
+      `
+    );
+  }
+
+  async function submitPainterParticipant(participantId) {
+    const prog = document.getElementById('fPartProgram')?.value.trim();
+    const date = document.getElementById('fPartDate')?.value;
+    const name = document.getElementById('fPartName')?.value.trim();
+    const addr = document.getElementById('fPartAddress')?.value.trim();
+    const nic = document.getElementById('fPartNIC')?.value.trim();
+    const phone = document.getElementById('fPartPhone')?.value.trim();
+
+    if (!prog) {
+      alert('Please enter or select a Training Program Name.');
+      return;
+    }
+    if (!name) {
+      alert('Please enter Participant Name.');
+      return;
+    }
+
+    const payload = {
+      ParticipantId: participantId || ('PTP-' + Date.now()),
+      ProgramName: prog,
+      Date: date || state.data.today,
+      Name: name,
+      Address: addr || '',
+      NIC: nic || '',
+      Phone: phone || '',
+      CreatedBy: state.user?.Name || 'User',
+      CreatedAt: state.data.today
+    };
+
+    // Optimistic update
+    state.data.painterParticipants = state.data.painterParticipants || [];
+    if (participantId) {
+      const idx = state.data.painterParticipants.findIndex(p => p.ParticipantId === participantId);
+      if (idx !== -1) state.data.painterParticipants[idx] = payload;
+      else state.data.painterParticipants.unshift(payload);
+    } else {
+      state.data.painterParticipants.unshift(payload);
+    }
+
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+
+    closeModal();
+    _painterTab = 'participants';
+    renderPainterTrainingView();
+    showToast('Training participant saved successfully!');
+
+    try {
+      await gas('savePainterParticipant', payload);
+    } catch (err) {
+      console.error('savePainterParticipant error:', err);
+    }
+  }
+
+  async function deletePainterParticipantAction(participantId) {
+    if (!participantId) return;
+    verifyPinAndExecute('delete this participant', async () => {
+      state.data.painterParticipants = (state.data.painterParticipants || []).filter(p => p.ParticipantId !== participantId);
+      try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+      renderPainterTrainingView();
+      showToast('Participant deleted successfully.');
+      gas('deletePainterParticipant', participantId).catch(err => console.error(err));
+    });
+  }
+
+  function exportPainterParticipantsExcel() {
+    const participants = state.data.painterParticipants || [];
+    let filtered = [...participants];
+    if (_partFilterProgram) {
+      filtered = filtered.filter(p => (p.ProgramName || '').trim() === _partFilterProgram.trim());
+    }
+    if (_partFilterDate) {
+      filtered = filtered.filter(p => p.Date === _partFilterDate);
+    }
+
+    let csv = '\uFEFF';
+    csv += 'No,Program Name,Training Date,Participant Name,Address,NIC Number,Phone Number\n';
+    filtered.forEach((p, idx) => {
+      csv += [
+        idx + 1,
+        `"${(p.ProgramName || '').replace(/"/g, '""')}"`,
+        `"${p.Date || ''}"`,
+        `"${(p.Name || '').replace(/"/g, '""')}"`,
+        `"${(p.Address || '').replace(/"/g, '""')}"`,
+        `"${(p.NIC || '').replace(/"/g, '""')}"`,
+        `"${(p.Phone || '').replace(/"/g, '""')}"`
+      ].join(',') + '\n';
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Painter_Participants_${state.data.today || 'export'}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   function renderPainterQuotationView(subTabHtml, quotations) {
