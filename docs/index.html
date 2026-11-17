@@ -344,7 +344,7 @@
     flex-direction: column;
     box-shadow: 0 20px 40px rgba(0,0,0,0.2);
   }
-  .modal-lg { max-width: 820px; }
+  .modal-lg { max-width: 1080px; width: 95vw; }
   .modal-header {
     padding: 16px 20px;
     border-bottom: 1px solid var(--border);
@@ -3971,18 +3971,18 @@
 
           <!-- Line items table matching the photo -->
           <div style="margin-bottom:14px; overflow-x:auto;">
-            <table style="width:100%; border-collapse:collapse; min-width:750px;">
+            <table style="width:100%; border-collapse:collapse; min-width:960px;">
               <thead>
-                <tr style="border-bottom:1.5px solid #d1d5db; color:#374151; font-size:12.5px; text-align:left;">
-                  <th style="width:24px;"></th>
-                  <th style="padding:6px 8px; width:26%;">Code / Item</th>
-                  <th style="padding:6px 8px; width:28%;">Description</th>
-                  <th style="padding:6px 8px; width:80px; min-width:80px; text-align:center; font-weight:700;">Qty</th>
-                  <th style="padding:6px 8px; width:85px; text-align:right;">Unit price</th>
-                  <th style="padding:6px 8px; width:90px; text-align:center;">Discount</th>
-                  <th style="padding:6px 8px; width:85px; text-align:right;">Amount</th>
-                  <th style="padding:6px 8px; width:85px;">Tax</th>
-                  <th style="width:28px;"></th>
+                <tr style="border-bottom:2px solid #e2e8f0; color:#1e293b; font-size:12.5px; text-transform:uppercase; letter-spacing:0.03em; background:#f8fafc;">
+                  <th style="width:28px; text-align:center; padding:10px 4px;"></th>
+                  <th style="padding:10px 8px; width:220px; min-width:210px; text-align:left; font-weight:700;">Code / Item</th>
+                  <th style="padding:10px 8px; min-width:240px; text-align:left; font-weight:700;">Description</th>
+                  <th style="padding:10px 8px; width:80px; min-width:80px; text-align:center; font-weight:700;">Qty</th>
+                  <th style="padding:10px 8px; width:125px; min-width:125px; text-align:right; font-weight:700;">Unit Price</th>
+                  <th style="padding:10px 8px; width:95px; min-width:95px; text-align:center; font-weight:700;">Discount</th>
+                  <th style="padding:10px 8px; width:135px; min-width:135px; text-align:right; font-weight:700;">Amount</th>
+                  <th style="padding:10px 8px; width:95px; min-width:95px; text-align:center; font-weight:700;">Tax</th>
+                  <th style="width:38px; text-align:center; padding:10px 4px;"></th>
                 </tr>
               </thead>
               <tbody id="quotLinesContainer"></tbody>
@@ -4144,50 +4144,44 @@
       ln.Amount = lineTotal;
 
       return `
-        <tr style="border-bottom:1px solid #e2e8f0;">
-          <td style="color:#94a3b8; font-size:14px; text-align:center; cursor:grab;">↕</td>
-          <td style="padding:5px 6px;">
-            <select onchange="pickQuotItem(${idx}, this.value)" style="width:100%; padding:5px 6px; font-size:12.5px; border:1px solid #d1d5db; border-radius:4px;">
+        <tr style="border-bottom:1px solid #f1f5f9; background:#ffffff;">
+          <td style="color:#94a3b8; font-size:14px; text-align:center; cursor:grab; width:28px; padding:8px 4px;">↕</td>
+          <td style="padding:8px 8px; width:220px; min-width:210px;">
+            <select onchange="pickQuotItem(${idx}, this.value)" style="width:100%; height:36px; padding:6px 8px; font-size:13px; font-weight:500; border:1.5px solid #cbd5e1; border-radius:6px; background:#fff; color:#0f172a;">
               <option value="">-- Select Code / Item --</option>
               ${invOpts}
             </select>
           </td>
-          <td style="padding:5px 6px;">
-            <input placeholder="Product description" value="${esc(ln.Description || '')}" oninput="_quotLines[${idx}].Description=this.value" style="width:100%; padding:5px 6px; font-size:12.5px; border:1px solid #d1d5db; border-radius:4px;">
+          <td style="padding:8px 8px; min-width:240px;">
+            <input placeholder="Product description" value="${esc(ln.Description || '')}" oninput="_quotLines[${idx}].Description=this.value" style="width:100%; height:36px; padding:6px 10px; font-size:13px; border:1.5px solid #cbd5e1; border-radius:6px; color:#0f172a; box-sizing:border-box;">
           </td>
-          <td style="padding:5px 6px; width:80px; min-width:80px; text-align:center;">
+          <td style="padding:8px 6px; width:80px; min-width:80px; text-align:center;">
             <input type="number" min="1" value="${ln.Qty || 1}" oninput="_quotLines[${idx}].Qty=Number(this.value); updateQuotTotals()" style="width:100%; min-width:68px; height:36px; line-height:34px; text-align:center; padding:4px 6px; font-size:14px; font-weight:700; color:#0f172a; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:6px; box-sizing:border-box;">
           </td>
-          <td style="padding:5px 6px;">
-            <input type="number" step="0.01" value="${ln.UnitPrice || 0}" oninput="_quotLines[${idx}].UnitPrice=Number(this.value); updateQuotTotals()" style="width:100%; text-align:right; padding:5px 6px; font-size:12.5px; border:1px solid #d1d5db; border-radius:4px;">
+          <td style="padding:8px 8px; width:125px; min-width:125px; text-align:right;">
+            <input type="number" step="0.01" value="${ln.UnitPrice || 0}" oninput="_quotLines[${idx}].UnitPrice=Number(this.value); updateQuotTotals()" style="width:100%; min-width:110px; height:36px; line-height:34px; text-align:right; padding:4px 10px; font-size:13.5px; font-weight:600; color:#0f172a; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:6px; box-sizing:border-box;">
           </td>
-          <td style="padding:5px 6px;">
-            <div style="display:flex; align-items:center; gap:2px;">
-              <input type="number" step="0.1" min="0" placeholder="0" value="${ln.Discount || 0}" oninput="_quotLines[${idx}].Discount=Number(this.value); updateQuotTotals()" style="width:65px; text-align:center; padding:5px 4px; font-size:12.5px; border:1px solid #d1d5db; border-radius:4px;">
-              <span style="font-size:12px; color:#64748b;">%</span>
+          <td style="padding:8px 8px; width:95px; min-width:95px; text-align:center;">
+            <div style="display:flex; align-items:center; gap:4px; justify-content:center;">
+              <input type="number" step="0.1" min="0" placeholder="0" value="${ln.Discount || 0}" oninput="_quotLines[${idx}].Discount=Number(this.value); updateQuotTotals()" style="width:60px; height:36px; line-height:34px; text-align:center; padding:4px; font-size:13px; font-weight:600; border:1.5px solid #cbd5e1; border-radius:6px; box-sizing:border-box;">
+              <span style="font-size:13px; font-weight:700; color:#64748b;">%</span>
             </div>
           </td>
-          <td style="padding:5px 6px;">
-            <input readonly value="${Number(lineTotal).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}" id="quotLineAmt_${idx}" style="width:100%; text-align:right; font-weight:600; padding:5px 6px; font-size:12.5px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; color:#1e293b;">
+          <td style="padding:8px 8px; width:135px; min-width:135px; text-align:right;">
+            <input readonly value="${Number(lineTotal).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}" id="quotLineAmt_${idx}" style="width:100%; min-width:120px; height:36px; line-height:34px; text-align:right; font-weight:700; padding:4px 10px; font-size:14px; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:6px; color:#0f172a; box-sizing:border-box;">
           </td>
-          <td style="padding:5px 6px;">
-            <select onchange="_quotLines[${idx}].Tax=this.value" style="width:100%; padding:5px 4px; font-size:12px; border:1px solid #d1d5db; border-radius:4px; color:#64748b;">
+          <td style="padding:8px 8px; width:95px; min-width:95px; text-align:center;">
+            <select onchange="_quotLines[${idx}].Tax=this.value" style="width:100%; height:36px; padding:4px 6px; font-size:12.5px; border:1.5px solid #cbd5e1; border-radius:6px; color:#475569; background:#fff; box-sizing:border-box;">
               <option ${ln.Tax === 'No tax' ? 'selected' : ''}>No tax</option>
               <option ${ln.Tax === '0%' ? 'selected' : ''}>0%</option>
             </select>
           </td>
-          <td style="padding:5px 4px; text-align:center;">
-            <button type="button" class="btn btn-sm btn-danger" onclick="removeQuotLine(${idx})" style="padding:2px 6px; font-size:12px; line-height:1;">✕</button>
+          <td style="padding:8px 4px; width:38px; text-align:center;">
+            <button type="button" onclick="removeQuotLine(${idx})" style="background:#dc2626; color:#fff; border:none; border-radius:6px; width:32px; height:32px; cursor:pointer; font-weight:700; font-size:14px; display:inline-flex; align-items:center; justify-content:center;">✕</button>
           </td>
         </tr>
       `;
     }).join('');
-
-    const selects = container.querySelectorAll('select');
-    _quotLines.forEach((ln, idx) => {
-      const sel = selects[idx * 2]; // first select in the row
-      if (sel) sel.value = ln.ItemId || '';
-    });
   }
 
   function pickQuotItem(idx, itemId) {
@@ -8145,9 +8139,9 @@
    * ======================================================================== */
 
   function renderInventoryView() {
-    const items = state.data.inventory;
+    const items = state.data.inventory || [];
     const totalVal = items.reduce((s, it) => s + ((Number(it.UnitPrice) || 0) * (Number(it.StockQty) || 0)), 0);
-    const lowCount = items.filter(it => Number(it.StockQty) <= Number(it.ReorderLevel)).length;
+    const lowCount = items.filter(it => Number(it.StockQty) <= Number(it.ReorderLevel || 5)).length;
 
     document.getElementById('mainContent').innerHTML = `
       <div class="kpi-grid">
@@ -8155,34 +8149,53 @@
         <div class="card"><div class="kpi-label">Total Stock Value</div><div class="kpi-val">${fmtMoney(totalVal)}</div></div>
         <div class="card"><div class="kpi-label">Low / Out of Stock</div><div class="kpi-val" style="color:${lowCount ? 'var(--danger)' : 'var(--success)'}">${lowCount}</div></div>
       </div>
+      
       <div class="section-header">
-        <input class="search-input" placeholder="Search stock by SKU, name, category..." oninput="filterTable('stockTable', this.value)">
-        <div class="section-actions">
+        <div>
+          <h3 style="font-size:16px; color:var(--text); font-weight:700; margin:0 0 4px 0;">📦 Product List</h3>
+          <input class="search-input" placeholder="Search product list by SKU, name, category..." oninput="filterTable('stockTable', this.value)" style="width:320px;">
+        </div>
+        <div class="section-actions" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <button class="btn btn-success" style="background:#16a34a; border-color:#16a34a; font-weight:700; display:flex; align-items:center; gap:6px;" onclick="openStockInModal()">📥 Stock In (Factory Goods)</button>
           <button class="btn btn-secondary" onclick="exportStockExcel()">⬇ Export Stock</button>
-          <button class="btn btn-primary" onclick="openInventoryModal()">+ Add Stock Item</button>
+          <button class="btn btn-primary" onclick="openInventoryModal()">+ Add Product</button>
         </div>
       </div>
+
       <div class="card table-wrap">
         <table id="stockTable">
-          <thead><tr><th>SKU</th><th>Item Name</th><th>Category</th><th>Unit Price</th><th>Stock Qty</th><th>Stock Value</th><th>Status</th><th>Quick Adjust</th><th>Actions</th></tr></thead>
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Product Name</th>
+              <th>Category</th>
+              <th>Unit Price</th>
+              <th>Unit</th>
+              <th>Stock Qty</th>
+              <th>Stock Value</th>
+              <th>Status</th>
+              <th>Stock In</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
           <tbody>
             ${items.map(it => {
               const qty = Number(it.StockQty) || 0;
               const val = qty * (Number(it.UnitPrice) || 0);
-              const low = qty <= Number(it.ReorderLevel);
+              const low = qty <= Number(it.ReorderLevel || 5);
               const badge = qty <= 0 ? 'badge-danger">Out of Stock' : (low ? 'badge-warning">Low Stock' : 'badge-success">In Stock');
               return `
                 <tr class="${qty <= 0 ? 'row-overdue' : ''}">
-                  <td>${esc(it.SKU)}</td>
+                  <td><b>${esc(it.SKU)}</b></td>
                   <td><b>${esc(it.Name)}</b></td>
-                  <td>${esc(it.Category)}</td>
-                  <td>${fmtMoney(it.UnitPrice)}</td>
-                  <td><b>${qty}</b> ${esc(it.Unit)}</td>
+                  <td>${esc(it.Category || 'General')}</td>
+                  <td><b>${fmtMoney(it.UnitPrice || 0)}</b></td>
+                  <td><span class="badge badge-info" style="font-weight:700;">${esc(it.Unit || 'L')}</span></td>
+                  <td><b style="font-size:14px; color:${qty <= 0 ? 'var(--danger)' : 'var(--text)'};">${qty}</b></td>
                   <td>${fmtMoney(val)}</td>
                   <td><span class="badge ${badge}</span></td>
                   <td>
-                    <button class="btn btn-sm btn-secondary" onclick="adjustStockQuick('${esc(it.ItemId)}', 1)">+1</button>
-                    <button class="btn btn-sm btn-secondary" onclick="adjustStockQuick('${esc(it.ItemId)}', -1)">-1</button>
+                    <button class="btn btn-sm btn-success" style="background:#16a34a; border-color:#16a34a; font-weight:700; padding:3px 10px;" onclick="openStockInModal('${esc(it.ItemId)}')">📥 In</button>
                   </td>
                   <td>
                     <button class="btn btn-sm btn-secondary" onclick="openInventoryModal('${esc(it.ItemId)}')">Edit</button>
@@ -8190,7 +8203,7 @@
                   </td>
                 </tr>
               `;
-            }).join('') || '<tr><td colspan="9" style="color:var(--muted)">No stock items yet.</td></tr>'}
+            }).join('') || '<tr><td colspan="10" style="color:var(--muted); text-align:center;">No products in stock list yet. Click "+ Add Product" to add one.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -8230,48 +8243,254 @@
 
   function openInventoryModal(itemId) {
     const autoSku = generateNextSKU();
-    const it = itemId ? state.data.inventory.find(x => x.ItemId === itemId) : {
-      SKU: autoSku, Name: '', Category: 'General', UnitPrice: 0, StockQty: 0, ReorderLevel: 5, Unit: 'pcs'
+    const it = itemId ? (state.data.inventory || []).find(x => x.ItemId === itemId) : {
+      SKU: autoSku, Name: '', Category: 'General', UnitPrice: 0, StockQty: 0, ReorderLevel: 5, Unit: 'L'
     };
+    const normUnit = String(it.Unit || 'L').toUpperCase().trim();
+
     openModal(
-      itemId ? 'Edit Item' : 'Add Inventory Item',
+      itemId ? 'Edit Product' : 'Add Product to Stock',
       `
         <div class="form-row">
           <div class="form-group">
-            <label>SKU / Code ${!itemId ? '<span style="font-size:11px; color:var(--primary); font-weight:normal;">(Auto-generated)</span>' : ''}</label>
-            <input id="fItSku" value="${esc(it.SKU || autoSku)}">
+            <label style="font-weight:700;">SKU Code * ${!itemId ? '<span style="font-size:11px; color:var(--primary); font-weight:normal;">(Auto-generated)</span>' : ''}</label>
+            <input id="fItSku" value="${esc(it.SKU || autoSku)}" placeholder="e.g. JD-001-84" style="font-weight:700; font-family:monospace;">
           </div>
-          <div class="form-group"><label>Category</label><input id="fItCat" value="${esc(it.Category)}"></div>
+          <div class="form-group">
+            <label style="font-weight:700;">Unit Measurement (Selective) *</label>
+            <select id="fItUnit" style="font-weight:700; font-size:13.5px; height:38px;">
+              <option value="ML" ${normUnit === 'ML' ? 'selected' : ''}>ML (Milliliters)</option>
+              <option value="L" ${normUnit === 'L' || !normUnit ? 'selected' : ''}>L (Liters)</option>
+              <option value="G" ${normUnit === 'G' ? 'selected' : ''}>G (Grams)</option>
+              <option value="KG" ${normUnit === 'KG' ? 'selected' : ''}>KG (Kilograms)</option>
+            </select>
+          </div>
         </div>
-        <div class="form-group"><label>Item Name</label><input id="fItName" value="${esc(it.Name)}"></div>
-        <div class="form-row">
-          <div class="form-group"><label>Unit Price</label><input type="number" step="0.01" id="fItPrice" value="${it.UnitPrice}"></div>
-          <div class="form-group"><label>Unit (pcs, kg, L)</label><input id="fItUnit" value="${esc(it.Unit)}"></div>
+        
+        <div class="form-group">
+          <label style="font-weight:700;">Product Name *</label>
+          <input id="fItName" value="${esc(it.Name)}" placeholder="e.g. INT &amp; EXT Stains - Mahogony" style="font-size:14px; font-weight:600;">
         </div>
+
         <div class="form-row">
-          <div class="form-group"><label>Current Stock Qty</label><input type="number" id="fItQty" value="${it.StockQty}"></div>
-          <div class="form-group"><label>Reorder Alert Level</label><input type="number" id="fItReo" value="${it.ReorderLevel}"></div>
+          <div class="form-group">
+            <label style="font-weight:700;">Price (Unit Price in LKR) *</label>
+            <input type="number" step="0.01" min="0" id="fItPrice" value="${it.UnitPrice || 0}" style="font-weight:700; font-size:14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight:700;">Quantity (Current Stock) *</label>
+            <input type="number" min="0" step="any" id="fItQty" value="${it.StockQty || 0}" style="font-weight:700; font-size:14px;">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Category (Optional)</label>
+            <input id="fItCat" value="${esc(it.Category || 'General')}" placeholder="e.g. Stains, Thinner, Sealer">
+          </div>
+          <div class="form-group">
+            <label>Reorder Alert Level</label>
+            <input type="number" id="fItReo" value="${it.ReorderLevel || 5}">
+          </div>
         </div>
       `,
       `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-       <button class="btn btn-primary" onclick="submitInventory('${esc(itemId || '')}')">Save Item</button>`
+       <button class="btn btn-primary" onclick="submitInventory('${esc(itemId || '')}')">Save Product</button>`
     );
   }
 
   async function submitInventory(itemId) {
-    await gas('saveInventoryItem', {
-      ItemId: itemId,
-      SKU: document.getElementById('fItSku').value,
-      Name: document.getElementById('fItName').value,
-      Category: document.getElementById('fItCat').value,
-      UnitPrice: document.getElementById('fItPrice').value,
-      Unit: document.getElementById('fItUnit').value,
-      StockQty: document.getElementById('fItQty').value,
-      ReorderLevel: document.getElementById('fItReo').value
-    });
+    const sku = document.getElementById('fItSku').value.trim();
+    const name = document.getElementById('fItName').value.trim();
+    const unit = document.getElementById('fItUnit').value;
+    const price = parseFloat(document.getElementById('fItPrice').value) || 0;
+    const qty = parseFloat(document.getElementById('fItQty').value) || 0;
+    const cat = document.getElementById('fItCat').value.trim() || 'General';
+    const reo = parseFloat(document.getElementById('fItReo').value) || 5;
+
+    if (!sku || !name) {
+      showToast('Please enter SKU Code and Product Name.');
+      return;
+    }
+
+    const finalId = itemId || ('ITEM-' + Date.now() + '-' + Math.floor(Math.random()*1000));
+    const payload = {
+      ItemId: finalId,
+      SKU: sku,
+      Name: name,
+      Category: cat,
+      UnitPrice: price,
+      StockQty: qty,
+      ReorderLevel: reo,
+      Unit: unit,
+      UpdatedAt: state.data.today || todayStr_()
+    };
+
     closeModal();
-    showToast('Inventory updated!');
-    await refreshData();
+    showToast(itemId ? 'Product updated!' : 'Product added to stock!');
+    await gas('saveInventoryItem', payload);
+    renderView();
+  }
+
+  /* ==========================================================================
+   * Factory Stock In (Requirement 4)
+   * - Selective SKU dropdown to choose product.
+   * - Enter received quantity from factory to increment stock.
+   * ======================================================================== */
+
+  function openStockInModal(selectedItemId = '') {
+    ensureDataDefaults();
+    const invItems = state.data.inventory || [];
+    const it = selectedItemId ? invItems.find(x => x.ItemId === selectedItemId) : null;
+    const initialUnit = it ? (it.Unit || 'L') : 'L';
+    const initialPrice = it ? (Number(it.UnitPrice) || 0) : 0;
+    const initialStock = it ? (Number(it.StockQty) || 0) : 0;
+
+    openModal(
+      '📥 Factory Stock In (Receive Goods)',
+      `
+        <div style="background:#f0fdf4; padding:12px 14px; border-radius:8px; border:1.5px solid #16a34a; margin-bottom:16px;">
+          <div style="font-weight:700; color:#166534; font-size:13.5px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+            🏭 Factory Goods Inward Receipt
+          </div>
+          <div style="font-size:12px; color:#15803d;">
+            Record newly manufactured batches received from the factory into warehouse stock. The received quantity will automatically be added to inventory.
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label style="font-weight:700; font-size:13px; color:#0f172a;">Select Product / SKU *</label>
+          <select id="fStkInItem" onchange="onStockInProductChange(this.value)" style="width:100%; height:40px; font-weight:700; font-size:13.5px; padding:6px 10px; border:1.5px solid #cbd5e1; border-radius:6px; background:#fff; color:#0f172a;">
+            <option value="">-- Choose Product by SKU / Name --</option>
+            ${invItems.map(item => `
+              <option value="${esc(item.ItemId)}" ${item.ItemId === selectedItemId ? 'selected' : ''}>
+                ${esc(item.SKU ? item.SKU + ' - ' : '')}${esc(item.Name)} (${item.StockQty || 0} ${esc(item.Unit || 'L')})
+              </option>
+            `).join('')}
+          </select>
+          <div style="font-size:11px; color:var(--muted); margin-top:4px;">Select the product code (SKU) delivered from the factory.</div>
+        </div>
+
+        <div id="stkInDetailsCard" style="background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:8px; padding:12px 14px; margin-bottom:16px; ${it ? 'display:block;' : 'display:none;'}">
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; flex-wrap:wrap; gap:8px;">
+            <div>Current Warehouse Stock: <b id="stkInCurrDisplay" style="color:var(--primary); font-size:15px;">${initialStock} ${esc(initialUnit)}</b></div>
+            <div>Unit Measure: <b id="stkInUnitDisplay">${esc(initialUnit)}</b></div>
+            <div>Unit Price: <b id="stkInPriceDisplay">${fmtMoney(initialPrice)}</b></div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label style="font-weight:700; font-size:13px; color:#0f172a;">Received Quantity (From Factory) *</label>
+            <input type="number" id="fStkInQty" min="0.1" step="any" placeholder="Enter received quantity" oninput="updateStockInPreview()" style="height:40px; font-size:15px; font-weight:700; border:1.5px solid #16a34a; border-radius:6px;">
+            <div style="font-size:11px; color:#15803d; margin-top:4px;">Quantity arrived from the factory to add to stock.</div>
+          </div>
+          <div class="form-group">
+            <label style="font-weight:700; font-size:13px; color:#0f172a;">Receipt Date</label>
+            <input type="date" id="fStkInDate" value="${state.data.today || todayStr_()}" style="height:40px; border-radius:6px;">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label style="font-weight:600; font-size:12.5px;">Factory Delivery Note / Batch Ref (Optional)</label>
+          <input id="fStkInNote" placeholder="e.g. Factory Delivery Note #DN-492, Batch #B26" style="height:36px; border-radius:6px;">
+        </div>
+
+        <div id="stkInPreviewBox" style="background:#ecfdf5; border:1.5px solid #10b981; border-radius:8px; padding:12px 14px; margin-top:14px; display:none;">
+          <div style="font-size:13.5px; color:#065f46; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
+            <span>Projected New Stock:</span>
+            <span id="stkInNewTotal" style="font-size:17px; font-weight:800; color:#047857;">0</span>
+          </div>
+        </div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-success" style="background:#16a34a; border-color:#16a34a; font-weight:700; padding:8px 18px;" onclick="submitStockIn()">📥 Confirm Stock In</button>`,
+      true
+    );
+
+    if (it) {
+      updateStockInPreview();
+    }
+  }
+
+  function onStockInProductChange(itemId) {
+    const it = (state.data.inventory || []).find(x => x.ItemId === itemId);
+    const card = document.getElementById('stkInDetailsCard');
+    if (!it) {
+      if (card) card.style.display = 'none';
+      updateStockInPreview();
+      return;
+    }
+    if (card) {
+      card.style.display = 'block';
+      document.getElementById('stkInCurrDisplay').textContent = (it.StockQty || 0) + ' ' + (it.Unit || 'L');
+      document.getElementById('stkInUnitDisplay').textContent = it.Unit || 'L';
+      document.getElementById('stkInPriceDisplay').textContent = fmtMoney(it.UnitPrice || 0);
+    }
+    updateStockInPreview();
+  }
+
+  function updateStockInPreview() {
+    const itemId = document.getElementById('fStkInItem')?.value;
+    const qtyIn = parseFloat(document.getElementById('fStkInQty')?.value) || 0;
+    const box = document.getElementById('stkInPreviewBox');
+    const totalEl = document.getElementById('stkInNewTotal');
+    const it = (state.data.inventory || []).find(x => x.ItemId === itemId);
+
+    if (!it || qtyIn <= 0) {
+      if (box) box.style.display = 'none';
+      return;
+    }
+
+    const curr = Number(it.StockQty) || 0;
+    const newTotal = Math.round((curr + qtyIn) * 100) / 100;
+    if (box) box.style.display = 'block';
+    if (totalEl) totalEl.textContent = `${newTotal} ${it.Unit || 'L'} (${curr} + ${qtyIn})`;
+  }
+
+  async function submitStockIn() {
+    const itemId = document.getElementById('fStkInItem')?.value;
+    const qtyIn = parseFloat(document.getElementById('fStkInQty')?.value) || 0;
+    const dateVal = document.getElementById('fStkInDate')?.value || state.data.today;
+    const noteVal = document.getElementById('fStkInNote')?.value.trim() || '';
+
+    if (!itemId) {
+      showToast('Please select a product / SKU.');
+      return;
+    }
+    if (qtyIn <= 0 || isNaN(qtyIn)) {
+      showToast('Please enter a valid received quantity greater than 0.');
+      document.getElementById('fStkInQty')?.focus();
+      return;
+    }
+
+    const it = (state.data.inventory || []).find(x => x.ItemId === itemId);
+    if (!it) return;
+
+    const curr = Number(it.StockQty) || 0;
+    const newQty = Math.round((curr + qtyIn) * 100) / 100;
+    it.StockQty = newQty;
+    it.UpdatedAt = dateVal;
+
+    closeModal();
+    showToast(`✅ Stock In Confirmed: Added ${qtyIn} ${it.Unit || 'L'} to ${it.SKU || it.Name}! New Stock: ${newQty} ${it.Unit || 'L'}`);
+
+    // Instant save to Supabase / Local / Sheets
+    await gas('saveInventoryItem', it);
+
+    // Record transaction log entry
+    gas('saveTransaction', {
+      TxId: 'TX-' + Date.now(),
+      Date: dateVal,
+      Type: 'Stock In',
+      Category: 'Factory Supply',
+      Description: `Factory Inward: Received ${qtyIn} ${it.Unit || 'L'} of ${it.SKU || ''} - ${it.Name}. ${noteVal}`,
+      Amount: String(Math.round(qtyIn * (Number(it.UnitPrice) || 0) * 100) / 100),
+      RefId: it.ItemId,
+      RecordedBy: state.user?.Name || 'System'
+    }).catch(e => console.warn(e));
+
+    renderView();
   }
 
   async function removeInventory(id) {
@@ -9061,6 +9280,19 @@
     renderEmployeesView();
   }
 
+    function autoCalcLeaveDays() {
+    const sStr = document.getElementById('fLvStart')?.value;
+    const eStr = document.getElementById('fLvEnd')?.value;
+    const daysEl = document.getElementById('fLvDays');
+    if (!sStr || !eStr || !daysEl) return;
+    const dStart = new Date(sStr + 'T00:00:00');
+    const dEnd = new Date(eStr + 'T00:00:00');
+    if (isNaN(dStart.getTime()) || isNaN(dEnd.getTime())) return;
+    const diffTime = dEnd.getTime() - dStart.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    daysEl.value = Math.max(0.5, diffDays > 0 ? diffDays : 1);
+  }
+
   function openLeaveModal(leaveId = null) {
     const isEdit = !!leaveId;
     const l = isEdit ? (state.data.leaves || []).find(x => x.LeaveId === leaveId) : null;
@@ -9084,12 +9316,22 @@
           </select>
         </div>
         <div class="form-row">
-          <div class="form-group"><label>Leave Type</label><select id="fLvType">${typeOpts}</select></div>
-          <div class="form-group"><label>Days</label><input type="number" min="0.5" step="0.5" id="fLvDays" value="${l ? l.Days : 1}"></div>
+          <div class="form-group">
+            <label style="font-weight:700;">Start Date *</label>
+            <input type="date" id="fLvStart" value="${l ? l.StartDate : state.data.today}" onchange="autoCalcLeaveDays()">
+          </div>
+          <div class="form-group">
+            <label style="font-weight:700;">End Date *</label>
+            <input type="date" id="fLvEnd" value="${l ? l.EndDate : state.data.today}" onchange="autoCalcLeaveDays()">
+          </div>
         </div>
         <div class="form-row">
-          <div class="form-group"><label>Start Date</label><input type="date" id="fLvStart" value="${l ? l.StartDate : state.data.today}"></div>
-          <div class="form-group"><label>End Date</label><input type="date" id="fLvEnd" value="${l ? l.EndDate : state.data.today}"></div>
+          <div class="form-group"><label style="font-weight:700;">Leave Type</label><select id="fLvType">${typeOpts}</select></div>
+          <div class="form-group">
+            <label style="font-weight:700;">Days (Auto-calculated) *</label>
+            <input type="number" min="0.5" step="0.5" id="fLvDays" value="${l ? l.Days : 1}" style="font-weight:700; color:var(--primary); font-size:14px;">
+            <div style="font-size:11px; color:var(--muted); margin-top:2px;">Automatically calculated from Start &amp; End dates.</div>
+          </div>
         </div>
         <div class="form-group"><label>Reason</label><textarea id="fLvReason" rows="2" placeholder="Reason for leave request...">${esc(l ? l.Reason : '')}</textarea></div>
         ${isEdit ? `
