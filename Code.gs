@@ -450,13 +450,30 @@ function getAppData() {
     return rows;
   }
 
+  function dedupeRows_(rows, keyField) {
+    if (!Array.isArray(rows)) return [];
+    const seen = new Set();
+    const out = [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r) continue;
+      const k = (r[keyField] || '').toString().trim().toLowerCase();
+      if (k) {
+        if (seen.has(k)) continue;
+        seen.add(k);
+      }
+      out.push(r);
+    }
+    return out;
+  }
+
   const settingsRows = readFromSheet('Settings');
   const settings = {};
   settingsRows.forEach(r => { settings[r.Key] = r.Value; });
 
   return {
     settings: settings,
-    users: readFromSheet('Users').map(u => {
+    users: dedupeRows_(readFromSheet('Users').map(u => {
       let name = u.Name;
       if ((u.Email === 'staff2@office.local' || u.UserId === 'U-003') && (!name || name === 'Staff Member 2')) {
         name = 'Rashini Fernando';
@@ -477,10 +494,10 @@ function getAppData() {
         Avatar: u.Avatar || '',
         NIC: u.NIC || ''
       };
-    }),
-    customers: readFromSheet('Customers'),
-    inventory: readFromSheet('Inventory'),
-    invoices: readFromSheet('Invoices'),
+    }), 'Email'),
+    customers: dedupeRows_(readFromSheet('Customers'), 'CustomerId'),
+    inventory: dedupeRows_(readFromSheet('Inventory'), 'ItemId'),
+    invoices: dedupeRows_(readFromSheet('Invoices'), 'InvoiceId'),
     invoiceItems: readFromSheet('InvoiceItems'),
     creditors: readFromSheet('Creditors'),
     pettyCash: readFromSheet('PettyCash'),
@@ -488,7 +505,7 @@ function getAppData() {
     projectReports: readFromSheet('ProjectReports'),
     painterQuotations: readFromSheet('PainterQuotations'),
     painterBillBalances: readFromSheet('PainterBillBalances'),
-    employees: readFromSheet('Employees'),
+    employees: dedupeRows_(readFromSheet('Employees'), 'EmployeeId'),
     customTabs: readFromSheet('CustomTabs'),
     customTabRows: readFromSheet('CustomTabRows'),
     transactions: readFromSheet('Transactions'),
@@ -496,8 +513,8 @@ function getAppData() {
     leaves: readFromSheet('Leaves'),
     tasks: readFromSheet('Tasks'),
     savedReports: readFromSheet('SavedReports'),
-    companyProfiles: readFromSheet('CompanyProfiles'),
-    quotations: readFromSheet('Quotations'),
+    companyProfiles: dedupeRows_(readFromSheet('CompanyProfiles'), 'CompanyId'),
+    quotations: dedupeRows_(readFromSheet('Quotations'), 'QuotationId'),
     today: todayStr_()
   };
 }
@@ -555,16 +572,19 @@ function saveInvoice(payload) {
   return withLock_(() => {
     const invoice = payload.invoice;
     const items = payload.items || [];
-    const isNew = !invoice.InvoiceId;
+    const existing = readSheetObjects_('Invoices');
+    const isExisting = invoice.InvoiceId && existing.some(i => String(i.InvoiceId).trim() === String(invoice.InvoiceId).trim());
+    const isNew = !isExisting;
 
     if (isNew) {
-      invoice.InvoiceId = nextId_('INV');
-      const existing = readSheetObjects_('Invoices');
+      if (!invoice.InvoiceId || !invoice.InvoiceId.startsWith('INV-') || invoice.InvoiceId.length > 25) {
+        invoice.InvoiceId = nextId_('INV');
+      }
       invoice.InvoiceNo = invoice.InvoiceNo || ('INV-' + String(existing.length + 1001));
     } else {
       // Restore stock from old items if old invoice wasn't Draft/Cancelled
-      const oldInv = readSheetObjects_('Invoices').find(i => i.InvoiceId === invoice.InvoiceId);
-      const oldItems = readSheetObjects_('InvoiceItems').filter(li => li.InvoiceId === invoice.InvoiceId);
+      const oldInv = existing.find(i => String(i.InvoiceId).trim() === String(invoice.InvoiceId).trim());
+      const oldItems = readSheetObjects_('InvoiceItems').filter(li => String(li.InvoiceId).trim() === String(invoice.InvoiceId).trim());
       if (oldInv && oldInv.Status !== 'Draft' && oldInv.Status !== 'Cancelled') {
         adjustInventoryStock_(oldItems, +1);
       }
@@ -614,7 +634,7 @@ function saveInvoice(payload) {
           Date: todayStr_(),
           Type: 'Income',
           Category: 'Sales / Invoice',
-          Description: 'Payment for ' + invoice.InvoiceNo + ' (' + invoice.CustomerName + ')',
+          Description: 'Payment for ' + invoice.InvoiceNo + ' (' + (invoice.CustomerName || 'Customer') + ')',
           Amount: Number(invoice.Total) || 0,
           RefId: invoice.InvoiceId,
           RecordedBy: invoice.CreatedBy || 'System'
@@ -1054,22 +1074,24 @@ function saveSettings(settingsObj) {
 
 function saveUser(user) {
   return withLock_(() => {
-    if (user.UserId) {
+    const existing = readSheetObjects_('Users');
+    const isExisting = user.UserId && existing.some(u => String(u.UserId).trim() === String(user.UserId).trim());
+    if (isExisting) {
       const updates = {
         Name: user.Name,
         Email: user.Email,
         Role: user.Role,
         Status: user.Status
       };
-      if (user.Pin !== undefined) updates.Pin = user.Pin;
+      if (user.Pin !== undefined && user.Pin !== '') updates.Pin = user.Pin;
       if (user.AllowedTabs !== undefined) updates.AllowedTabs = user.AllowedTabs;
       if (user.Avatar !== undefined) updates.Avatar = user.Avatar;
       if (user.NIC !== undefined) updates.NIC = user.NIC;
       updateRowByKey_('Users', 'UserId', user.UserId, updates);
       return user;
     }
-    const existing = readSheetObjects_('Users');
-    user.UserId = nextId_('U');
+    // New user or client user not yet in sheet
+    user.UserId = user.UserId || nextId_('U');
     user.Pin = user.Pin || '1234';
     user.Status = user.Status || 'Active';
     user.AllowedTabs = user.AllowedTabs || '';

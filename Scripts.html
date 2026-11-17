@@ -1258,7 +1258,49 @@
     XLSX.writeFile(wb, `Sales_Rankings_${_mgrSalesState.start}_to_${_mgrSalesState.end}.xlsx`);
   }
 
+  function cleanDataRedundancy(data) {
+    if (!data || typeof data !== 'object') return data;
+    const dedupe = (arr, keyFn) => {
+      if (!Array.isArray(arr)) return [];
+      const seen = new Set();
+      const res = [];
+      for (let i = 0; i < arr.length; i++) {
+        const item = arr[i];
+        if (!item) continue;
+        const key = keyFn(item);
+        if (key && seen.has(key)) continue;
+        if (key) seen.add(key);
+        res.push(item);
+      }
+      return res;
+    };
+
+    if (Array.isArray(data.employees)) {
+      data.employees = dedupe(data.employees, e => (e.NIC || e.EmployeeId || e.Email || '').toString().trim().toLowerCase());
+    }
+    if (Array.isArray(data.users)) {
+      data.users = dedupe(data.users, u => (u.UserId || u.Email || '').toString().trim().toLowerCase());
+    }
+    if (Array.isArray(data.companyProfiles)) {
+      data.companyProfiles = dedupe(data.companyProfiles, c => (c.CompanyId || c.CompanyName || '').toString().trim().toLowerCase());
+    }
+    if (Array.isArray(data.inventory)) {
+      data.inventory = dedupe(data.inventory, it => (it.ItemId || it.SKU || it.ItemName || '').toString().trim().toLowerCase());
+    }
+    if (Array.isArray(data.invoices)) {
+      data.invoices = dedupe(data.invoices, inv => (inv.InvoiceId || inv.InvoiceNo || '').toString().trim().toLowerCase());
+    }
+    if (Array.isArray(data.customers)) {
+      data.customers = dedupe(data.customers, c => (c.CustomerId || c.Name || '').toString().trim().toLowerCase());
+    }
+    if (Array.isArray(data.quotations)) {
+      data.quotations = dedupe(data.quotations, q => (q.QuotationId || q.QuoteNo || '').toString().trim().toLowerCase());
+    }
+    return data;
+  }
+
   function ensureDataDefaults() {
+    if (state.data) cleanDataRedundancy(state.data);
     if (!state.data.companyProfiles || !Array.isArray(state.data.companyProfiles) || state.data.companyProfiles.length === 0) {
       state.data.companyProfiles = [{
         CompanyId: 'COMP-001',
@@ -1617,47 +1659,23 @@
     const list = [];
     const added = new Set();
 
-    // 1. Employees whose Position or Designation is Sales/Marketing/Sales Officer
+    // Strictly ONLY employees registered as Sales Officer in the Employee Directory (Requirement 4)
     (state.data.employees || []).forEach(e => {
-      const p = ((e.Position || '') + ' ' + (e.Designation || '')).toLowerCase();
-      const isSales = p.includes('sales') || p.includes('rep') || p.includes('marketing') || p.includes('officer');
-      if (e.Status !== 'Inactive' && isSales) {
-        if (!added.has(e.Name)) {
-          added.add(e.Name);
-          list.push({ Name: e.Name, Code: e.EmpCode || e.EmpId || '', Designation: e.Position || e.Designation || 'Sales Officer' });
+      if (e.Status === 'Inactive') return;
+      const pos = String(e.Position || '').trim().toLowerCase();
+      const desig = String(e.Designation || '').trim().toLowerCase();
+      const isSalesOfficer = pos === 'sales officer' || desig === 'sales officer' || pos.includes('sales') || desig.includes('sales');
+      if (isSalesOfficer) {
+        const name = (e.Name || '').trim();
+        if (name && !added.has(name.toLowerCase())) {
+          added.add(name.toLowerCase());
+          list.push({
+            EmpId: e.EmpId,
+            Name: name,
+            Code: e.EmpCode || e.EmpId || '',
+            Designation: e.Designation || e.Position || 'Sales Officer'
+          });
         }
-      }
-    });
-
-    // 2. Users whose role is Sales
-    (state.data.users || []).forEach(u => {
-      if (u.Status !== 'Inactive' && u.Role === 'Sales') {
-        if (!added.has(u.Name)) {
-          added.add(u.Name);
-          list.push({ Name: u.Name, Code: u.UserId || '', Designation: 'Sales Representative' });
-        }
-      }
-    });
-
-    // 3. Official Sales Officers from customer records
-    (state.data.customers || []).forEach(c => {
-      const sp = (c.SalesOfficerName || '').trim();
-      if (sp && !added.has(sp)) {
-        added.add(sp);
-        list.push({ Name: sp, Code: '', Designation: 'Sales Officer' });
-      }
-    });
-
-    // 4. Established Sales Representatives
-    const defaultSalesNames = [
-      'Sunanda', 'Mr. Sunanda', 'Damith', 'Mr. Damith', 'Nimesh', 'Mr. Nimesh', 
-      'Yasas', 'Mr. Yasas', 'Shehan', 'Mr. Shehan', 'Manjula', 'Mr. Manjula', 
-      'Nipun', 'Mr. Nipun', 'Pathum', 'Mr. Pathum', 'R.D.N.I. Rajapaksha'
-    ];
-    defaultSalesNames.forEach(name => {
-      if (!added.has(name)) {
-        added.add(name);
-        list.push({ Name: name, Code: '', Designation: 'Sales Officer' });
       }
     });
 
@@ -1675,7 +1693,7 @@
     });
 
     if (list.length === 0) {
-      menu.innerHTML = '<div style="padding:10px 12px; font-size:12.5px; color:#ef4444; text-align:center;">⚠️ Only registered Sales Persons (S.P) can be selected for invoices.</div>';
+      menu.innerHTML = '<div style="padding:10px 12px; font-size:12.5px; color:#ef4444; text-align:center;">⚠️ Only employees registered as "Sales Officer" in the Employee Directory can be selected.</div>';
       return;
     }
 
@@ -1946,37 +1964,41 @@
       }
     }
 
-    // 3. Optimistic local update (1000x instant 0ms response)
+    // 3. Save to Google Apps Script & Update Local Cache
     const assignedInvNo = document.getElementById('fInvNo')?.value.trim();
     if (assignedInvNo) payload.invoice.InvoiceNo = assignedInvNo;
 
-    const realInvId = invoiceId || ('INV-' + Date.now());
-    payload.invoice.InvoiceId = realInvId;
+    payload.invoice.InvoiceId = invoiceId || '';
     if (status === 'Free Issue') {
       payload.invoice.SalesPerson = '';
       payload.invoice.PaidAmount = 0;
     }
 
-    if (invoiceId) {
-      const idx = state.data.invoices.findIndex(i => i.InvoiceId === invoiceId);
-      if (idx !== -1) state.data.invoices[idx] = payload.invoice;
-    } else {
-      state.data.invoices.unshift(payload.invoice);
-    }
-    state.data.invoiceItems = state.data.invoiceItems.filter(li => li.InvoiceId !== realInvId).concat(
-      payload.items.map(li => ({ ...li, InvoiceId: realInvId }))
-    );
-    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
-
     closeModal();
-    renderView();
-    showToast(invoiceId ? 'Sales Invoice updated!' : 'Sales Invoice issued! (Stock deducted)');
+    showToast(invoiceId ? 'Saving invoice update...' : 'Issuing Sales Invoice...');
 
-    // 4. Background sync without blocking user
-    gas('saveInvoice', payload).catch(err => {
+    try {
+      const saved = await gas('saveInvoice', payload);
+      if (saved && saved.InvoiceId) {
+        payload.invoice = saved;
+        if (invoiceId) {
+          const idx = state.data.invoices.findIndex(i => i.InvoiceId === invoiceId);
+          if (idx !== -1) state.data.invoices[idx] = saved;
+        } else {
+          state.data.invoices.unshift(saved);
+        }
+        state.data.invoiceItems = state.data.invoiceItems.filter(li => li.InvoiceId !== saved.InvoiceId).concat(
+          payload.items.map(li => ({ ...li, InvoiceId: saved.InvoiceId }))
+        );
+      }
+      try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+      renderView();
+      showToast(invoiceId ? 'Sales Invoice updated successfully!' : 'Sales Invoice issued successfully! (Stock deducted)');
+      await refreshData();
+    } catch (err) {
       console.error('saveInvoice sync error:', err);
-      showToast('Warning: Background sync issue: ' + err.message);
-    });
+      showToast('Error saving invoice: ' + (err.message || err));
+    }
   }
 
   async function removeInvoice(id) {
@@ -3237,6 +3259,8 @@
 
   let _outFilterCompany = '';
   let _outFilterStatus = 'All';
+  let _outStartDate = '';
+  let _outEndDate = '';
   let _outSearch = '';
 
   function renderOutstandingView() {
@@ -3254,6 +3278,14 @@
     // Filter by company
     if (_outFilterCompany) {
       allInvs = allInvs.filter(i => !i.CompanyId || i.CompanyId === _outFilterCompany);
+    }
+
+    // Filter by date range (Requirement 3)
+    if (_outStartDate) {
+      allInvs = allInvs.filter(i => (i.Date || '') >= _outStartDate);
+    }
+    if (_outEndDate) {
+      allInvs = allInvs.filter(i => (i.Date || '') <= _outEndDate);
     }
 
     // Filter by search
@@ -3356,17 +3388,26 @@
         <!-- Filter and Action Bar -->
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; flex:1;">
-            <select id="outCompSelect" style="min-width:200px;" onchange="_outFilterCompany=this.value; renderOutstandingView();">
+            <select id="outCompSelect" style="min-width:170px;" onchange="_outFilterCompany=this.value; renderOutstandingView();">
               ${compOptions}
             </select>
-            <select id="outStatusSelect" style="min-width:180px;" onchange="_outFilterStatus=this.value; renderOutstandingView();">
+            <select id="outStatusSelect" style="min-width:150px;" onchange="_outFilterStatus=this.value; renderOutstandingView();">
               ${statusOptions}
             </select>
-            <input type="text" id="outSearchInput" class="search-input" placeholder="Search Customer, Invoice, Cheque, S.P..." value="${esc(_outSearch)}" oninput="filterOutstandingTable(this.value)" style="min-width:240px;">
+            <div style="display:inline-flex; align-items:center; gap:4px;">
+              <span style="font-size:12px; font-weight:600; color:#1e3a8a;">From:</span>
+              <input type="date" id="outStartDate" style="margin:0; padding:4px 6px; font-size:12px; border:1px solid #8ea9db; border-radius:4px; background:#fff;" value="${esc(_outStartDate)}" onchange="_outStartDate=this.value; renderOutstandingView();">
+            </div>
+            <div style="display:inline-flex; align-items:center; gap:4px;">
+              <span style="font-size:12px; font-weight:600; color:#1e3a8a;">To:</span>
+              <input type="date" id="outEndDate" style="margin:0; padding:4px 6px; font-size:12px; border:1px solid #8ea9db; border-radius:4px; background:#fff;" value="${esc(_outEndDate)}" onchange="_outEndDate=this.value; renderOutstandingView();">
+            </div>
+            <input type="text" id="outSearchInput" class="search-input" placeholder="Search Customer, Invoice, Cheque, S.P..." value="${esc(_outSearch)}" oninput="filterOutstandingTable(this.value)" style="min-width:180px; flex:1;">
+            ${(_outStartDate || _outEndDate || _outSearch || _outFilterStatus !== 'All') ? `<button class="btn btn-sm btn-secondary" style="margin:0; padding:4px 8px; font-size:11px;" onclick="_outStartDate=''; _outEndDate=''; _outSearch=''; _outFilterStatus='All'; renderOutstandingView();">Reset</button>` : ''}
           </div>
           <div style="display:flex; align-items:center; gap:8px;">
             <button class="btn btn-success" onclick="exportOutstandingExcel()">📥 Export to Excel</button>
-            <button class="btn btn-secondary" onclick="printCleanDocument('#outstandingTableWrap')">🖨️ Print</button>
+            <button class="btn btn-secondary" onclick="printOutstandingExcel()">🖨️ Print</button>
           </div>
         </div>
       </div>
@@ -3627,6 +3668,175 @@
     const filename = `${comp.CompanyName} - Outstanding (${state.data.today || 'Report'}).xlsx`;
     XLSX.writeFile(wb, filename);
     showToast('Exported ' + filename);
+  }
+
+  function printOutstandingExcel() {
+    const companies = state.data.companyProfiles || [];
+    const defaultComp = companies.find(c => c.IsDefault === 'Yes') || companies[0];
+    const comp = companies.find(c => c.CompanyId === _outFilterCompany) || defaultComp || { CompanyName: 'Colour Max Lanka (pvt) Ltd' };
+
+    let allInvs = [...(state.data.invoices || [])];
+    if (_outFilterCompany) allInvs = allInvs.filter(i => !i.CompanyId || i.CompanyId === _outFilterCompany);
+    if (_outStartDate) allInvs = allInvs.filter(i => (i.Date || '') >= _outStartDate);
+    if (_outEndDate) allInvs = allInvs.filter(i => (i.Date || '') <= _outEndDate);
+    if (_outSearch) {
+      const q = _outSearch.toLowerCase().trim();
+      allInvs = allInvs.filter(i =>
+        (i.InvoiceNo || '').toLowerCase().includes(q) ||
+        (i.CustomerName || '').toLowerCase().includes(q) ||
+        (i.SalesPerson || '').toLowerCase().includes(q) ||
+        (i.ChequeNo || '').toLowerCase().includes(q) ||
+        (i.ChequeBank || '').toLowerCase().includes(q)
+      );
+    }
+    if (_outFilterStatus === 'Pending') {
+      allInvs = allInvs.filter(i => i.Status !== 'Paid' && i.Status !== 'Cancelled' && i.Status !== 'Free Issue' && (Number(i.Total || 0) - Number(i.PaidAmount || 0)) > 0);
+    } else if (_outFilterStatus === 'Paid') {
+      allInvs = allInvs.filter(i => i.Status === 'Paid' || (Number(i.Total || 0) > 0 && Number(i.PaidAmount || 0) >= Number(i.Total || 0)));
+    } else if (_outFilterStatus === 'Cheque') {
+      allInvs = allInvs.filter(i => (i.ChequeNo || '').trim() !== '');
+    }
+
+    let totInv = 0, totChq = 0, totPaid = 0, totPending = 0;
+
+    const rows = allInvs.map(inv => {
+      const invAmt = Number(inv.Total || 0);
+      const paidAmt = inv.Status === 'Paid' ? invAmt : Number(inv.PaidAmount || 0);
+      const pendingAmt = (inv.Status === 'Paid' || inv.Status === 'Free Issue') ? 0 : Math.max(0, invAmt - paidAmt);
+      const chqAmt = Number(inv.ChequeAmount || 0);
+      const dueDays = daysBetween(inv.DueDate || inv.Date, state.data.today);
+      const collDays = inv.RealisedDate ? daysBetween(inv.Date, inv.RealisedDate) : '-';
+      let realizedMonth = inv.RealizedMonth || '';
+      if (!realizedMonth && inv.RealisedDate) {
+        try {
+          const d = new Date(inv.RealisedDate);
+          realizedMonth = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        } catch (e) {}
+      }
+      const pStatus = inv.PaymentStatus || (inv.Status === 'Paid' ? 'Realised' : (pendingAmt > 0 ? (dueDays > 0 ? 'Overdue' : 'Pending') : inv.Status));
+
+      if (inv.Status !== 'Cancelled' && inv.Status !== 'Free Issue') {
+        totInv += invAmt;
+        totChq += chqAmt;
+        totPaid += paidAmt;
+        totPending += pendingAmt;
+      }
+
+      return `
+        <tr>
+          <td style="text-align:center;">${esc(inv.Date || '-')}</td>
+          <td>${esc(inv.CustomerName || '-')}</td>
+          <td style="text-align:center;">${esc(inv.InvoiceNo || '-')}</td>
+          <td style="text-align:right;">${fmtMoney(invAmt)}</td>
+          <td style="text-align:center;">${esc(inv.ChequeNo || '-')}</td>
+          <td>${esc(inv.ChequeBank || '-')}</td>
+          <td style="text-align:center;">${esc(inv.ChequeDate || '-')}</td>
+          <td style="text-align:right;">${chqAmt ? fmtMoney(chqAmt) : '-'}</td>
+          <td style="text-align:right; font-weight:bold;">${fmtMoney(paidAmt)}</td>
+          <td style="text-align:center;">${esc(inv.RealisedDate || '-')}</td>
+          <td style="text-align:center;">${esc(realizedMonth || '-')}</td>
+          <td style="text-align:right; font-weight:bold;">${fmtMoney(pendingAmt)}</td>
+          <td style="text-align:center;">${esc(inv.ReceiptNo || '-')}</td>
+          <td style="text-align:center;">${esc(pStatus)}</td>
+          <td>${esc(inv.SalesPerson || '-')}</td>
+          <td style="text-align:center;">${dueDays > 0 ? dueDays + ' d' : (dueDays === 0 ? '0' : '-')}</td>
+          <td style="text-align:center;">${collDays}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>${esc(comp.CompanyName)} - Outstanding</title>
+        <style>
+          @page { size: landscape; margin: 8mm 6mm; }
+          body { font-family: Calibri, Arial, sans-serif; font-size: 10px; color: #000; margin: 0; padding: 4px; }
+          .excel-title-bar { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 6px; padding: 0 4px; }
+          .excel-title { font-size: 14pt; font-weight: 700; text-decoration: underline; color: #000; }
+          .excel-date { font-size: 11pt; font-weight: 700; text-decoration: underline; color: #000; }
+          table { width: 100%; border-collapse: collapse; border: 1.5px solid #2f5597; }
+          th { background: #4472c4 !important; color: #fff !important; font-weight: 700; font-size: 10px; padding: 5px 3px; border: 1px solid #8ea9db; text-align: center; }
+          th .sort-caret { font-size: 7.5px; margin-left: 2px; }
+          td { border: 1px solid #d9e1f2; padding: 3px 4px; font-size: 9.5px; }
+          tr:nth-child(even) td { background: #f2f5fb; }
+          tfoot td { background: #d9e1f2 !important; font-weight: 700; border-top: 2px solid #2f5597; font-size: 10px; }
+        </style>
+      </head>
+      <body>
+        <div class="excel-title-bar">
+          <div class="excel-title">${esc(comp.CompanyName)} - Outstanding</div>
+          <div class="excel-date">${esc(state.data.today || new Date().toISOString().slice(0, 10))}</div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Date <span class="sort-caret">▼</span></th>
+              <th>Customer <span class="sort-caret">▼</span></th>
+              <th>Inv. No <span class="sort-caret">▼</span></th>
+              <th>Inv. Amt <span class="sort-caret">▼</span></th>
+              <th>Cq. No <span class="sort-caret">▼</span></th>
+              <th>Bank <span class="sort-caret">▼</span></th>
+              <th>Chq Date <span class="sort-caret">▼</span></th>
+              <th>Cq. Amt <span class="sort-caret">▼</span></th>
+              <th>Realised Amt <span class="sort-caret">▼</span></th>
+              <th>Realised Date <span class="sort-caret">▼</span></th>
+              <th>Realized month <span class="sort-caret">▼</span></th>
+              <th>Pending <span class="sort-caret">▼</span></th>
+              <th>Receipt No <span class="sort-caret">▼</span></th>
+              <th>Payment status <span class="sort-caret">▼</span></th>
+              <th>S.P <span class="sort-caret">▼</span></th>
+              <th>Due Days <span class="sort-caret">▼</span></th>
+              <th>Coll days <span class="sort-caret">▼</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows || '<tr><td colspan="17" style="text-align:center; padding:15px;">No outstanding records found for the selected period.</td></tr>'}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" style="text-align:center; font-weight:700;">TOTAL</td>
+              <td style="text-align:right; font-weight:700;">${fmtMoney(totInv)}</td>
+              <td colspan="3"></td>
+              <td style="text-align:right; font-weight:700;">${fmtMoney(totChq)}</td>
+              <td style="text-align:right; font-weight:700;">${fmtMoney(totPaid)}</td>
+              <td colspan="2"></td>
+              <td style="text-align:right; font-weight:700;">${fmtMoney(totPending)}</td>
+              <td colspan="5"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </body>
+      </html>
+    `;
+
+    let iframe = document.getElementById('_cleanPrintIframe');
+    if (iframe) iframe.remove();
+    iframe = document.createElement('iframe');
+    iframe.id = '_cleanPrintIframe';
+    iframe.style.position = 'fixed';
+    iframe.style.top = '-9999px';
+    iframe.style.left = '-9999px';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch (e) {
+        window.print();
+      }
+    }, 400);
   }
 
   function openCreditorModal(id) {
@@ -6327,15 +6537,35 @@
     XLSX.writeFile(wb, `Stock_${state.data.today}.xlsx`);
   }
 
+  function generateNextSKU() {
+    const items = state.data.inventory || [];
+    let maxNum = 1000;
+    items.forEach(it => {
+      const m = String(it.SKU || '').match(/(?:SKU|ITM)[-_]?(\d+)/i);
+      if (m) {
+        const num = parseInt(m[1], 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      }
+    });
+    if (maxNum === 1000 && items.length > 0) {
+      maxNum = 1000 + items.length;
+    }
+    return 'SKU-' + (maxNum + 1);
+  }
+
   function openInventoryModal(itemId) {
+    const autoSku = generateNextSKU();
     const it = itemId ? state.data.inventory.find(x => x.ItemId === itemId) : {
-      SKU: '', Name: '', Category: 'General', UnitPrice: 0, StockQty: 0, ReorderLevel: 5, Unit: 'pcs'
+      SKU: autoSku, Name: '', Category: 'General', UnitPrice: 0, StockQty: 0, ReorderLevel: 5, Unit: 'pcs'
     };
     openModal(
       itemId ? 'Edit Item' : 'Add Inventory Item',
       `
         <div class="form-row">
-          <div class="form-group"><label>SKU / Code</label><input id="fItSku" value="${esc(it.SKU)}"></div>
+          <div class="form-group">
+            <label>SKU / Code ${!itemId ? '<span style="font-size:11px; color:var(--primary); font-weight:normal;">(Auto-generated)</span>' : ''}</label>
+            <input id="fItSku" value="${esc(it.SKU || autoSku)}">
+          </div>
           <div class="form-group"><label>Category</label><input id="fItCat" value="${esc(it.Category)}"></div>
         </div>
         <div class="form-group"><label>Item Name</label><input id="fItName" value="${esc(it.Name)}"></div>
@@ -8366,7 +8596,7 @@
       .join(',');
 
     const payload = {
-      UserId: userId || ('U-' + Date.now()),
+      UserId: userId || '',
       Name: name,
       Email: document.getElementById('fUsEmail').value.trim(),
       NIC: document.getElementById('fUsNic')?.value.trim() || '',
@@ -8377,29 +8607,52 @@
     const pin = document.getElementById('fUsPin').value.trim();
     if (pin) payload.Pin = pin;
 
-    // Optimistic local update (0ms)
-    if (userId) {
-      const idx = (state.data.users || []).findIndex(x => x.UserId === userId);
-      if (idx !== -1) Object.assign(state.data.users[idx], payload);
-      if (state.user.UserId === userId) {
-        Object.assign(state.user, payload);
-        renderTopbarUserProfile();
-        updateRestrictedTabsVisibility();
+    // Check linked employee from directory
+    const empLinkSelect = document.getElementById('fUsEmpLink');
+    const linkedEmpId = empLinkSelect ? empLinkSelect.value : '';
+    let linkedEmp = null;
+    if (linkedEmpId) {
+      linkedEmp = (state.data.employees || []).find(e => e.EmpId === linkedEmpId);
+      if (linkedEmp) {
+        if (payload.NIC) linkedEmp.NIC = payload.NIC;
+        if (payload.Email) linkedEmp.Email = payload.Email;
+        if (payload.Name) linkedEmp.Name = payload.Name;
       }
-    } else {
-      payload.Pin = payload.Pin || '1234';
-      (state.data.users = state.data.users || []).push(payload);
     }
-    try {
-      localStorage.setItem(CACHE_KEY_USER, JSON.stringify(state.user));
-      localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data));
-    } catch (e) {}
 
     closeModal();
-    showToast('User profile saved!');
-    renderSettingsView();
+    showToast('Saving user profile...');
 
-    gas('saveUser', payload).catch(err => console.error(err));
+    try {
+      const saved = await gas('saveUser', payload);
+      if (saved && saved.UserId) {
+        payload.UserId = saved.UserId;
+        if (userId) {
+          const idx = (state.data.users || []).findIndex(x => x.UserId === userId);
+          if (idx !== -1) Object.assign(state.data.users[idx], saved);
+        } else {
+          (state.data.users = state.data.users || []).push(saved);
+        }
+        if (state.user.UserId === saved.UserId) {
+          Object.assign(state.user, saved);
+          renderTopbarUserProfile();
+          updateRestrictedTabsVisibility();
+        }
+      }
+      if (linkedEmp) {
+        await gas('saveEmployee', linkedEmp).catch(err => console.error(err));
+      }
+      try {
+        localStorage.setItem(CACHE_KEY_USER, JSON.stringify(state.user));
+        localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data));
+      } catch (e) {}
+      renderSettingsView();
+      showToast('User profile & Employee link saved successfully!');
+      await refreshData();
+    } catch (err) {
+      console.error(err);
+      showToast('Error saving user: ' + (err.message || err));
+    }
   }
 
   /* ==========================================================================
