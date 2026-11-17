@@ -8,7 +8,7 @@ const DRIVE_FOLDER_NAME = 'Office System Files';
 
 const SCHEMA = {
   Settings: ['Key', 'Value'],
-  Users: ['UserId', 'Name', 'Email', 'Role', 'Pin', 'Status', 'AllowedTabs', 'Avatar'],
+  Users: ['UserId', 'Name', 'Email', 'Role', 'Pin', 'Status', 'AllowedTabs', 'Avatar', 'NIC'],
   Customers: ['CustomerId', 'CustomerCode', 'Name', 'BusinessIdentifier', 'BillingAddress', 'DeliveryAddress', 'Email', 'Phone', 'CreditLimit', 'SalesOfficerId', 'SalesOfficerName', 'Notes', 'CreatedAt'],
   Inventory: ['ItemId', 'SKU', 'Name', 'Category', 'UnitPrice', 'StockQty', 'ReorderLevel', 'Unit', 'UpdatedAt'],
   Invoices: ['InvoiceId', 'InvoiceNo', 'CustomerId', 'CustomerName', 'Date', 'DueDate', 'Status', 'Subtotal', 'Discount', 'TaxAmount', 'Total', 'PaidAmount', 'Notes', 'CreatedBy', 'QuoteNo', 'SalesPerson', 'CustomerAddress', 'CustomerPhone', 'BankDetails', 'CompanyId', 'ChequeNo', 'ChequeBank', 'ChequeDate', 'ChequeAmount', 'RealisedDate', 'RealizedMonth', 'ReceiptNo', 'PaymentStatus'],
@@ -386,7 +386,8 @@ function authenticateUser(userId, pin) {
       Email: user.Email,
       Role: user.Role,
       AllowedTabs: allowed,
-      Avatar: user.Avatar || ''
+      Avatar: user.Avatar || '',
+      NIC: user.NIC || ''
     },
     data: getAppData()
   };
@@ -447,7 +448,8 @@ function getAppData() {
         Role: u.Role,
         Status: u.Status,
         AllowedTabs: allowed,
-        Avatar: u.Avatar || ''
+        Avatar: u.Avatar || '',
+        NIC: u.NIC || ''
       };
     }),
     customers: readFromSheet('Customers'),
@@ -1034,6 +1036,7 @@ function saveUser(user) {
       if (user.Pin !== undefined) updates.Pin = user.Pin;
       if (user.AllowedTabs !== undefined) updates.AllowedTabs = user.AllowedTabs;
       if (user.Avatar !== undefined) updates.Avatar = user.Avatar;
+      if (user.NIC !== undefined) updates.NIC = user.NIC;
       updateRowByKey_('Users', 'UserId', user.UserId, updates);
       return user;
     }
@@ -1043,6 +1046,7 @@ function saveUser(user) {
     user.Status = user.Status || 'Active';
     user.AllowedTabs = user.AllowedTabs || '';
     user.Avatar = user.Avatar || '';
+    user.NIC = user.NIC || '';
     return appendRowObject_('Users', user);
   });
 }

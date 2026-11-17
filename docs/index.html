@@ -1966,17 +1966,17 @@
       <!-- KPI Summary Cards -->
       <div class="kpi-grid" style="margin-bottom:16px;">
         <div class="card" style="border-top:3px solid #0f766e;">
-          <div class="kpi-label">TOTAL SALES (තෝරාගත් කාලයේ සේල්ස්)</div>
+          <div class="kpi-label">TOTAL SALES</div>
           <div class="kpi-val" style="color:#0f766e;">${fmtMoney(totalSales)}</div>
           <div class="kpi-sub">${periodInvoices.length} invoices issued (${freeIssueCount} Free Issue)</div>
         </div>
         <div class="card" style="border-top:3px solid #16a34a;">
-          <div class="kpi-label">TOTAL COLLECTIONS (තෝරාගත් කාලයේ කලෙක්ෂන්)</div>
+          <div class="kpi-label">TOTAL COLLECTIONS</div>
           <div class="kpi-val" style="color:#16a34a;">${fmtMoney(totalCollection)}</div>
           <div class="kpi-sub">Overall Collection Rate: <b>${overallRate}%</b></div>
         </div>
         <div class="card" style="border-top:3px solid #d97706;">
-          <div class="kpi-label">OUTSTANDING IN PERIOD (ක්‍රෙඩිට් ඉතිරිය)</div>
+          <div class="kpi-label">OUTSTANDING IN PERIOD</div>
           <div class="kpi-val" style="color:#d97706;">${fmtMoney(totalOutstandingInPeriod)}</div>
           <div class="kpi-sub">Uncollected balance from period invoices</div>
         </div>
@@ -1992,7 +1992,7 @@
         <div class="section-header">
           <div>
             <h3 style="margin:0; font-size:16px; color:var(--text); display:flex; align-items:center; gap:8px;">
-              🏆 Sales Person Rankings (සේල්ස් පර්සන්ලාගේ රෑන්කින් ලිස්ට් එක)
+              🏆 Sales Person Rankings
             </h3>
             <div style="font-size:12px; color:var(--muted); margin-top:2px;">
               Ranked by total sales revenue achieved in the selected date range.
@@ -2008,11 +2008,11 @@
           <table id="mgrRankTable">
             <thead>
               <tr style="background:#f1f5f9; border-bottom:2px solid #cbd5e1;">
-                <th style="width:110px; text-align:center;">Rank (රෑන්ක්)</th>
-                <th>Sales Person (සේල්ස් පර්සන්)</th>
-                <th>Designation (තනතුර)</th>
-                <th style="text-align:right;">Sales Amount (සේල්ස්)</th>
-                <th style="text-align:right;">Collection Amount (කලෙක්ෂන්)</th>
+                <th style="width:110px; text-align:center;">Rank</th>
+                <th>Sales Person</th>
+                <th>Designation</th>
+                <th style="text-align:right;">Sales Amount</th>
+                <th style="text-align:right;">Collection Amount</th>
                 <th style="text-align:center;">Collection %</th>
                 <th style="text-align:center;">Invoices</th>
               </tr>
@@ -7434,7 +7434,7 @@
       body = `
         <div class="section-header">
           <div>
-            <h3 style="margin:0; font-size:15px; color:var(--text);">Daily Attendance Records (ඇටෙන්ඩන්ස්)</h3>
+            <h3 style="margin:0; font-size:15px; color:var(--text);">Daily Attendance Records</h3>
             <div style="font-size:12px; color:var(--muted);">View employee punch in/out timestamps, duration, and daily status.</div>
           </div>
           <div class="section-actions">
@@ -7477,7 +7477,7 @@
       body = `
         <div class="section-header">
           <div>
-            <h3 style="margin:0; font-size:15px; color:var(--text);">Employee Leave Requests &amp; Taken List (නිවාඩු ලිස්ට් එක)</h3>
+            <h3 style="margin:0; font-size:15px; color:var(--text);">Employee Leave Requests &amp; Taken List</h3>
             <div style="font-size:12px; color:var(--muted);">Review official leaves taken, approval history, reasons, and submit new leave requests.</div>
           </div>
           <div class="section-actions">
@@ -7519,17 +7519,17 @@
       <!-- Employee Top KPI Bar (Requirement 6) -->
       <div class="kpi-grid" style="margin-bottom:14px;">
         <div class="card" style="padding:12px 16px;">
-          <div class="kpi-label">ACTIVE EMPLOYEES (දැනට ඉන්න සේවකයින්)</div>
+          <div class="kpi-label">ACTIVE EMPLOYEES</div>
           <div class="kpi-val" style="color:var(--primary); font-size:22px;">${activeEmps.length}</div>
           <div class="kpi-sub">${emps.length} total registered profiles</div>
         </div>
         <div class="card" style="padding:12px 16px;">
-          <div class="kpi-label">TODAY PRESENT (අද පැමිණීම)</div>
+          <div class="kpi-label">TODAY PRESENT</div>
           <div class="kpi-val" style="color:#16a34a; font-size:22px;">${todayAtt.length}</div>
           <div class="kpi-sub">${(emps.length > 0 ? ((todayAtt.length / emps.length) * 100).toFixed(0) : 0)}% of team clocked in</div>
         </div>
         <div class="card" style="padding:12px 16px;">
-          <div class="kpi-label">LEAVE REQUESTS (නිවාඩු ඉල්ලීම්)</div>
+          <div class="kpi-label">LEAVE REQUESTS</div>
           <div class="kpi-val" style="color:${pendingLeaves.length > 0 ? '#d97706' : '#16a34a'}; font-size:22px;">${pendingLeaves.length}</div>
           <div class="kpi-sub">${leaves.length} total recorded leaves</div>
         </div>
@@ -7925,10 +7925,109 @@
   }
 
   let _selectedSettingsCompId = '__global__';
+  let _adminSettingsSubTab = 'system';
 
   function onSettingsCompanySelect(compId) {
     _selectedSettingsCompId = compId || '__global__';
     renderSettingsView();
+  }
+
+  function findEmployeeForUser(user, inputNic = null) {
+    const rawNic = (inputNic !== null ? inputNic : (user?.NIC || '')).trim();
+    const nicNorm = rawNic.replace(/[\s\-]/g, '').toUpperCase();
+    const emps = state.data.employees || [];
+    
+    // 1. Primary identification: Match by NIC
+    if (nicNorm) {
+      const matchNic = emps.find(e => (e.NIC || '').replace(/[\s\-]/g, '').toUpperCase() === nicNorm);
+      if (matchNic) return { emp: matchNic, matchedBy: 'NIC Number', nic: rawNic };
+    }
+    
+    // 2. Fallback: Match by email or name if NIC is not entered or not matched
+    if (user?.Email) {
+      const matchEmail = emps.find(e => (e.Email || '').trim().toLowerCase() === user.Email.trim().toLowerCase());
+      if (matchEmail) return { emp: matchEmail, matchedBy: 'Email Address', nic: rawNic || matchEmail.NIC || '' };
+    }
+    if (user?.Name) {
+      const matchName = emps.find(e => (e.Name || '').trim().toLowerCase() === user.Name.trim().toLowerCase());
+      if (matchName) return { emp: matchName, matchedBy: 'Full Name', nic: rawNic || matchName.NIC || '' };
+    }
+    return { emp: null, matchedBy: 'None', nic: rawNic };
+  }
+
+  function renderMyEmployeeCardHtml(info) {
+    const emp = info.emp;
+    const isMatched = !!emp;
+    return `
+      <h3 style="margin-bottom:14px; color:var(--text); font-size:16px; display:flex; align-items:center; justify-content:space-between;">
+        <span>🧑‍💼 My Employee Record</span>
+        ${isMatched
+          ? `<span class="badge badge-success" style="font-size:11px; padding:3px 8px;">✓ Linked (${esc(info.matchedBy)})</span>`
+          : `<span class="badge badge-warning" style="font-size:11px; padding:3px 8px;">⚠️ Not Linked</span>`}
+      </h3>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:12px;">Official company details matched from the Employee Directory.</p>
+
+      ${isMatched ? `
+        <div style="background:#f0fdf4; border:1px solid #86efac; border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:12.5px; color:#166534; font-weight:600; display:flex; align-items:center; gap:8px;">
+          <span style="font-size:16px;">✓</span>
+          <div>
+            <div>Verified Employee: <b>${esc(emp.Name)}</b> ${emp.EmpId ? `(${esc(emp.EmpId)})` : ''}</div>
+            <div style="font-size:11.5px; font-weight:normal; color:#15803d;">Identified via ${esc(info.matchedBy)}: <b>${esc(emp.NIC || info.nic || emp.Email || emp.Name)}</b></div>
+          </div>
+        </div>
+      ` : `
+        <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:12.5px; color:#92400e; font-weight:600; display:flex; align-items:center; gap:8px;">
+          <span style="font-size:16px;">ℹ️</span>
+          <div>
+            <div>Enter your National ID (NIC) on the left</div>
+            <div style="font-size:11.5px; font-weight:normal; color:#b45309;">Your official Employee Directory details will automatically link and populate here.</div>
+          </div>
+        </div>
+      `}
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px;">
+        <div>
+          <div style="font-size:11px; color:var(--muted); font-weight:600;">DESIGNATION / ROLE</div>
+          <div style="font-size:13.5px; font-weight:700; color:var(--text);">${esc(emp?.Designation || emp?.Position || state.user?.Role || '-')}</div>
+        </div>
+        <div>
+          <div style="font-size:11px; color:var(--muted); font-weight:600;">DEPARTMENT</div>
+          <div style="font-size:13.5px; font-weight:700; color:var(--text);">${esc(emp?.Position || emp?.Department || '-')}</div>
+        </div>
+        <div>
+          <div style="font-size:11px; color:var(--muted); font-weight:600;">DATE OF BIRTH (BIRTHDAY)</div>
+          <div style="font-size:13.5px; font-weight:700; color:var(--primary);">${esc(emp?.DOB || emp?.Birthday || emp?.DateOfBirth || '-')}</div>
+        </div>
+        <div>
+          <div style="font-size:11px; color:var(--muted); font-weight:600;">PHONE NUMBER</div>
+          <div style="font-size:13.5px; font-weight:700; color:var(--text);">${esc(emp?.Phone || '-')}</div>
+        </div>
+        <div>
+          <div style="font-size:11px; color:var(--muted); font-weight:600;">EMAIL ADDRESS</div>
+          <div style="font-size:13px; font-weight:600; color:var(--text); word-break:break-all;">${esc(emp?.Email || state.user?.Email || '-')}</div>
+        </div>
+        <div>
+          <div style="font-size:11px; color:var(--muted); font-weight:600;">NATIONAL ID (NIC)</div>
+          <div style="font-size:13.5px; font-weight:700; color:var(--text);">${esc(emp?.NIC || info.nic || state.user?.NIC || '-')}</div>
+        </div>
+        <div>
+          <div style="font-size:11px; color:var(--muted); font-weight:600;">JOINED DATE</div>
+          <div style="font-size:13.5px; font-weight:600; color:var(--text);">${esc(emp?.JoinDate || emp?.JoinedDate || '-')}</div>
+        </div>
+        <div>
+          <div style="font-size:11px; color:var(--muted); font-weight:600;">EPF / ETF #</div>
+          <div style="font-size:13.5px; font-weight:600; color:var(--text);">${esc(emp?.EpfEtfNo || emp?.EPF || emp?.ETF || '-')}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function onMyProfileNicChange(val) {
+    const info = findEmployeeForUser(state.user, val);
+    const cardEl = document.getElementById('myEmployeeRecordCard');
+    if (cardEl) {
+      cardEl.innerHTML = renderMyEmployeeCardHtml(info);
+    }
   }
 
   function renderSettingsView() {
@@ -7937,7 +8036,7 @@
     const s = state.data.settings;
     const isAdmin = state.user && state.user.Role === 'Admin';
 
-    if (isAdmin) {
+    if (isAdmin && _adminSettingsSubTab === 'system') {
       const companies = state.data.companyProfiles || [];
       const selectedComp = _selectedSettingsCompId !== '__global__' 
         ? companies.find(c => c.CompanyId === _selectedSettingsCompId) 
@@ -7955,6 +8054,12 @@
       const nextPcVal = s.NextPettyCashNo || '1';
 
       document.getElementById('mainContent').innerHTML = `
+        <!-- Admin Settings Subtabs -->
+        <div class="tabs" style="margin-bottom:16px;">
+          <button class="tab-btn active" onclick="_adminSettingsSubTab='system'; renderSettingsView()">🏢 Company &amp; Team Settings</button>
+          <button class="tab-btn" onclick="_adminSettingsSubTab='myProfile'; renderSettingsView()">👤 My Profile &amp; Employee Record</button>
+        </div>
+
         <div class="two-col">
           <!-- Card 1: Company Settings & Starting Sequences (Requirement 2) -->
           <div class="card">
@@ -8070,6 +8175,7 @@
                             <div>
                               <b>${esc(u.Name)}</b>
                               <div style="font-size:11px; color:var(--muted);">${esc(u.Email || '-')}</div>
+                              ${u.NIC ? `<div style="font-size:10.5px; color:#15803d; font-weight:600;">🆔 NIC: ${esc(u.NIC)}</div>` : ''}
                             </div>
                           </div>
                         </td>
@@ -8140,14 +8246,19 @@
         </div>
       `;
     } else {
-      // Non-Admin User Settings & Profile (Requirement 5)
-      const myEmp = (state.data.employees || []).find(e => (e.Name || '').trim().toLowerCase() === (state.user.Name || '').trim().toLowerCase())
-        || (state.data.employees || []).find(e => (e.Email || '').trim().toLowerCase() === (state.user.Email || '').trim().toLowerCase())
-        || {};
-
+      // User Profile & Linked Employee Information (Requirement 5 & NIC Identification)
+      const empInfo = findEmployeeForUser(state.user);
       const currentAvatar = state.user.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(state.user.Name || 'User') + '&background=0f766e&color=fff');
 
       document.getElementById('mainContent').innerHTML = `
+        ${isAdmin ? `
+          <!-- Admin Settings Subtabs -->
+          <div class="tabs" style="margin-bottom:16px;">
+            <button class="tab-btn" onclick="_adminSettingsSubTab='system'; renderSettingsView()">🏢 Company &amp; Team Settings</button>
+            <button class="tab-btn active" onclick="_adminSettingsSubTab='myProfile'; renderSettingsView()">👤 My Profile &amp; Employee Record</button>
+          </div>
+        ` : ''}
+
         <div class="two-col">
           <!-- Card 1: My Profile Details & Avatar Cropper -->
           <div class="card">
@@ -8168,6 +8279,12 @@
             </div>
 
             <div class="form-group">
+              <label>National ID Number (NIC) *</label>
+              <input id="myProfileNic" placeholder="Enter your NIC (e.g. 199613501234 or 961350123V)" value="${esc(state.user.NIC || '')}" oninput="onMyProfileNicChange(this.value)">
+              <div style="font-size:11px; color:var(--muted); margin-top:2px;">Enter your National ID (NIC) to automatically link and display your official employee record.</div>
+            </div>
+
+            <div class="form-group">
               <label>Login PIN (Change Password/PIN)</label>
               <input type="password" id="myProfilePin" placeholder="Enter new PIN" value="${esc(state.user.Pin || '')}">
               <div style="font-size:11px; color:var(--muted); margin-top:2px;">Use this PIN when logging in or authorizing protected actions.</div>
@@ -8177,44 +8294,8 @@
           </div>
 
           <!-- Card 2: Linked Employee Information -->
-          <div class="card">
-            <h3 style="margin-bottom:14px; color:var(--text); font-size:16px;">🧑‍💼 My Employee Record</h3>
-            <p style="font-size:12px; color:var(--muted); margin-bottom:14px;">Official company details matched from the Employee Directory.</p>
-
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px;">
-              <div>
-                <div style="font-size:11px; color:var(--muted); font-weight:600;">DESIGNATION / ROLE</div>
-                <div style="font-size:13.5px; font-weight:700; color:var(--text);">${esc(myEmp.Designation || myEmp.Role || state.user.Role || '-')}</div>
-              </div>
-              <div>
-                <div style="font-size:11px; color:var(--muted); font-weight:600;">DEPARTMENT</div>
-                <div style="font-size:13.5px; font-weight:700; color:var(--text);">${esc(myEmp.Department || '-')}</div>
-              </div>
-              <div>
-                <div style="font-size:11px; color:var(--muted); font-weight:600;">DATE OF BIRTH (BIRTHDAY)</div>
-                <div style="font-size:13.5px; font-weight:700; color:var(--primary);">${esc(myEmp.DOB || myEmp.Birthday || myEmp.DateOfBirth || '-')}</div>
-              </div>
-              <div>
-                <div style="font-size:11px; color:var(--muted); font-weight:600;">PHONE NUMBER</div>
-                <div style="font-size:13.5px; font-weight:700; color:var(--text);">${esc(myEmp.Phone || '-')}</div>
-              </div>
-              <div>
-                <div style="font-size:11px; color:var(--muted); font-weight:600;">EMAIL ADDRESS</div>
-                <div style="font-size:13px; font-weight:600; color:var(--text); word-break:break-all;">${esc(myEmp.Email || state.user.Email || '-')}</div>
-              </div>
-              <div>
-                <div style="font-size:11px; color:var(--muted); font-weight:600;">NATIONAL ID (NIC)</div>
-                <div style="font-size:13.5px; font-weight:700; color:var(--text);">${esc(myEmp.NIC || '-')}</div>
-              </div>
-              <div>
-                <div style="font-size:11px; color:var(--muted); font-weight:600;">JOINED DATE</div>
-                <div style="font-size:13.5px; font-weight:600; color:var(--text);">${esc(myEmp.JoinDate || myEmp.JoinedDate || '-')}</div>
-              </div>
-              <div>
-                <div style="font-size:11px; color:var(--muted); font-weight:600;">EPF / ETF #</div>
-                <div style="font-size:13.5px; font-weight:600; color:var(--text);">${esc(myEmp.EPF || myEmp.ETF || '-')}</div>
-              </div>
-            </div>
+          <div class="card" id="myEmployeeRecordCard">
+            ${renderMyEmployeeCardHtml(empInfo)}
           </div>
         </div>
       `;
@@ -8533,16 +8614,19 @@
   function saveMyProfile() {
     const newName = document.getElementById('myProfileName')?.value.trim();
     const newPin = document.getElementById('myProfilePin')?.value.trim();
+    const newNic = document.getElementById('myProfileNic')?.value.trim() || '';
     if (!newName) {
       showToast('Please enter your name');
       return;
     }
     state.user.Name = newName;
+    state.user.NIC = newNic;
     if (newPin) state.user.Pin = newPin;
 
     const u = (state.data.users || []).find(x => x.UserId === state.user.UserId);
     if (u) {
       u.Name = newName;
+      u.NIC = newNic;
       if (newPin) u.Pin = newPin;
       u.Avatar = state.user.Avatar;
     }
@@ -8553,7 +8637,7 @@
     } catch (e) {}
 
     renderTopbarUserProfile();
-    showToast('Your profile has been saved!');
+    showToast('Your profile & NIC details saved!');
     renderSettingsView();
 
     gas('saveUser', state.user).catch(err => console.error(err));
@@ -8730,15 +8814,18 @@
           📈 <b>Manager Role:</b> Gets the special Manager Sales Performance Dashboard with Date-range filtering, Sales vs Collections metrics, and Sales Person Team Rankings.
         </div>
         <div class="form-row">
+          <div class="form-group"><label>National ID (NIC) Number</label><input id="fUsNic" value="${esc(u.NIC || '')}" placeholder="e.g. 199613501234 or 961350123V"></div>
           <div class="form-group"><label>Email Address</label><input id="fUsEmail" value="${esc(u.Email)}"></div>
+        </div>
+        <div class="form-row">
           <div class="form-group"><label>Status</label>
             <select id="fUsStat">
               <option ${u.Status === 'Active' ? 'selected' : ''}>Active</option>
               <option ${u.Status === 'Inactive' ? 'selected' : ''}>Inactive</option>
             </select>
           </div>
+          <div class="form-group"><label>${userId ? 'Change PIN / Password' : 'Login PIN (e.g. 1234)'}</label><input type="password" id="fUsPin" placeholder="4-digit PIN"></div>
         </div>
-        <div class="form-group"><label>${userId ? 'Change PIN / Password (leave blank to keep current)' : 'Login PIN (e.g. 1234)'}</label><input type="password" id="fUsPin" placeholder="4-digit PIN"></div>
 
         <!-- Allowed Tabs Checklist (Requirement 4) -->
         <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-top:10px;">
@@ -8777,6 +8864,7 @@
       UserId: userId || ('U-' + Date.now()),
       Name: name,
       Email: document.getElementById('fUsEmail').value.trim(),
+      NIC: document.getElementById('fUsNic')?.value.trim() || '',
       Role: document.getElementById('fUsRole').value,
       Status: document.getElementById('fUsStat').value,
       AllowedTabs: checkedTabs
