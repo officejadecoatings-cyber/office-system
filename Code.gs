@@ -207,7 +207,7 @@ function ensureDatabase_() {
   // Seed default CompanyProfile if empty
   const compSheet = ss.getSheetByName('CompanyProfiles');
   if (compSheet && compSheet.getLastRow() <= 1) {
-    compSheet.getRange(2, 1, 1, 12).setValues([[
+    compSheet.getRange(2, 1, 1, 16).setValues([[
       'COMP-001',
       'Paint Zone (Pvt) Ltd',
       '424/1/B Kottunna Rd, Biyagama, Sri Lanka, (10350)',
@@ -219,6 +219,10 @@ function ensureDatabase_() {
       '1000982266',
       '',
       'Yes',
+      'INV-',
+      '1001',
+      'QT-',
+      '754',
       todayStr_()
     ]]);
   }
@@ -226,11 +230,11 @@ function ensureDatabase_() {
   // Seed 4 default users if empty
   const usersSheet = ss.getSheetByName('Users');
   if (usersSheet && usersSheet.getLastRow() <= 1) {
-    usersSheet.getRange(2, 1, 4, 6).setValues([
-      ['U-001', 'Admin User', 'admin@office.local', 'Admin', '1234', 'Active'],
-      ['U-002', 'Staff Member 1', 'staff1@office.local', 'Staff', '1111', 'Active'],
-      ['U-003', 'Staff Member 2', 'staff2@office.local', 'Staff', '2222', 'Active'],
-      ['U-004', 'Staff Member 3', 'staff3@office.local', 'Staff', '3333', 'Active']
+    usersSheet.getRange(2, 1, 4, 8).setValues([
+      ['U-001', 'Admin User', 'admin@office.local', 'Admin', '1234', 'Active', 'all', ''],
+      ['U-002', 'Staff Member 1', 'staff1@office.local', 'Staff', '1111', 'Active', 'dashboard,invoices,quotation,outstanding,settings', ''],
+      ['U-003', 'Rashini Fernando', 'staff2@office.local', 'Staff', '2222', 'Active', 'callreport,projectreport,pettycash,settings', ''],
+      ['U-004', 'Staff Member 3', 'staff3@office.local', 'Staff', '3333', 'Active', 'dashboard,invoices,quotation,outstanding,settings', '']
     ]);
   }
 
@@ -352,7 +356,7 @@ function getLoginUsers() {
   const users = readSheetObjects_('Users').filter(u => u.Status === 'Active');
   return users.map(u => ({
     UserId: u.UserId,
-    Name: u.Name,
+    Name: ((u.Email === 'staff2@office.local' || u.UserId === 'U-003') && (!u.Name || u.Name === 'Staff Member 2')) ? 'Rashini Fernando' : u.Name,
     Email: u.Email,
     Role: u.Role
   }));
@@ -363,13 +367,25 @@ function authenticateUser(userId, pin) {
   const user = users.find(u => u.UserId === userId && u.Status === 'Active');
   if (!user) throw new Error('User not found or inactive.');
   if (String(user.Pin) !== String(pin)) throw new Error('Invalid PIN.');
+
+  let name = user.Name;
+  if ((user.Email === 'staff2@office.local' || user.UserId === 'U-003') && (!name || name === 'Staff Member 2')) {
+    name = 'Rashini Fernando';
+  }
+  let allowed = user.AllowedTabs || '';
+  if (user.Email === 'staff2@office.local' && !allowed) {
+    allowed = 'callreport,projectreport,pettycash,settings';
+  } else if (allowed && !allowed.toLowerCase().includes('settings')) {
+    allowed += ',settings';
+  }
+
   return {
     user: {
       UserId: user.UserId,
-      Name: user.Name,
+      Name: name,
       Email: user.Email,
       Role: user.Role,
-      AllowedTabs: user.AllowedTabs || '',
+      AllowedTabs: allowed,
       Avatar: user.Avatar || ''
     },
     data: getAppData()
@@ -413,15 +429,27 @@ function getAppData() {
 
   return {
     settings: settings,
-    users: readFromSheet('Users').map(u => ({
-      UserId: u.UserId,
-      Name: u.Name,
-      Email: u.Email,
-      Role: u.Role,
-      Status: u.Status,
-      AllowedTabs: u.AllowedTabs || '',
-      Avatar: u.Avatar || ''
-    })),
+    users: readFromSheet('Users').map(u => {
+      let name = u.Name;
+      if ((u.Email === 'staff2@office.local' || u.UserId === 'U-003') && (!name || name === 'Staff Member 2')) {
+        name = 'Rashini Fernando';
+      }
+      let allowed = u.AllowedTabs || '';
+      if (u.Email === 'staff2@office.local' && !allowed) {
+        allowed = 'callreport,projectreport,pettycash,settings';
+      } else if (allowed && !allowed.toLowerCase().includes('settings')) {
+        allowed += ',settings';
+      }
+      return {
+        UserId: u.UserId,
+        Name: name,
+        Email: u.Email,
+        Role: u.Role,
+        Status: u.Status,
+        AllowedTabs: allowed,
+        Avatar: u.Avatar || ''
+      };
+    }),
     customers: readFromSheet('Customers'),
     inventory: readFromSheet('Inventory'),
     invoices: readFromSheet('Invoices'),

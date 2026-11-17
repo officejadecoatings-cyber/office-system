@@ -770,13 +770,14 @@
       </div>
       <nav class="sidebar-nav">
         <button class="nav-item active" data-view="dashboard" onclick="navigate('dashboard')">📊 Dashboard</button>
+        <button class="nav-item" data-view="sales" onclick="navigate('sales')">📈 Sales</button>
         <button class="nav-item" data-view="invoices" onclick="navigate('invoices')">🧾 Sales Invoices</button>
         <button class="nav-item" data-view="quotation" onclick="navigate('quotation')">📝 Quotation</button>
         <button class="nav-item" data-view="outstanding" onclick="navigate('outstanding')">⏳ Outstanding</button>
         <button class="nav-item" data-view="inventory" onclick="navigate('inventory')">📦 Stock</button>
-        <button class="nav-item" data-view="callReport" style="display:none;" onclick="navigate('callReport')">📞 Call Report</button>
-        <button class="nav-item" data-view="projectReport" style="display:none;" onclick="navigate('projectReport')">🏗️ Project Report</button>
-        <button class="nav-item" data-view="pettyCash" style="display:none;" onclick="navigate('pettyCash')">💵 Petty Cash</button>
+        <button class="nav-item" data-view="callReport" onclick="navigate('callReport')">📞 Call Report</button>
+        <button class="nav-item" data-view="projectReport" onclick="navigate('projectReport')">🏗️ Project Report</button>
+        <button class="nav-item" data-view="pettyCash" onclick="navigate('pettyCash')">💵 Petty Cash</button>
         <button class="nav-item" data-view="customers" onclick="navigate('customers')">👥 Customers</button>
         <button class="nav-item" data-view="companyProfile" onclick="navigate('companyProfile')">🏢 Company Profile</button>
         <button class="nav-item" data-view="employees" onclick="navigate('employees')">🧑‍💼 Employees</button>
@@ -878,9 +879,10 @@
    * ======================================================================== */
 
   function isRashiniFernando() {
-    if (!state.user || !state.user.Name) return false;
-    const norm = state.user.Name.toLowerCase().replace(/\s+/g, ' ').trim();
-    return norm === 'rashini fernando';
+    if (!state.user) return false;
+    const norm = (state.user.Name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const emailNorm = (state.user.Email || '').toLowerCase().trim();
+    return norm === 'rashini fernando' || emailNorm === 'staff2@office.local';
   }
 
   function isShihaniNuwanthi() {
@@ -893,19 +895,23 @@
     return isShihaniNuwanthi() || isRashiniFernando();
   }
 
-    function getUserAllowedTabs() {
+  function getUserAllowedTabs() {
     if (!state.user) return [];
     if (state.user.Role === 'Admin') return ['all'];
     if (state.user.AllowedTabs) {
-      return state.user.AllowedTabs.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      const tabs = state.user.AllowedTabs.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      if (!tabs.includes('settings')) tabs.push('settings');
+      return tabs;
     }
-    if (isRashiniFernando()) return ['callreport', 'projectreport', 'pettycash'];
-    if (isShihaniNuwanthi()) return ['dashboard', 'invoices', 'quotation', 'outstanding', 'inventory', 'callreport', 'projectreport', 'pettycash', 'customers', 'companyprofile', 'employees', 'paintertraining', 'reports', 'import', 'settings'];
-    return ['dashboard', 'invoices', 'quotation', 'outstanding', 'inventory', 'customers', 'companyprofile', 'employees', 'paintertraining', 'reports', 'import', 'settings'];
+    if (isRashiniFernando()) return ['callreport', 'projectreport', 'pettycash', 'settings'];
+    if (isShihaniNuwanthi()) return ['dashboard', 'sales', 'invoices', 'quotation', 'outstanding', 'inventory', 'callreport', 'projectreport', 'pettycash', 'customers', 'companyprofile', 'employees', 'paintertraining', 'reports', 'import', 'settings'];
+    if (state.user.Role === 'Manager') return ['dashboard', 'sales', 'invoices', 'quotation', 'outstanding', 'customers', 'employees', 'reports', 'settings'];
+    return ['dashboard', 'sales', 'invoices', 'quotation', 'outstanding', 'inventory', 'customers', 'companyprofile', 'employees', 'paintertraining', 'reports', 'import', 'settings'];
   }
 
   function isTabAllowedForUser(tabName) {
     if (!tabName) return true;
+    if (tabName.toLowerCase() === 'settings') return true; // Settings is always accessible for profile & PIN management
     const allowed = getUserAllowedTabs();
     if (allowed.includes('all')) return true;
     return allowed.includes(tabName.toLowerCase());
@@ -917,7 +923,7 @@
 
     document.querySelectorAll('.sidebar-nav .nav-item[data-view]').forEach(btn => {
       const v = btn.getAttribute('data-view') || '';
-      if (isAll || allowed.includes(v.toLowerCase())) {
+      if (isAll || allowed.includes(v.toLowerCase()) || v.toLowerCase() === 'settings') {
         btn.style.display = '';
       } else {
         btn.style.display = 'none';
@@ -1423,11 +1429,11 @@
   }
 
   function renderView() {
-    const reportViews = ['callReport', 'projectReport', 'pettyCash'];
-    if (isRashiniFernando() && !reportViews.includes(state.view)) {
-      state.view = 'callReport';
-    } else if (!isRestrictedReportUser() && reportViews.includes(state.view)) {
-      state.view = 'dashboard';
+    if (isRashiniFernando() && state.view !== 'settings') {
+      const allowedViews = ['callReport', 'projectReport', 'pettyCash', 'settings'];
+      if (!allowedViews.includes(state.view)) {
+        state.view = 'callReport';
+      }
     }
 
     if (state.view.startsWith('customTab:')) {
@@ -1438,8 +1444,11 @@
       return;
     }
 
+    const isMgr = state.user && state.user.Role === 'Manager';
+
     const titles = {
-      dashboard: 'Dashboard',
+      dashboard: isMgr ? 'Manager Sales & Performance' : 'Dashboard',
+      sales: 'Sales Performance & Team Rankings',
       invoices: 'Sales Invoices',
       quotation: 'Quotation',
       companyProfile: 'Company Profile',
@@ -1454,12 +1463,13 @@
       tasks: 'Tasks & Projects',
       reports: 'Custom Reports & Analytics',
       import: 'Import Excel / CSV Data',
-      settings: 'Settings & Customize System'
+      settings: 'Settings'
     };
     document.getElementById('pageTitle').textContent = titles[state.view] || 'Office System';
 
     const handlers = {
-      dashboard: renderDashboard,
+      dashboard: isMgr ? renderManagerSalesView : renderDashboard,
+      sales: renderManagerSalesView,
       invoices: renderInvoicesView,
       quotation: renderQuotationView,
       companyProfile: renderCompanyProfileView,
@@ -1525,6 +1535,11 @@
    * ======================================================================== */
 
   function renderDashboard() {
+    if (state.user && state.user.Role === 'Manager') {
+      renderManagerSalesView();
+      return;
+    }
+
     const { invoices, transactions, inventory, tasks, attendance, today } = state.data;
     const totalIncome = transactions.filter(t => t.Type === 'Income').reduce((s, t) => s + Number(t.Amount || 0), 0);
     const totalExpense = transactions.filter(t => t.Type === 'Expense').reduce((s, t) => s + Number(t.Amount || 0), 0);
@@ -1535,6 +1550,20 @@
     const todayAtt = attendance.filter(a => a.Date === today);
 
     document.getElementById('mainContent').innerHTML = `
+      <!-- Quick Action / Manager Performance Banner -->
+      <div class="card" style="margin-bottom:14px; background:#f0fdf4; border:1px solid #bbf7d0; padding:12px 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div>
+            <h3 style="margin:0; font-size:15px; color:#166534;">📈 Sales Performance &amp; Team Rankings</h3>
+            <div style="font-size:12px; color:#15803d; margin-top:2px;">Filter period sales, collections, and view sales person performance rankings.</div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-sm btn-primary" onclick="navigate('sales')">📊 View Sales Rankings</button>
+            <button class="btn btn-sm btn-secondary" onclick="navigate('settings')">🏢 Company Sequences</button>
+          </div>
+        </div>
+      </div>
+
       <div class="kpi-grid">
         <div class="card">
           <div class="kpi-label">Net Balance</div>
@@ -1758,6 +1787,311 @@
     return `${mm}/${dd}/${yyyy}`;
   }
 
+  /* ==========================================================================
+   * 1B. Manager Sales Performance & Rankings View (Requirement 4 & 5)
+   * ======================================================================== */
+
+  let _mgrSalesState = {
+    start: '',
+    end: '',
+    search: ''
+  };
+
+  function setMgrDatePreset(preset) {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${y}-${m}-${d}`;
+
+    if (preset === 'thisMonth') {
+      _mgrSalesState.start = `${y}-${m}-01`;
+      _mgrSalesState.end = todayStr;
+    } else if (preset === 'last30') {
+      const past = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      _mgrSalesState.start = past.toISOString().slice(0, 10);
+      _mgrSalesState.end = todayStr;
+    } else if (preset === 'thisYear') {
+      _mgrSalesState.start = `${y}-01-01`;
+      _mgrSalesState.end = todayStr;
+    } else if (preset === 'all') {
+      _mgrSalesState.start = '';
+      _mgrSalesState.end = '';
+    }
+    const sEl = document.getElementById('mgrStartDate');
+    const eEl = document.getElementById('mgrEndDate');
+    if (sEl) sEl.value = _mgrSalesState.start;
+    if (eEl) eEl.value = _mgrSalesState.end;
+    renderManagerSalesView();
+  }
+
+  function onMgrDateChange() {
+    _mgrSalesState.start = document.getElementById('mgrStartDate')?.value || '';
+    _mgrSalesState.end = document.getElementById('mgrEndDate')?.value || '';
+    renderManagerSalesView();
+  }
+
+  function onMgrSearch(val) {
+    _mgrSalesState.search = val || '';
+    renderManagerSalesView();
+  }
+
+  function renderManagerSalesView() {
+    ensureDataDefaults();
+    const today = state.data.today || new Date().toISOString().slice(0, 10);
+    const y = today.slice(0, 4);
+    const m = today.slice(5, 7);
+
+    if (!_mgrSalesState.start && !_mgrSalesState.end) {
+      _mgrSalesState.start = `${y}-${m}-01`;
+      _mgrSalesState.end = today;
+    }
+
+    const invoices = state.data.invoices || [];
+    const employees = state.data.employees || [];
+
+    // Filter invoices by selected date range
+    const periodInvoices = invoices.filter(i => {
+      if (i.Status === 'Cancelled') return false;
+      const invDate = i.Date || '';
+      if (_mgrSalesState.start && invDate < _mgrSalesState.start) return false;
+      if (_mgrSalesState.end && invDate > _mgrSalesState.end) return false;
+      return true;
+    });
+
+    // Summary calculations
+    let totalSales = 0;
+    let totalCollection = 0;
+    let freeIssueCount = 0;
+
+    // Grouping by Sales Person
+    const spMap = {};
+
+    periodInvoices.forEach(i => {
+      const isFree = (i.Status === 'Free Issue');
+      const invAmt = isFree ? 0 : Number(i.Total || 0);
+      const paidAmt = Number(i.PaidAmount || 0);
+
+      if (isFree) freeIssueCount++;
+      totalSales += invAmt;
+      totalCollection += paidAmt;
+
+      const spName = (i.SalesPerson || 'Unassigned / Direct').trim();
+      if (!spMap[spName]) {
+        const matchedEmp = employees.find(e => (e.Name || '').toLowerCase().trim() === spName.toLowerCase()) || {};
+        spMap[spName] = {
+          name: spName,
+          designation: matchedEmp.Designation || matchedEmp.Position || (spName === 'Unassigned / Direct' ? 'Direct Sale' : 'Sales Officer'),
+          department: matchedEmp.Department || 'Sales & Marketing',
+          sales: 0,
+          collected: 0,
+          invoiceCount: 0,
+          avatar: matchedEmp.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(spName) + '&background=0284c7&color=fff')
+        };
+      }
+      spMap[spName].sales += invAmt;
+      spMap[spName].collected += paidAmt;
+      spMap[spName].invoiceCount += 1;
+    });
+
+    // Also include active Sales Officers from Employees list even if 0 sales
+    employees.filter(e => e.Position === 'Sales Officer' || (e.Designation || '').toLowerCase().includes('sales')).forEach(e => {
+      const spName = e.Name.trim();
+      if (!spMap[spName]) {
+        spMap[spName] = {
+          name: spName,
+          designation: e.Designation || e.Position || 'Sales Officer',
+          department: e.Department || 'Sales',
+          sales: 0,
+          collected: 0,
+          invoiceCount: 0,
+          avatar: e.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(spName) + '&background=0284c7&color=fff')
+        };
+      }
+    });
+
+    let spList = Object.values(spMap);
+    if (_mgrSalesState.search) {
+      const q = _mgrSalesState.search.toLowerCase().trim();
+      spList = spList.filter(s => s.name.toLowerCase().includes(q) || s.designation.toLowerCase().includes(q));
+    }
+
+    // Sort descending by sales amount, then collection amount
+    spList.sort((a, b) => (b.sales - a.sales) || (b.collected - a.collected));
+
+    const totalOutstandingInPeriod = Math.max(0, totalSales - totalCollection);
+    const overallRate = totalSales > 0 ? ((totalCollection / totalSales) * 100).toFixed(1) : '0.0';
+
+    const periodLabel = (_mgrSalesState.start && _mgrSalesState.end) 
+      ? `From <b>${esc(_mgrSalesState.start)}</b> To <b>${esc(_mgrSalesState.end)}</b>` 
+      : 'All Available Time Periods';
+
+    document.getElementById('mainContent').innerHTML = `
+      <!-- Manager Header & Date Range Filter (Requirement 4 & 5) -->
+      <div class="card" style="margin-bottom:16px; background:linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-left:4px solid var(--primary);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:12px;">
+          <div>
+            <h2 style="margin:0; font-size:18px; color:var(--text); display:flex; align-items:center; gap:8px;">
+              📈 Sales Performance &amp; Team Rankings
+              <span class="badge badge-primary" style="font-size:11px;">Manager View</span>
+            </h2>
+            <div style="font-size:12.5px; color:var(--muted); margin-top:4px;">
+              Filter sales and collection records by date range and view live ranking of sales personnel.
+            </div>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn btn-sm btn-secondary" onclick="setMgrDatePreset('thisMonth')">This Month</button>
+            <button class="btn btn-sm btn-secondary" onclick="setMgrDatePreset('last30')">Last 30 Days</button>
+            <button class="btn btn-sm btn-secondary" onclick="setMgrDatePreset('thisYear')">This Year</button>
+            <button class="btn btn-sm btn-secondary" onclick="setMgrDatePreset('all')">All Time</button>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #cbd5e1;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <label style="font-weight:700; font-size:12.5px; color:var(--text); margin:0;">📅 Start Date:</label>
+            <input type="date" id="mgrStartDate" value="${esc(_mgrSalesState.start)}" onchange="onMgrDateChange()" style="padding:6px 10px; font-weight:600; border:1px solid #cbd5e1; border-radius:6px;">
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <label style="font-weight:700; font-size:12.5px; color:var(--text); margin:0;">📅 End Date:</label>
+            <input type="date" id="mgrEndDate" value="${esc(_mgrSalesState.end)}" onchange="onMgrDateChange()" style="padding:6px 10px; font-weight:600; border:1px solid #cbd5e1; border-radius:6px;">
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="onMgrDateChange()">Filter Range</button>
+          <div style="margin-left:auto; font-size:12.5px; color:var(--muted);">
+            Active Period: ${periodLabel}
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Summary Cards -->
+      <div class="kpi-grid" style="margin-bottom:16px;">
+        <div class="card" style="border-top:3px solid #0f766e;">
+          <div class="kpi-label">TOTAL SALES (තෝරාගත් කාලයේ සේල්ස්)</div>
+          <div class="kpi-val" style="color:#0f766e;">${fmtMoney(totalSales)}</div>
+          <div class="kpi-sub">${periodInvoices.length} invoices issued (${freeIssueCount} Free Issue)</div>
+        </div>
+        <div class="card" style="border-top:3px solid #16a34a;">
+          <div class="kpi-label">TOTAL COLLECTIONS (තෝරාගත් කාලයේ කලෙක්ෂන්)</div>
+          <div class="kpi-val" style="color:#16a34a;">${fmtMoney(totalCollection)}</div>
+          <div class="kpi-sub">Overall Collection Rate: <b>${overallRate}%</b></div>
+        </div>
+        <div class="card" style="border-top:3px solid #d97706;">
+          <div class="kpi-label">OUTSTANDING IN PERIOD (ක්‍රෙඩිට් ඉතිරිය)</div>
+          <div class="kpi-val" style="color:#d97706;">${fmtMoney(totalOutstandingInPeriod)}</div>
+          <div class="kpi-sub">Uncollected balance from period invoices</div>
+        </div>
+        <div class="card" style="border-top:3px solid #2563eb;">
+          <div class="kpi-label">ACTIVE SALES PERSONS</div>
+          <div class="kpi-val" style="color:#2563eb;">${spList.length}</div>
+          <div class="kpi-sub">Ranked team members</div>
+        </div>
+      </div>
+
+      <!-- Rankings Table -->
+      <div class="card">
+        <div class="section-header">
+          <div>
+            <h3 style="margin:0; font-size:16px; color:var(--text); display:flex; align-items:center; gap:8px;">
+              🏆 Sales Person Rankings (සේල්ස් පර්සන්ලාගේ රෑන්කින් ලිස්ට් එක)
+            </h3>
+            <div style="font-size:12px; color:var(--muted); margin-top:2px;">
+              Ranked by total sales revenue achieved in the selected date range.
+            </div>
+          </div>
+          <div class="section-actions">
+            <input class="search-input" placeholder="Search sales person or designation..." value="${esc(_mgrSalesState.search)}" oninput="onMgrSearch(this.value)" style="width:240px;">
+            <button class="btn btn-secondary" onclick="exportMgrRankingsExcel()">⬇ Export Excel</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table id="mgrRankTable">
+            <thead>
+              <tr style="background:#f1f5f9; border-bottom:2px solid #cbd5e1;">
+                <th style="width:110px; text-align:center;">Rank (රෑන්ක්)</th>
+                <th>Sales Person (සේල්ස් පර්සන්)</th>
+                <th>Designation (තනතුර)</th>
+                <th style="text-align:right;">Sales Amount (සේල්ස්)</th>
+                <th style="text-align:right;">Collection Amount (කලෙක්ෂන්)</th>
+                <th style="text-align:center;">Collection %</th>
+                <th style="text-align:center;">Invoices</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${spList.length === 0 ? `
+                <tr><td colspan="7" style="text-align:center; padding:24px; color:var(--muted);">No sales records found for this period. Try selecting a broader date range.</td></tr>
+              ` : spList.map((sp, idx) => {
+                const rank = idx + 1;
+                let rankBadge = '';
+                if (rank === 1) rankBadge = '<span style="display:inline-block; font-size:13.5px; font-weight:800; background:#fef08a; color:#854d0e; padding:3px 10px; border-radius:12px; border:1px solid #facc15;">🥇 Rank 1</span>';
+                else if (rank === 2) rankBadge = '<span style="display:inline-block; font-size:13px; font-weight:800; background:#f1f5f9; color:#475569; padding:3px 10px; border-radius:12px; border:1px solid #cbd5e1;">🥈 Rank 2</span>';
+                else if (rank === 3) rankBadge = '<span style="display:inline-block; font-size:13px; font-weight:800; background:#ffedd5; color:#9a3412; padding:3px 10px; border-radius:12px; border:1px solid #fdba74;">🥉 Rank 3</span>';
+                else rankBadge = `<span style="display:inline-block; font-size:12.5px; font-weight:700; color:#64748b; padding:2px 8px;">#${rank}</span>`;
+
+                const pctOfTotal = totalSales > 0 ? ((sp.sales / totalSales) * 100).toFixed(1) : 0;
+                const spRate = sp.sales > 0 ? ((sp.collected / sp.sales) * 100).toFixed(1) : (sp.collected > 0 ? 100 : 0);
+
+                return `
+                  <tr style="${rank === 1 ? 'background:#fefce8;' : ''}">
+                    <td style="text-align:center; font-weight:800;">${rankBadge}</td>
+                    <td>
+                      <div style="display:flex; align-items:center; gap:10px;">
+                        <img src="${sp.avatar}" style="width:34px; height:34px; border-radius:50%; object-fit:cover; border:2px solid ${rank === 1 ? '#eab308' : '#cbd5e1'}; background:#e2e8f0;">
+                        <div>
+                          <div style="font-weight:700; font-size:14px; color:var(--text);">${esc(sp.name)}</div>
+                          <div style="font-size:11px; color:var(--muted);">${esc(sp.department)}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td><b>${esc(sp.designation)}</b></td>
+                    <td style="text-align:right;">
+                      <div style="font-weight:800; font-size:14px; color:#0f766e;">${fmtMoney(sp.sales)}</div>
+                      <div style="font-size:10.5px; color:var(--muted);">${pctOfTotal}% of total</div>
+                      <div style="background:#e2e8f0; border-radius:4px; height:5px; width:100%; margin-top:3px; overflow:hidden;">
+                        <div style="background:#0f766e; height:100%; width:${pctOfTotal}%;"></div>
+                      </div>
+                    </td>
+                    <td style="text-align:right;">
+                      <div style="font-weight:800; font-size:14px; color:#16a34a;">${fmtMoney(sp.collected)}</div>
+                      <div style="font-size:10.5px; color:${sp.collected >= sp.sales && sp.sales > 0 ? '#16a34a' : '#d97706'};">
+                        ${sp.sales > sp.collected ? 'Bal: ' + fmtMoney(sp.sales - sp.collected) : 'Fully Collected'}
+                      </div>
+                    </td>
+                    <td style="text-align:center;">
+                      <span class="badge ${spRate >= 80 ? 'badge-success' : (spRate >= 50 ? 'badge-info' : 'badge-warning')}" style="font-weight:700;">
+                        ${spRate}%
+                      </span>
+                    </td>
+                    <td style="text-align:center;">
+                      <span class="badge badge-muted">${sp.invoiceCount}</span>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+            <tfoot>
+              <tr style="background:#f8fafc; font-weight:800; border-top:2px solid #0f766e;">
+                <td colspan="3" style="text-align:right; font-size:13.5px;">TOTALS:</td>
+                <td style="text-align:right; font-size:14.5px; color:#0f766e;">${fmtMoney(totalSales)}</td>
+                <td style="text-align:right; font-size:14.5px; color:#16a34a;">${fmtMoney(totalCollection)}</td>
+                <td style="text-align:center; font-size:13.5px;"><span class="badge badge-primary">${overallRate}%</span></td>
+                <td style="text-align:center;">${periodInvoices.length}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  function exportMgrRankingsExcel() {
+    if (typeof XLSX === 'undefined') return;
+    const table = document.getElementById('mgrRankTable');
+    if (!table) return;
+    const wb = XLSX.utils.table_to_book(table, { sheet: 'Sales Rankings' });
+    XLSX.writeFile(wb, `Sales_Rankings_${_mgrSalesState.start}_to_${_mgrSalesState.end}.xlsx`);
+  }
+
   function ensureDataDefaults() {
     if (!state.data.companyProfiles || !Array.isArray(state.data.companyProfiles) || state.data.companyProfiles.length === 0) {
       state.data.companyProfiles = [{
@@ -1772,9 +2106,21 @@
         AccountNo: '1000982266',
         Logo: '',
         IsDefault: 'Yes',
+        InvoicePrefix: 'INV-',
+        NextInvoiceNo: '1001',
+        QuotePrefix: 'QT-',
+        NextQuoteNo: '754',
         CreatedAt: state.data.today || '2026-11-16'
       }];
     }
+    // Also ensure each company profile has sequence numbers
+    state.data.companyProfiles.forEach(c => {
+      if (!c.InvoicePrefix) c.InvoicePrefix = 'INV-';
+      if (!c.NextInvoiceNo) c.NextInvoiceNo = '1001';
+      if (!c.QuotePrefix) c.QuotePrefix = 'QT-';
+      if (!c.NextQuoteNo) c.NextQuoteNo = '754';
+    });
+
     if (!state.data.quotations || !Array.isArray(state.data.quotations)) {
       state.data.quotations = [];
     }
@@ -1784,6 +2130,40 @@
     if (!state.data.settings.NextQuoteNo) state.data.settings.NextQuoteNo = '754';
     if (!state.data.settings.QuotePrefix) state.data.settings.QuotePrefix = 'QT-';
     if (!state.data.settings.NextPettyCashNo) state.data.settings.NextPettyCashNo = '1';
+
+    // Ensure Rashini Fernando user and employee records
+    if (state.data.users && Array.isArray(state.data.users)) {
+      const u2 = state.data.users.find(u => u.Email === 'staff2@office.local' || u.UserId === 'U-003');
+      if (u2) {
+        if (!u2.Name || u2.Name === 'Staff Member 2') u2.Name = 'Rashini Fernando';
+        if (!u2.AllowedTabs) u2.AllowedTabs = 'callreport,projectreport,pettycash,settings';
+        else if (!u2.AllowedTabs.toLowerCase().includes('settings')) u2.AllowedTabs += ',settings';
+      }
+    }
+    if (state.user && ((state.user.Email || '').toLowerCase() === 'staff2@office.local' || (state.user.Name || '').toLowerCase() === 'staff member 2')) {
+      if (!state.user.Name || state.user.Name === 'Staff Member 2') state.user.Name = 'Rashini Fernando';
+      if (!state.user.AllowedTabs) state.user.AllowedTabs = 'callreport,projectreport,pettycash,settings';
+      else if (!state.user.AllowedTabs.toLowerCase().includes('settings')) state.user.AllowedTabs += ',settings';
+    }
+    if (!state.data.employees || !Array.isArray(state.data.employees)) state.data.employees = [];
+    const hasRashiniEmp = state.data.employees.some(e => 
+      (e.Name || '').toLowerCase().includes('rashini') || 
+      (e.Email || '').toLowerCase() === 'staff2@office.local'
+    );
+    if (!hasRashiniEmp) {
+      state.data.employees.push({
+        EmpId: 'EMP-003',
+        Name: 'Rashini Fernando',
+        Email: 'staff2@office.local',
+        Designation: 'Executive Staff / Coordinator',
+        Department: 'Operations & Accounts',
+        DOB: '1996-05-14',
+        Phone: '077 123 4567',
+        NIC: '199613501234',
+        JoinDate: '2022-01-15',
+        Status: 'Active'
+      });
+    }
   }
 
   let _invLines = [];
@@ -2961,8 +3341,22 @@
     `;
   }
 
+  let _currentEditingQuotationId = null;
+
+  function onQuotCompanyChange() {
+    const compId = document.getElementById('fQuotCompany')?.value;
+    const comp = (state.data.companyProfiles || []).find(c => c.CompanyId === compId);
+    const qNoEl = document.getElementById('fQuotNo');
+    if (qNoEl && comp && !_currentEditingQuotationId) {
+      if (comp.NextQuoteNo || comp.QuotePrefix) {
+        qNoEl.value = `${comp.QuotePrefix || ''}${comp.NextQuoteNo || '754'}`;
+      }
+    }
+  }
+
   function openQuotationModal(quotId) {
     ensureDataDefaults();
+    _currentEditingQuotationId = quotId || null;
     const existing = quotId ? (state.data.quotations || []).find(x => x.QuotationId === quotId) : null;
     const nextNo = getNextQuotationNo();
 
@@ -3028,7 +3422,7 @@
             </div>
             <div style="flex:1; min-width:200px;">
               <label style="font-weight:600; font-size:12.5px; color:#374151; margin-bottom:4px; display:block;">Company Profile</label>
-              <select id="fQuotCompany" style="width:100%; padding:6px 8px;">
+              <select id="fQuotCompany" onchange="onQuotCompanyChange()" style="width:100%; padding:6px 8px;">
                 ${compOpts}
               </select>
             </div>
@@ -6962,10 +7356,19 @@
    * ======================================================================== */
 
   function renderEmployeesView() {
-    const tab = state.empTab;
+    ensureDataDefaults();
+    const tab = state.empTab || 'directory';
+    state.empTab = tab;
+
+    const emps = state.data.employees || [];
+    const activeEmps = emps.filter(e => e.Status === 'Active');
+    const today = state.data.today || new Date().toISOString().slice(0, 10);
+    const todayAtt = (state.data.attendance || []).filter(a => a.Date === today);
+    const leaves = state.data.leaves || [];
+    const pendingLeaves = leaves.filter(l => l.Status === 'Pending');
+
     let body = '';
     if (tab === 'directory') {
-      const emps = state.data.employees || [];
       body = `
         <div class="section-header">
           <input class="search-input" placeholder="Search employees by name, NIC, position, phone..." oninput="filterTable('empTable', this.value)">
@@ -6977,8 +7380,8 @@
         <div class="card table-wrap">
           <table id="empTable">
             <thead>
-              <tr>
-                <th>Name</th>
+              <tr style="background:#f1f5f9;">
+                <th>Name &amp; Contact</th>
                 <th>Designation</th>
                 <th>Position</th>
                 <th>National ID (NIC)</th>
@@ -6995,9 +7398,14 @@
               ${emps.map(e => `
                 <tr>
                   <td>
-                    <b>${esc(e.Name)}</b>
-                    ${e.Email ? `<div style="font-size:11px; color:var(--muted);">${esc(e.Email)}</div>` : ''}
-                    ${e.Address ? `<div style="font-size:11px; color:var(--muted);">${esc(e.Address)}</div>` : ''}
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <img src="${e.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(e.Name || 'User') + '&background=0f766e&color=fff')}" style="width:28px; height:28px; border-radius:50%; object-fit:cover; background:#e2e8f0;">
+                      <div>
+                        <b>${esc(e.Name)}</b>
+                        ${e.Email ? `<div style="font-size:11px; color:var(--muted);">${esc(e.Email)}</div>` : ''}
+                        ${e.Address ? `<div style="font-size:11px; color:var(--muted);">${esc(e.Address)}</div>` : ''}
+                      </div>
+                    </div>
                   </td>
                   <td><b>${esc(e.Designation || '-')}</b></td>
                   <td><span class="badge badge-info">${esc(e.Position || 'Office Staff')}</span></td>
@@ -7011,7 +7419,7 @@
                   </td>
                   <td>${esc(e.JoinDate || '-')}</td>
                   <td>${statusBadge(e.Status || 'Active')}</td>
-                  <td>
+                  <td style="white-space:nowrap;">
                     <button class="btn btn-sm btn-secondary" onclick="openEmployeeModal('${esc(e.EmpId)}')">Edit</button>
                     <button class="btn btn-sm btn-danger" onclick="removeEmployee('${esc(e.EmpId)}')">Del</button>
                   </td>
@@ -7024,42 +7432,72 @@
     } else if (tab === 'attendance') {
       const rows = [...(state.data.attendance || [])].reverse();
       body = `
+        <div class="section-header">
+          <div>
+            <h3 style="margin:0; font-size:15px; color:var(--text);">Daily Attendance Records (ඇටෙන්ඩන්ස්)</h3>
+            <div style="font-size:12px; color:var(--muted);">View employee punch in/out timestamps, duration, and daily status.</div>
+          </div>
+          <div class="section-actions">
+            <input class="search-input" placeholder="Search by name or date..." oninput="filterTable('attTable', this.value)">
+            <button class="btn btn-secondary" onclick="exportAttendanceExcel()">⬇ Export Excel</button>
+          </div>
+        </div>
         <div class="card table-wrap">
-          <table>
-            <thead><tr><th>Date</th><th>Team Member</th><th>Clock In</th><th>Clock Out</th><th>Status</th></tr></thead>
+          <table id="attTable">
+            <thead><tr style="background:#f1f5f9;"><th>Date</th><th>Team Member</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th>Status</th></tr></thead>
             <tbody>
-              ${rows.map(a => `
-                <tr>
-                  <td>${esc(a.Date)}</td>
-                  <td><b>${esc(a.UserName)}</b></td>
-                  <td>${esc(a.ClockIn)}</td>
-                  <td>${esc(a.ClockOut || '-')}</td>
-                  <td>${statusBadge(a.Status)}</td>
-                </tr>
-              `).join('') || '<tr><td colspan="5" style="color:var(--muted)">No attendance records yet.</td></tr>'}
+              ${rows.map(a => {
+                let duration = '-';
+                if (a.ClockIn && a.ClockOut) {
+                  try {
+                    const t1 = new Date('1970-01-01T' + a.ClockIn);
+                    const t2 = new Date('1970-01-01T' + a.ClockOut);
+                    const diffM = Math.floor((t2 - t1) / 60000);
+                    if (diffM > 0) duration = `${Math.floor(diffM / 60)}h ${diffM % 60}m`;
+                  } catch (e) {}
+                }
+                return `
+                  <tr>
+                    <td>${esc(a.Date)}</td>
+                    <td><b>${esc(a.UserName)}</b></td>
+                    <td><span class="badge badge-success">${esc(a.ClockIn)}</span></td>
+                    <td>${a.ClockOut ? `<span class="badge badge-info">${esc(a.ClockOut)}</span>` : '<span class="badge badge-warning">Active (Clocked In)</span>'}</td>
+                    <td><b>${esc(duration)}</b></td>
+                    <td>${statusBadge(a.Status)}</td>
+                  </tr>
+                `;
+              }).join('') || '<tr><td colspan="6" style="color:var(--muted)">No attendance records yet.</td></tr>'}
             </tbody>
           </table>
         </div>
       `;
     } else {
-      const leaves = [...(state.data.leaves || [])].reverse();
-      const isAdmin = state.user.Role === 'Admin';
+      const leaveList = [...(state.data.leaves || [])].reverse();
+      const isAdmin = state.user && (state.user.Role === 'Admin' || state.user.Role === 'Manager');
       body = `
         <div class="section-header">
-          <h3>Leave Requests</h3>
-          <button class="btn btn-primary" onclick="openLeaveModal()">+ Request Leave</button>
+          <div>
+            <h3 style="margin:0; font-size:15px; color:var(--text);">Employee Leave Requests &amp; Taken List (නිවාඩු ලිස්ට් එක)</h3>
+            <div style="font-size:12px; color:var(--muted);">Review official leaves taken, approval history, reasons, and submit new leave requests.</div>
+          </div>
+          <div class="section-actions">
+            <button class="btn btn-primary" onclick="openLeaveModal()">+ Request Leave</button>
+          </div>
         </div>
         <div class="card table-wrap">
           <table>
-            <thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Days</th><th>Reason</th><th>Status</th><th>Action</th></tr></thead>
+            <thead><tr style="background:#f1f5f9;"><th>Employee</th><th>Leave Type</th><th>Dates</th><th>Days</th><th>Reason</th><th>Status</th><th>Action</th></tr></thead>
             <tbody>
-              ${leaves.map(l => `
+              ${leaveList.map(l => `
                 <tr>
-                  <td><b>${esc(l.UserName)}</b></td>
-                  <td>${esc(l.Type)}</td>
+                  <td>
+                    <b>${esc(l.UserName)}</b>
+                    ${l.UserEmail ? `<div style="font-size:11px; color:var(--muted);">${esc(l.UserEmail)}</div>` : ''}
+                  </td>
+                  <td><span class="badge badge-info">${esc(l.Type)}</span></td>
                   <td>${esc(l.StartDate)} → ${esc(l.EndDate)}</td>
-                  <td>${l.Days}</td>
-                  <td>${esc(l.Reason)}</td>
+                  <td><b>${l.Days} day(s)</b></td>
+                  <td>${esc(l.Reason || '-')}</td>
                   <td>${statusBadge(l.Status)}</td>
                   <td style="white-space:nowrap;">
                     ${isAdmin && l.Status === 'Pending' ? `
@@ -7070,7 +7508,7 @@
                     <button class="btn btn-sm btn-danger" onclick="removeLeave('${esc(l.LeaveId)}')">Del</button>
                   </td>
                 </tr>
-              `).join('') || '<tr><td colspan="7" style="color:var(--muted)">No leave requests.</td></tr>'}
+              `).join('') || '<tr><td colspan="7" style="color:var(--muted)">No leave requests found.</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -7078,11 +7516,32 @@
     }
 
     document.getElementById('mainContent').innerHTML = `
-      <div class="tabs">
-        <button class="tab-btn ${tab === 'directory' ? 'active' : ''}" onclick="state.empTab='directory'; renderEmployeesView()">Employee Directory</button>
-        <button class="tab-btn ${tab === 'attendance' ? 'active' : ''}" onclick="state.empTab='attendance'; renderEmployeesView()">Daily Attendance</button>
-        <button class="tab-btn ${tab === 'leaves' ? 'active' : ''}" onclick="state.empTab='leaves'; renderEmployeesView()">Leave Requests</button>
+      <!-- Employee Top KPI Bar (Requirement 6) -->
+      <div class="kpi-grid" style="margin-bottom:14px;">
+        <div class="card" style="padding:12px 16px;">
+          <div class="kpi-label">ACTIVE EMPLOYEES (දැනට ඉන්න සේවකයින්)</div>
+          <div class="kpi-val" style="color:var(--primary); font-size:22px;">${activeEmps.length}</div>
+          <div class="kpi-sub">${emps.length} total registered profiles</div>
+        </div>
+        <div class="card" style="padding:12px 16px;">
+          <div class="kpi-label">TODAY PRESENT (අද පැමිණීම)</div>
+          <div class="kpi-val" style="color:#16a34a; font-size:22px;">${todayAtt.length}</div>
+          <div class="kpi-sub">${(emps.length > 0 ? ((todayAtt.length / emps.length) * 100).toFixed(0) : 0)}% of team clocked in</div>
+        </div>
+        <div class="card" style="padding:12px 16px;">
+          <div class="kpi-label">LEAVE REQUESTS (නිවාඩු ඉල්ලීම්)</div>
+          <div class="kpi-val" style="color:${pendingLeaves.length > 0 ? '#d97706' : '#16a34a'}; font-size:22px;">${pendingLeaves.length}</div>
+          <div class="kpi-sub">${leaves.length} total recorded leaves</div>
+        </div>
       </div>
+
+      <!-- Employee Sub-Tabs -->
+      <div class="tabs" style="margin-bottom:16px;">
+        <button class="tab-btn ${tab === 'directory' ? 'active' : ''}" onclick="state.empTab='directory'; renderEmployeesView()">👥 Employee Directory (${emps.length})</button>
+        <button class="tab-btn ${tab === 'attendance' ? 'active' : ''}" onclick="state.empTab='attendance'; renderEmployeesView()">🕒 Daily Attendance (${(state.data.attendance || []).length})</button>
+        <button class="tab-btn ${tab === 'leaves' ? 'active' : ''}" onclick="state.empTab='leaves'; renderEmployeesView()">🏖️ Leaves Taken &amp; Requests (${leaves.length})</button>
+      </div>
+
       ${body}
     `;
   }
@@ -7465,6 +7924,13 @@
     return defaultCols[key] || [];
   }
 
+  let _selectedSettingsCompId = '__global__';
+
+  function onSettingsCompanySelect(compId) {
+    _selectedSettingsCompId = compId || '__global__';
+    renderSettingsView();
+  }
+
   function renderSettingsView() {
     ensureDataDefaults();
     state.data.settings = state.data.settings || {};
@@ -7472,48 +7938,105 @@
     const isAdmin = state.user && state.user.Role === 'Admin';
 
     if (isAdmin) {
+      const companies = state.data.companyProfiles || [];
+      const selectedComp = _selectedSettingsCompId !== '__global__' 
+        ? companies.find(c => c.CompanyId === _selectedSettingsCompId) 
+        : null;
+
+      const isCompSelected = !!selectedComp;
+      const compNameVal = isCompSelected ? (selectedComp.CompanyName || '') : (s.CompanyName || '');
+      const compAddrVal = isCompSelected ? (selectedComp.Address || '') : (s.Address || '');
+      const compPhoneVal = isCompSelected ? (selectedComp.Phone || '') : (s.Phone || '');
+      const compEmailVal = isCompSelected ? (selectedComp.Email || '') : (s.Email || '');
+      const nextInvVal = isCompSelected ? (selectedComp.NextInvoiceNo || s.NextInvoiceNo || '1001') : (s.NextInvoiceNo || '1001');
+      const invPrefVal = isCompSelected ? (selectedComp.InvoicePrefix || s.InvoicePrefix || 'INV-') : (s.InvoicePrefix || 'INV-');
+      const nextQuotVal = isCompSelected ? (selectedComp.NextQuoteNo || s.NextQuoteNo || '754') : (s.NextQuoteNo || '754');
+      const quotPrefVal = isCompSelected ? (selectedComp.QuotePrefix || s.QuotePrefix || 'QT-') : (s.QuotePrefix || 'QT-');
+      const nextPcVal = s.NextPettyCashNo || '1';
+
       document.getElementById('mainContent').innerHTML = `
         <div class="two-col">
-          <!-- Card 1: Company Settings & Starting Sequences -->
+          <!-- Card 1: Company Settings & Starting Sequences (Requirement 2) -->
           <div class="card">
             <h3 style="margin-bottom:14px; color:var(--text); font-size:16px;">🏢 Company Settings &amp; Issue Sequences</h3>
-            <div class="form-group"><label>Company Name</label><input id="sComp" value="${esc(s.CompanyName || '')}"></div>
-            <div class="form-group"><label>Address</label><input id="sAddr" value="${esc(s.Address || '')}"></div>
-            <div class="form-row">
-              <div class="form-group"><label>Phone</label><input id="sPhone" value="${esc(s.Phone || '')}"></div>
-              <div class="form-group"><label>Email</label><input id="sEmail" value="${esc(s.Email || '')}"></div>
-            </div>
-            <div class="form-row">
-              <div class="form-group"><label>Currency</label><input id="sCur" value="${esc(s.Currency || 'LKR')}"></div>
-              <div class="form-group"><label>Default Tax %</label><input type="number" id="sTax" value="${esc(s.TaxRate || '0')}"></div>
+            
+            <!-- Company Selector Dropdown -->
+            <div class="form-group" style="background:#f0fdf4; padding:12px; border-radius:8px; border:1.5px solid #16a34a; margin-bottom:16px;">
+              <label style="font-weight:700; color:#166534; font-size:13px; display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+                🏢 Select Company to Configure Sequences &amp; Details:
+              </label>
+              <select id="sCompanySelector" onchange="onSettingsCompanySelect(this.value)" style="width:100%; font-weight:700; font-size:13.5px; padding:8px 10px; border:1.5px solid #16a34a; border-radius:6px; background:#ffffff; color:#0f172a;">
+                <option value="__global__" ${_selectedSettingsCompId === '__global__' ? 'selected' : ''}>🌐 Global / Default System Sequences</option>
+                ${companies.map(c => `
+                  <option value="${esc(c.CompanyId)}" ${_selectedSettingsCompId === c.CompanyId ? 'selected' : ''}>
+                    🏢 ${esc(c.CompanyName)} ${c.IsDefault === 'Yes' ? '★ (Default)' : ''}
+                  </option>
+                `).join('')}
+              </select>
+              <div style="font-size:11.5px; color:#15803d; margin-top:5px;">
+                ${isCompSelected 
+                  ? `Configuring sequences and details specifically for <b>${esc(selectedComp.CompanyName)}</b>. Issued invoices and quotes for this company will use these numbers.` 
+                  : 'Configuring default/global sequences used as system-wide fallback.'}
+              </div>
             </div>
 
-            <!-- Issue Sequences (Requirement 6) -->
+            <div class="form-group"><label>Company Name</label><input id="sComp" value="${esc(compNameVal)}"></div>
+            <div class="form-group"><label>Address</label><input id="sAddr" value="${esc(compAddrVal)}"></div>
+            <div class="form-row">
+              <div class="form-group"><label>Phone</label><input id="sPhone" value="${esc(compPhoneVal)}"></div>
+              <div class="form-group"><label>Email</label><input id="sEmail" value="${esc(compEmailVal)}"></div>
+            </div>
+
+            ${isCompSelected ? `
+              <div class="form-group"><label>Website</label><input id="sWeb" value="${esc(selectedComp.Website || '')}"></div>
+              <div class="form-row">
+                <div class="form-group"><label>Bank Name</label><input id="sBank" value="${esc(selectedComp.BankName || '')}"></div>
+                <div class="form-group"><label>Branch</label><input id="sBranch" value="${esc(selectedComp.Branch || '')}"></div>
+              </div>
+              <div class="form-row">
+                <div class="form-group"><label>Account Number</label><input id="sAccNo" value="${esc(selectedComp.AccountNo || '')}"></div>
+                <div class="form-group"><label>Is Default Company</label>
+                  <select id="sCompIsDefault">
+                    <option value="Yes" ${selectedComp.IsDefault === 'Yes' ? 'selected' : ''}>Yes (Default)</option>
+                    <option value="No" ${selectedComp.IsDefault !== 'Yes' ? 'selected' : ''}>No</option>
+                  </select>
+                </div>
+              </div>
+            ` : `
+              <div class="form-row">
+                <div class="form-group"><label>Currency</label><input id="sCur" value="${esc(s.Currency || 'LKR')}"></div>
+                <div class="form-group"><label>Default Tax %</label><input type="number" id="sTax" value="${esc(s.TaxRate || '0')}"></div>
+              </div>
+            `}
+
+            <!-- Issue Sequences -->
             <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin:14px 0 16px 0;">
-              <div style="font-weight:700; font-size:13.5px; color:var(--primary); margin-bottom:8px;">🔢 Document Sequence &amp; Starting Numbers</div>
+              <div style="font-weight:700; font-size:13.5px; color:var(--primary); margin-bottom:8px;">
+                🔢 Document Sequence &amp; Starting Numbers ${isCompSelected ? `(${esc(selectedComp.CompanyName)})` : '(Global)'}
+              </div>
               <div class="form-row">
                 <div class="form-group">
                   <label style="font-size:12px; font-weight:600;">Next Invoice #</label>
-                  <input id="sNextInvNo" placeholder="e.g. 1001" value="${esc(s.NextInvoiceNo || '1001')}">
+                  <input id="sNextInvNo" placeholder="e.g. 1001" value="${esc(nextInvVal)}">
                 </div>
                 <div class="form-group">
                   <label style="font-size:12px; font-weight:600;">Invoice Prefix</label>
-                  <input id="sInvPrefix" placeholder="e.g. INV-" value="${esc(s.InvoicePrefix || 'INV-')}">
+                  <input id="sInvPrefix" placeholder="e.g. INV-" value="${esc(invPrefVal)}">
                 </div>
               </div>
               <div class="form-row">
                 <div class="form-group">
                   <label style="font-size:12px; font-weight:600;">Next Quotation #</label>
-                  <input id="sNextQuotNo" placeholder="e.g. 754" value="${esc(s.NextQuoteNo || '754')}">
+                  <input id="sNextQuotNo" placeholder="e.g. 754" value="${esc(nextQuotVal)}">
                 </div>
                 <div class="form-group">
                   <label style="font-size:12px; font-weight:600;">Quotation Prefix</label>
-                  <input id="sQuotPrefix" placeholder="e.g. QT-" value="${esc(s.QuotePrefix || 'QT-')}">
+                  <input id="sQuotPrefix" placeholder="e.g. QT-" value="${esc(quotPrefVal)}">
                 </div>
               </div>
               <div class="form-group" style="margin-bottom:0;">
                 <label style="font-size:12px; font-weight:600;">Next Petty Cash Voucher #</label>
-                <input id="sNextPcNo" placeholder="e.g. 1" value="${esc(s.NextPettyCashNo || '1')}">
+                <input id="sNextPcNo" placeholder="e.g. 1" value="${esc(nextPcVal)}">
               </div>
             </div>
 
@@ -7917,6 +8440,7 @@
 
   const allSystemTabs = [
     { id: 'dashboard', label: '📊 Dashboard' },
+    { id: 'sales', label: '📈 Sales' },
     { id: 'invoices', label: '🧾 Sales Invoices' },
     { id: 'quotation', label: '📝 Quotation' },
     { id: 'outstanding', label: '⏳ Outstanding' },
@@ -7934,19 +8458,49 @@
   ];
 
   async function submitSettings() {
+    const compId = _selectedSettingsCompId || '__global__';
     const nextInv = document.getElementById('sNextInvNo')?.value.trim() || '1001';
     const invPref = document.getElementById('sInvPrefix')?.value.trim() || 'INV-';
     const nextQuot = document.getElementById('sNextQuotNo')?.value.trim() || '754';
     const quotPref = document.getElementById('sQuotPrefix')?.value.trim() || 'QT-';
     const nextPc = document.getElementById('sNextPcNo')?.value.trim() || '1';
 
+    let compUpdatedName = '';
+
+    if (compId !== '__global__') {
+      const comp = (state.data.companyProfiles || []).find(c => c.CompanyId === compId);
+      if (comp) {
+        comp.CompanyName = document.getElementById('sComp')?.value.trim() || comp.CompanyName;
+        comp.Address = document.getElementById('sAddr')?.value.trim() || comp.Address;
+        comp.Phone = document.getElementById('sPhone')?.value.trim() || comp.Phone;
+        comp.Email = document.getElementById('sEmail')?.value.trim() || comp.Email;
+        if (document.getElementById('sWeb')) comp.Website = document.getElementById('sWeb').value.trim();
+        if (document.getElementById('sBank')) comp.BankName = document.getElementById('sBank').value.trim();
+        if (document.getElementById('sBranch')) comp.Branch = document.getElementById('sBranch').value.trim();
+        if (document.getElementById('sAccNo')) comp.AccountNo = document.getElementById('sAccNo').value.trim();
+        comp.InvoicePrefix = invPref;
+        comp.NextInvoiceNo = nextInv;
+        comp.QuotePrefix = quotPref;
+        comp.NextQuoteNo = nextQuot;
+        if (document.getElementById('sCompIsDefault')) {
+          const isDef = document.getElementById('sCompIsDefault').value;
+          comp.IsDefault = isDef;
+          if (isDef === 'Yes') {
+            (state.data.companyProfiles || []).forEach(c => { if (c.CompanyId !== comp.CompanyId) c.IsDefault = 'No'; });
+          }
+        }
+        compUpdatedName = comp.CompanyName;
+        gas('saveCompanyProfile', comp).catch(err => console.error(err));
+      }
+    }
+
     const payload = {
-      CompanyName: document.getElementById('sComp').value,
-      Address: document.getElementById('sAddr').value,
-      Phone: document.getElementById('sPhone').value,
-      Email: document.getElementById('sEmail').value,
-      Currency: document.getElementById('sCur').value,
-      TaxRate: document.getElementById('sTax').value,
+      CompanyName: compId === '__global__' ? (document.getElementById('sComp')?.value || '') : (state.data.settings.CompanyName || ''),
+      Address: compId === '__global__' ? (document.getElementById('sAddr')?.value || '') : (state.data.settings.Address || ''),
+      Phone: compId === '__global__' ? (document.getElementById('sPhone')?.value || '') : (state.data.settings.Phone || ''),
+      Email: compId === '__global__' ? (document.getElementById('sEmail')?.value || '') : (state.data.settings.Email || ''),
+      Currency: document.getElementById('sCur') ? document.getElementById('sCur').value : (state.data.settings.Currency || 'LKR'),
+      TaxRate: document.getElementById('sTax') ? document.getElementById('sTax').value : (state.data.settings.TaxRate || '0'),
       NextInvoiceNo: nextInv,
       InvoicePrefix: invPref,
       NextQuoteNo: nextQuot,
@@ -7957,9 +8511,15 @@
     // Optimistic update
     Object.assign(state.data.settings, payload);
     try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
-    document.getElementById('brandName').textContent = payload.CompanyName || 'Jade Coatings';
 
-    showToast('Settings & Sequences saved!');
+    const defaultComp = (state.data.companyProfiles || []).find(c => c.IsDefault === 'Yes');
+    if (defaultComp && defaultComp.CompanyName) {
+      document.getElementById('brandName').textContent = defaultComp.CompanyName;
+    } else if (payload.CompanyName) {
+      document.getElementById('brandName').textContent = payload.CompanyName;
+    }
+
+    showToast(compUpdatedName ? `Settings & Sequences saved for ${compUpdatedName}!` : 'Settings & Sequences saved!');
     renderSettingsView();
 
     gas('saveSettings', payload).catch(err => console.error(err));
@@ -8125,11 +8685,28 @@
     gas('saveUser', state.user).catch(err => console.error(err));
   }
 
+  function onUserRoleChange(role) {
+    const mgrInfo = document.getElementById('mgrRoleNotice');
+    if (mgrInfo) mgrInfo.style.display = role === 'Manager' ? 'block' : 'none';
+    if (role === 'Manager') {
+      const mgrDefaults = ['dashboard', 'sales', 'invoices', 'quotation', 'outstanding', 'customers', 'employees', 'reports', 'settings'];
+      document.querySelectorAll('.user-tab-checkbox').forEach(cb => {
+        cb.checked = mgrDefaults.includes(cb.dataset.tab.toLowerCase());
+      });
+    } else if (role === 'Admin') {
+      toggleAllUserTabs(true);
+    }
+  }
+
   function openUserModal(userId) {
     const u = userId ? state.data.users.find(x => x.UserId === userId) : { Name: '', Email: '', Role: 'Staff', Status: 'Active', AllowedTabs: '' };
     const currentAllowed = u.AllowedTabs
       ? u.AllowedTabs.split(',').map(s => s.trim().toLowerCase())
-      : (u.Role === 'Admin' ? allSystemTabs.map(t => t.id.toLowerCase()) : ['dashboard', 'invoices', 'quotation', 'outstanding']);
+      : (u.Role === 'Admin' 
+          ? allSystemTabs.map(t => t.id.toLowerCase()) 
+          : (u.Role === 'Manager'
+              ? ['dashboard', 'sales', 'invoices', 'quotation', 'outstanding', 'customers', 'employees', 'reports', 'settings']
+              : ['dashboard', 'invoices', 'quotation', 'outstanding', 'settings']));
 
     const tabsCheckboxes = allSystemTabs.map(t => `
       <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; cursor:pointer; background:#fff; padding:6px 10px; border:1px solid #e2e8f0; border-radius:6px;">
@@ -8144,10 +8721,13 @@
         <div class="form-row">
           <div class="form-group" style="flex:2;"><label>Full Name *</label><input id="fUsName" value="${esc(u.Name)}"></div>
           <div class="form-group" style="flex:1;"><label>Role</label>
-            <select id="fUsRole">
+            <select id="fUsRole" onchange="onUserRoleChange(this.value)">
               ${['Admin', 'Staff', 'Sales', 'Accounts', 'Painter', 'Manager'].map(r => `<option ${u.Role === r ? 'selected' : ''}>${r}</option>`).join('')}
             </select>
           </div>
+        </div>
+        <div id="mgrRoleNotice" style="display:${u.Role === 'Manager' ? 'block' : 'none'}; font-size:12px; color:#1e40af; background:#eff6ff; padding:8px 10px; border-radius:6px; margin-bottom:10px; border:1px solid #bfdbfe;">
+          📈 <b>Manager Role:</b> Gets the special Manager Sales Performance Dashboard with Date-range filtering, Sales vs Collections metrics, and Sales Person Team Rankings.
         </div>
         <div class="form-row">
           <div class="form-group"><label>Email Address</label><input id="fUsEmail" value="${esc(u.Email)}"></div>
