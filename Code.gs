@@ -1177,11 +1177,11 @@ function saveReportToDrive(filename, csvContent) {
 function saveCompanyProfile(comp) {
   return withLock_(() => {
     const existing = readSheetObjects_('CompanyProfiles');
-    const isExisting = comp.CompanyId && existing.some(c => c.CompanyId === comp.CompanyId);
+    const isExisting = comp.CompanyId && existing.some(c => String(c.CompanyId).trim() === String(comp.CompanyId).trim());
     if (isExisting) {
       if (comp.IsDefault === 'Yes') {
         existing.forEach(c => {
-          if (c.CompanyId !== comp.CompanyId && c.IsDefault === 'Yes') {
+          if (String(c.CompanyId).trim() !== String(comp.CompanyId).trim() && c.IsDefault === 'Yes') {
             c.IsDefault = 'No';
             updateRowByKey_('CompanyProfiles', 'CompanyId', c.CompanyId, c);
           }
@@ -1190,11 +1190,11 @@ function saveCompanyProfile(comp) {
       updateRowByKey_('CompanyProfiles', 'CompanyId', comp.CompanyId, comp);
       return comp;
     }
-    // New company profile
-    if (!comp.CompanyId || !comp.CompanyId.startsWith('COMP-') || comp.CompanyId.length > 20) {
+    // New company profile or client-seeded ID
+    if (!comp.CompanyId || comp.CompanyId.length > 20) {
       comp.CompanyId = nextId_('COMP');
     }
-    comp.CreatedAt = todayStr_();
+    comp.CreatedAt = comp.CreatedAt || todayStr_();
     if (existing.length === 0 || comp.IsDefault === 'Yes') {
       comp.IsDefault = 'Yes';
       existing.forEach(c => {

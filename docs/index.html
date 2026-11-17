@@ -1833,7 +1833,7 @@
 
   function onMgrSearch(val) {
     _mgrSalesState.search = val || '';
-    renderManagerSalesView();
+    filterTable('mgrRankTable', val);
   }
 
   function renderManagerSalesView() {
@@ -2146,24 +2146,6 @@
       else if (!state.user.AllowedTabs.toLowerCase().includes('settings')) state.user.AllowedTabs += ',settings';
     }
     if (!state.data.employees || !Array.isArray(state.data.employees)) state.data.employees = [];
-    const hasRashiniEmp = state.data.employees.some(e => 
-      (e.Name || '').toLowerCase().includes('rashini') || 
-      (e.Email || '').toLowerCase() === 'staff2@office.local'
-    );
-    if (!hasRashiniEmp) {
-      state.data.employees.push({
-        EmpId: 'EMP-003',
-        Name: 'Rashini Fernando',
-        Email: 'staff2@office.local',
-        Designation: 'Executive Staff / Coordinator',
-        Department: 'Operations & Accounts',
-        DOB: '1996-05-14',
-        Phone: '077 123 4567',
-        NIC: '199613501234',
-        JoinDate: '2022-01-15',
-        Status: 'Active'
-      });
-    }
   }
 
   let _invLines = [];
@@ -2469,10 +2451,11 @@
     const list = [];
     const added = new Set();
 
-    // 1. Employees with position/designation containing sales/marketing
+    // 1. Employees whose Position or Designation is Sales/Marketing/Sales Officer
     (state.data.employees || []).forEach(e => {
       const p = ((e.Position || '') + ' ' + (e.Designation || '')).toLowerCase();
-      if (e.Status !== 'Inactive' && (p.includes('sales') || p.includes('rep') || p.includes('marketing') || p.includes('officer'))) {
+      const isSales = p.includes('sales') || p.includes('rep') || p.includes('marketing') || p.includes('officer');
+      if (e.Status !== 'Inactive' && isSales) {
         if (!added.has(e.Name)) {
           added.add(e.Name);
           list.push({ Name: e.Name, Code: e.EmpCode || e.EmpId || '', Designation: e.Position || e.Designation || 'Sales Officer' });
@@ -2480,23 +2463,35 @@
       }
     });
 
-    // 2. Default well-known sales representatives
+    // 2. Users whose role is Sales
+    (state.data.users || []).forEach(u => {
+      if (u.Status !== 'Inactive' && u.Role === 'Sales') {
+        if (!added.has(u.Name)) {
+          added.add(u.Name);
+          list.push({ Name: u.Name, Code: u.UserId || '', Designation: 'Sales Representative' });
+        }
+      }
+    });
+
+    // 3. Official Sales Officers from customer records
+    (state.data.customers || []).forEach(c => {
+      const sp = (c.SalesOfficerName || '').trim();
+      if (sp && !added.has(sp)) {
+        added.add(sp);
+        list.push({ Name: sp, Code: '', Designation: 'Sales Officer' });
+      }
+    });
+
+    // 4. Established Sales Representatives
     const defaultSalesNames = [
-      'Mr. Sunanda', 'Mr. Damith', 'Mr. Nimesh', 'Mr. Yasas',
-      'Mr. Shehan', 'Mr. Manjula', 'Mr. Nipun', 'Mr. Pathum'
+      'Sunanda', 'Mr. Sunanda', 'Damith', 'Mr. Damith', 'Nimesh', 'Mr. Nimesh', 
+      'Yasas', 'Mr. Yasas', 'Shehan', 'Mr. Shehan', 'Manjula', 'Mr. Manjula', 
+      'Nipun', 'Mr. Nipun', 'Pathum', 'Mr. Pathum', 'R.D.N.I. Rajapaksha'
     ];
     defaultSalesNames.forEach(name => {
       if (!added.has(name)) {
         added.add(name);
         list.push({ Name: name, Code: '', Designation: 'Sales Officer' });
-      }
-    });
-
-    // 3. Other active employees
-    (state.data.employees || []).forEach(e => {
-      if (e.Status !== 'Inactive' && !added.has(e.Name)) {
-        added.add(e.Name);
-        list.push({ Name: e.Name, Code: e.EmpCode || e.EmpId || '', Designation: e.Position || e.Designation || 'Staff' });
       }
     });
 
@@ -2514,13 +2509,16 @@
     });
 
     if (list.length === 0) {
-      menu.innerHTML = '<div style="padding:10px 12px; font-size:12.5px; color:#94a3b8; text-align:center;">No matching sales person. You can type any custom name.</div>';
+      menu.innerHTML = '<div style="padding:10px 12px; font-size:12.5px; color:#ef4444; text-align:center;">⚠️ Only registered Sales Persons (S.P) can be selected for invoices.</div>';
       return;
     }
 
     menu.innerHTML = list.map(s => `
-      <div onclick="selectInvSP('${esc(s.Name)}')" style="padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
-        <div><b>${esc(s.Name)}</b> <span style="font-size:11.5px; color:#64748b;">(${esc(s.Designation)})</span></div>
+      <div onclick="selectInvSP('${esc(s.Name)}')" style="padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center;" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='#fff'">
+        <div>
+          <span style="font-weight:700; color:#0f766e;">👤 ${esc(s.Name)}</span> 
+          <span style="font-size:11.5px; color:#64748b; margin-left:6px; background:#f1f5f9; padding:2px 6px; border-radius:4px;">${esc(s.Designation)}</span>
+        </div>
         ${s.Code ? `<div style="font-size:11px; color:#0f766e; font-weight:600;">${esc(s.Code)}</div>` : ''}
       </div>
     `).join('');
@@ -2687,6 +2685,13 @@
     const custName = document.getElementById('fInvCustInput')?.value || '';
     const spVal = document.getElementById('fInvSPInput')?.value || document.getElementById('fInvSP')?.value || '';
     const status = document.getElementById('fInvStatus').value;
+
+    if (status !== 'Free Issue' && status !== 'Draft' && status !== 'Cancelled' && !spVal.trim()) {
+      showToast('Please select a registered Sales Person (S.P) for this invoice.');
+      document.getElementById('fInvSPInput')?.focus();
+      return;
+    }
+
     const info = getCustomerOverdueInfo(custId);
 
     // Block customer if any unpaid invoice is past the Due Date unless authorized via Login PIN
@@ -3234,14 +3239,28 @@
     };
 
     closeModal();
+
+    // 1. Optimistic Local Update
+    if (payload.IsDefault === 'Yes') {
+      (state.data.companyProfiles || []).forEach(c => { if (c.CompanyId !== companyId) c.IsDefault = 'No'; });
+    }
+    if (companyId) {
+      const idx = (state.data.companyProfiles || []).findIndex(c => c.CompanyId === companyId);
+      if (idx !== -1) {
+        Object.assign(state.data.companyProfiles[idx], payload);
+      }
+    }
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+    renderView();
     showToast('Saving Company Profile...');
+
     try {
       const saved = await gas('saveCompanyProfile', payload);
       if (saved && saved.CompanyId) {
         if (saved.IsDefault === 'Yes') {
           (state.data.companyProfiles || []).forEach(c => { if (c.CompanyId !== saved.CompanyId) c.IsDefault = 'No'; });
         }
-        const idx = (state.data.companyProfiles || []).findIndex(c => c.CompanyId === saved.CompanyId);
+        const idx = (state.data.companyProfiles || []).findIndex(c => c.CompanyId === saved.CompanyId || c.CompanyId === companyId);
         if (idx !== -1) {
           state.data.companyProfiles[idx] = saved;
         } else {
@@ -4129,7 +4148,7 @@
       const statusBadgeClass = pStatus === 'Realised' || pStatus === 'Paid' ? 'badge-success' : (pStatus === 'Overdue' ? 'badge-danger' : 'badge-warning');
 
       return `
-        <tr class="${isPastDue ? 'row-overdue' : ''}">
+        <tr class="${isPastDue ? 'row-overdue' : ''}" data-invamt="${invAmt}" data-chqamt="${Number(inv.ChequeAmount || 0)}" data-paidamt="${paidAmt}" data-pendingamt="${pendingAmt}">
           <td style="text-align:center;">${esc(inv.Date || '-')}</td>
           <td><b>${esc(inv.CustomerName || '-')}</b></td>
           <td style="text-align:center;"><b>${esc(inv.InvoiceNo || '-')}</b></td>
@@ -4177,7 +4196,7 @@
             <select id="outStatusSelect" style="min-width:180px;" onchange="_outFilterStatus=this.value; renderOutstandingView();">
               ${statusOptions}
             </select>
-            <input type="text" id="outSearchInput" class="search-input" placeholder="Search Customer, Invoice, Cheque, S.P..." value="${esc(_outSearch)}" oninput="_outSearch=this.value; renderOutstandingView();" style="min-width:240px;">
+            <input type="text" id="outSearchInput" class="search-input" placeholder="Search Customer, Invoice, Cheque, S.P..." value="${esc(_outSearch)}" oninput="filterOutstandingTable(this.value)" style="min-width:240px;">
           </div>
           <div style="display:flex; align-items:center; gap:8px;">
             <button class="btn btn-success" onclick="exportOutstandingExcel()">📥 Export to Excel</button>
@@ -4188,10 +4207,10 @@
 
       <!-- KPI Summary Cards -->
       <div class="kpi-grid">
-        <div class="card"><div class="kpi-label">Total Invoiced Amount</div><div class="kpi-val">${fmtMoney(totalInvAmt)}</div></div>
-        <div class="card"><div class="kpi-label">Total Realised (Collected)</div><div class="kpi-val" style="color:var(--success);">${fmtMoney(totalRealisedAmt)}</div></div>
-        <div class="card"><div class="kpi-label">Total Cheque Amount</div><div class="kpi-val" style="color:var(--primary);">${fmtMoney(totalChqAmt)}</div></div>
-        <div class="card"><div class="kpi-label">Pending Outstanding</div><div class="kpi-val" style="color:var(--danger);">${fmtMoney(totalPendingAmt)}</div></div>
+        <div class="card"><div class="kpi-label">Total Invoiced Amount</div><div class="kpi-val" id="outKpiInvAmt">${fmtMoney(totalInvAmt)}</div></div>
+        <div class="card"><div class="kpi-label">Total Realised (Collected)</div><div class="kpi-val" id="outKpiRealisedAmt" style="color:var(--success);">${fmtMoney(totalRealisedAmt)}</div></div>
+        <div class="card"><div class="kpi-label">Total Cheque Amount</div><div class="kpi-val" id="outKpiChqAmt" style="color:var(--primary);">${fmtMoney(totalChqAmt)}</div></div>
+        <div class="card"><div class="kpi-label">Pending Outstanding</div><div class="kpi-val" id="outKpiPendingAmt" style="color:var(--danger);">${fmtMoney(totalPendingAmt)}</div></div>
       </div>
 
       <!-- Main Excel-Styled Outstanding Table -->
@@ -4237,6 +4256,37 @@
         </table>
       </div>
     `;
+    if (_outSearch) filterOutstandingTable(_outSearch);
+  }
+
+  function filterOutstandingTable(query) {
+    _outSearch = query || '';
+    const q = _outSearch.toLowerCase().trim();
+    const rows = document.querySelectorAll('#outstandingExcelTable tbody tr');
+    let visibleInvAmt = 0;
+    let visibleChqAmt = 0;
+    let visibleRealisedAmt = 0;
+    let visiblePendingAmt = 0;
+
+    rows.forEach(tr => {
+      const match = !q || tr.textContent.toLowerCase().includes(q);
+      tr.style.display = match ? '' : 'none';
+      if (match) {
+        visibleInvAmt += parseFloat(tr.dataset.invamt) || 0;
+        visibleChqAmt += parseFloat(tr.dataset.chqamt) || 0;
+        visibleRealisedAmt += parseFloat(tr.dataset.paidamt) || 0;
+        visiblePendingAmt += parseFloat(tr.dataset.pendingamt) || 0;
+      }
+    });
+
+    const kpiInv = document.getElementById('outKpiInvAmt');
+    if (kpiInv) kpiInv.textContent = fmtMoney(visibleInvAmt);
+    const kpiReal = document.getElementById('outKpiRealisedAmt');
+    if (kpiReal) kpiReal.textContent = fmtMoney(visibleRealisedAmt);
+    const kpiChq = document.getElementById('outKpiChqAmt');
+    if (kpiChq) kpiChq.textContent = fmtMoney(visibleChqAmt);
+    const kpiPend = document.getElementById('outKpiPendingAmt');
+    if (kpiPend) kpiPend.textContent = fmtMoney(visiblePendingAmt);
   }
 
   function openOutstandingPaymentModal(invoiceId) {
@@ -5569,7 +5619,7 @@
             <option value="">-- All Customers --</option>
             ${customerList.map(c => `<option value="${esc(c)}" ${_projectReportFilter.customer === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
           </select>
-          <input type="text" placeholder="Search Customer, Contact, Address, Area, Comment..." style="flex:1; min-width:200px; margin:0; padding:6px 8px;" value="${esc(_projectReportFilter.search)}" oninput="_projectReportFilter.search=this.value; renderProjectReportsView()">
+          <input type="text" placeholder="Search Customer, Contact, Address, Area, Comment..." style="flex:1; min-width:200px; margin:0; padding:6px 8px;" value="${esc(_projectReportFilter.search)}" oninput="filterTable('projectReportTable', this.value)">
           ${(_projectReportFilter.startDate || _projectReportFilter.endDate || _projectReportFilter.area || _projectReportFilter.customer || _projectReportFilter.search) ? `<button class="btn btn-sm btn-secondary" style="margin:0;" onclick="_projectReportFilter.startDate=''; _projectReportFilter.endDate=''; _projectReportFilter.area=''; _projectReportFilter.customer=''; _projectReportFilter.search=''; renderProjectReportsView()">Reset</button>` : ''}
         </div>
       </div>
@@ -6198,7 +6248,7 @@
             <label style="font-size:12px; font-weight:600; color:var(--muted); margin:0;">To:</label>
             <input type="date" style="width:140px; margin:0; padding:6px 8px;" value="${esc(_bbFilter.endDate)}" onchange="_bbFilter.endDate=this.value; renderPainterTrainingView()">
           </div>
-          <input type="text" placeholder="Search description..." style="flex:1; min-width:160px; margin:0; padding:6px 8px;" value="${esc(_bbFilter.search)}" oninput="_bbFilter.search=this.value; renderPainterTrainingView()">
+          <input type="text" placeholder="Search description..." style="flex:1; min-width:160px; margin:0; padding:6px 8px;" value="${esc(_bbFilter.search)}" oninput="filterTable('painterBillBalanceTable', this.value)">
           ${(_bbFilter.startDate || _bbFilter.endDate || _bbFilter.search) ? `<button class="btn btn-sm btn-secondary" style="margin:0;" onclick="_bbFilter.startDate=''; _bbFilter.endDate=''; _bbFilter.search=''; renderPainterTrainingView()">Reset</button>` : ''}
         </div>
       </div>
@@ -7914,8 +7964,14 @@
 
   async function removeEmployee(id) {
     verifyPinAndExecute('delete this employee', async () => {
+      if (state.data.employees) {
+        state.data.employees = state.data.employees.filter(e => e.EmpId !== id);
+      }
+      try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+      renderEmployeesView();
+      showToast('Deleting employee...');
       await gas('deleteEmployee', id);
-      showToast('Employee deleted.');
+      showToast('Employee deleted successfully.');
       await refreshData();
     });
   }
@@ -9010,6 +9066,43 @@
     }
   }
 
+  function onUserEmpLinkChange(empId) {
+    if (!empId) return;
+    const emp = (state.data.employees || []).find(e => e.EmpId === empId);
+    if (!emp) return;
+    if (document.getElementById('fUsName')) document.getElementById('fUsName').value = emp.Name || '';
+    if (document.getElementById('fUsNic')) document.getElementById('fUsNic').value = emp.NIC || '';
+    if (document.getElementById('fUsEmail')) document.getElementById('fUsEmail').value = emp.Email || '';
+
+    const roleSelect = document.getElementById('fUsRole');
+    if (roleSelect) {
+      const text = ((emp.Position || '') + ' ' + (emp.Designation || '')).toLowerCase();
+      if (text.includes('manager')) roleSelect.value = 'Manager';
+      else if (text.includes('sales') || text.includes('rep') || text.includes('marketing')) roleSelect.value = 'Sales';
+      else if (text.includes('account') || text.includes('audit')) roleSelect.value = 'Accounts';
+      else if (text.includes('paint')) roleSelect.value = 'Painter';
+      else if (text.includes('admin') || text.includes('director')) roleSelect.value = 'Admin';
+      else roleSelect.value = 'Staff';
+      onUserRoleChange(roleSelect.value);
+    }
+  }
+
+  function onUserNicInputChange(val) {
+    const norm = String(val || '').replace(/[\s\-]/g, '').toUpperCase();
+    if (!norm) return;
+    const emp = (state.data.employees || []).find(e => String(e.NIC || '').replace(/[\s\-]/g, '').toUpperCase() === norm);
+    if (emp) {
+      const linkSelect = document.getElementById('fUsEmpLink');
+      if (linkSelect) linkSelect.value = emp.EmpId;
+      if (document.getElementById('fUsName') && !document.getElementById('fUsName').value.trim()) {
+        document.getElementById('fUsName').value = emp.Name || '';
+      }
+      if (document.getElementById('fUsEmail') && !document.getElementById('fUsEmail').value.trim()) {
+        document.getElementById('fUsEmail').value = emp.Email || '';
+      }
+    }
+  }
+
   function openUserModal(userId) {
     const u = userId ? state.data.users.find(x => x.UserId === userId) : { Name: '', Email: '', Role: 'Staff', Status: 'Active', AllowedTabs: '' };
     const currentAllowed = u.AllowedTabs
@@ -9030,6 +9123,24 @@
     openModal(
       userId ? 'Edit Team Member Profile' : 'Add New Team Member',
       `
+        <!-- Link with Employee from Directory -->
+        <div class="form-group" style="margin-bottom:12px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px;">
+          <label style="font-weight:700; color:#1e40af; margin-bottom:4px; display:block;">
+            🔗 Link to Employee Directory Record
+          </label>
+          <select id="fUsEmpLink" onchange="onUserEmpLinkChange(this.value)" style="width:100%; background:#fff; font-size:13px;">
+            <option value="">-- Choose Employee to link details --</option>
+            ${(state.data.employees || []).map(e => `
+              <option value="${esc(e.EmpId)}" ${(u.NIC && e.NIC && String(u.NIC).trim().toUpperCase() === String(e.NIC).trim().toUpperCase()) || (u.Email && e.Email && u.Email.toLowerCase() === e.Email.toLowerCase()) ? 'selected' : ''}>
+                ${esc(e.Name)} (${esc(e.Position || e.Designation || 'Staff')}) - NIC: ${esc(e.NIC || 'No NIC')}
+              </option>
+            `).join('')}
+          </select>
+          <div style="font-size:11.5px; color:#2563eb; margin-top:4px;">
+            Selecting an employee links this login user to the official directory record and auto-populates their Name, NIC, Email &amp; Role.
+          </div>
+        </div>
+
         <div class="form-row">
           <div class="form-group" style="flex:2;"><label>Full Name *</label><input id="fUsName" value="${esc(u.Name)}"></div>
           <div class="form-group" style="flex:1;"><label>Role</label>
@@ -9042,7 +9153,7 @@
           📈 <b>Manager Role:</b> Gets the special Manager Sales Performance Dashboard with Date-range filtering, Sales vs Collections metrics, and Sales Person Team Rankings.
         </div>
         <div class="form-row">
-          <div class="form-group"><label>National ID (NIC) Number</label><input id="fUsNic" value="${esc(u.NIC || '')}" placeholder="e.g. 199613501234 or 961350123V"></div>
+          <div class="form-group"><label>National ID (NIC) Number</label><input id="fUsNic" value="${esc(u.NIC || '')}" placeholder="e.g. 199613501234 or 961350123V" oninput="onUserNicInputChange(this.value)"></div>
           <div class="form-group"><label>Email Address</label><input id="fUsEmail" value="${esc(u.Email)}"></div>
         </div>
         <div class="form-row">
@@ -9289,7 +9400,7 @@
           </div>
           <div class="form-group" style="margin:0;">
             <label>Search / Filter</label>
-            <input placeholder="Keyword..." value="${esc(_reportState.search)}" oninput="_reportState.search=this.value; renderReportsView()">
+            <input placeholder="Keyword..." value="${esc(_reportState.search)}" oninput="filterTable('reportsTable', this.value)">
           </div>
           <div class="form-group" style="margin:0;">
             <label>Group By (Calculations)</label>
@@ -9338,7 +9449,7 @@
           </div>
         </div>
         <div class="table-wrap">
-          <table>
+          <table id="reportsTable">
             <thead><tr>${outCols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
             <tbody>
               ${outRows.map(r => `
