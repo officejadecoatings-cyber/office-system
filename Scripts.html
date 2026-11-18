@@ -158,7 +158,11 @@
     saveTask: { table: 'Tasks', key: 'TaskId', prefix: 'TSK', prop: 'tasks' },
     deleteTask: { table: 'Tasks', key: 'TaskId', prop: 'tasks' },
     saveUser: { table: 'Users', key: 'UserId', prefix: 'USR', prop: 'users' },
-    saveSettings: { table: 'Settings', key: 'Key', isSettings: true }
+    saveSettings: { table: 'Settings', key: 'Key', isSettings: true },
+    saveCallReport: { table: 'CallReports', key: 'CallId', prefix: 'CALL', prop: 'callReports' },
+    deleteCallReport: { table: 'CallReports', key: 'CallId', prop: 'callReports' },
+    saveProjectReport: { table: 'ProjectReports', key: 'ProjId', prefix: 'PRJ', prop: 'projectReports' },
+    deleteProjectReport: { table: 'ProjectReports', key: 'ProjId', prop: 'projectReports' }
   };
 
   const DEFAULT_SUPABASE_URL = 'https://ftucnvtpmkftjzoobrfq.supabase.co';
@@ -1222,7 +1226,7 @@
 
   function renderInvoicesView() {
     ensureDataDefaults();
-    const tab = state.invTab || 'invoices';
+    const tab = (state.invTab === 'accounts' ? 'invoices' : (state.invTab || 'invoices'));
     state.invTab = tab;
 
     const allInvoices = state.data.invoices || [];
@@ -1394,7 +1398,6 @@
           🚚 Not Dispatched Orders
           ${notDispatchedCount > 0 ? `<span style="background:#ea580c; color:#fff; font-size:11px; font-weight:800; padding:2px 7px; border-radius:10px; margin-left:6px;">${notDispatchedCount}</span>` : ''}
         </button>
-        <button class="tab-btn ${tab === 'accounts' ? 'active' : ''}" onclick="state.invTab='accounts'; renderInvoicesView()">Income &amp; Expenses</button>
       </div>
       ${body}
     `;
@@ -3894,20 +3897,29 @@
   }
 
   function renderQuotLines() {
-    const invOpts = (state.data.inventory || []).map(it => `
-      <option value="${esc(it.ItemId)}">${esc(it.SKU ? it.SKU + ' - ' : '')}${esc(it.Name)} (${it.StockQty} ${esc(it.Unit || 'Units')})</option>
-    `).join('');
-
     const container = document.getElementById('quotLinesContainer');
     if (!container) return;
 
-    container.innerHTML = _quotLines.map((ln, idx) => {
+    // Global Datalist of all stock products for instant selective + type search
+    const datalistOptions = (state.data.inventory || []).map(it => `
+      <option value="${esc(it.SKU ? it.SKU + ' - ' : '')}${esc(it.Name)}">${esc(it.SKU || '')} (${it.StockQty} ${esc(it.Unit || 'Units')}) - ${fmtMoney(it.UnitPrice)}</option>
+    `).join('');
+
+    container.innerHTML = `
+      <datalist id="quotItemGlobalDataList">
+        ${datalistOptions}
+      </datalist>
+      ` + _quotLines.map((ln, idx) => {
       const lineSub = Number(ln.Qty || 0) * Number(ln.UnitPrice || 0);
       const lineDisc = lineSub * ((Number(ln.Discount) || 0) / 100);
       const lineTotal = Math.round((lineSub - lineDisc) * 100) / 100;
       ln.Amount = lineTotal;
 
-      const matchedItem = (state.data.inventory || []).find(it => it.ItemId === ln.ItemId);
+      const matchedItem = (state.data.inventory || []).find(it => 
+        (ln.ItemId && it.ItemId === ln.ItemId) ||
+        (ln.ItemCode && it.SKU && String(it.SKU).trim().toLowerCase() === String(ln.ItemCode).trim().toLowerCase()) ||
+        (ln.Description && it.Name && String(it.Name).trim().toLowerCase() === String(ln.Description).trim().toLowerCase())
+      );
       let stockAlertHtml = '';
       if (matchedItem) {
         const avail = Number(matchedItem.StockQty) || 0;
@@ -3919,16 +3931,21 @@
         }
       }
 
+      const displayVal = ln.ItemDisplay || (matchedItem ? `${matchedItem.SKU ? matchedItem.SKU + ' - ' : ''}${matchedItem.Name}` : (ln.Description || ''));
+
       return `
         <tr style="border-bottom:1px solid #f1f5f9; background:#ffffff;">
           <td style="color:#94a3b8; font-size:14px; text-align:center; cursor:grab; width:28px; padding:8px 4px;">↕</td>
-          <td style="padding:8px 8px; width:260px; min-width:240px;">
-            <select onchange="pickQuotItem(${idx}, this.value)" style="width:100%; height:38px; padding:6px 8px; font-size:13px; font-weight:500; border:1.5px solid #cbd5e1; border-radius:6px; background:#fff; color:#0f172a; box-sizing:border-box;">
-              <option value="">-- Select Code / Item --</option>
-              ${invOpts}
-            </select>
+          <td style="padding:8px 8px; width:280px; min-width:260px;">
+            <div style="position:relative; display:flex; align-items:center;">
+              <input list="quotItemGlobalDataList" placeholder="🔍 Type or select Code / Item..."
+                     value="${esc(displayVal)}"
+                     onchange="onQuotItemSelect(${idx}, this.value)"
+                     style="width:100%; height:38px; padding:6px 26px 6px 10px; font-size:13px; font-weight:600; border:1.5px solid #cbd5e1; border-radius:6px; background:#fff; color:#0f172a; box-sizing:border-box;">
+              <span style="position:absolute; right:8px; pointer-events:none; color:#64748b; font-size:11px;">▼</span>
+            </div>
           </td>
-          <td style="padding:8px 8px; min-width:260px;">
+          <td style="padding:8px 8px; min-width:240px;">
             <input placeholder="Product description" value="${esc(ln.Description || '')}" oninput="_quotLines[${idx}].Description=this.value" style="width:100%; height:38px; padding:6px 10px; font-size:13px; border:1.5px solid #cbd5e1; border-radius:6px; color:#0f172a; box-sizing:border-box;">
           </td>
           <td style="padding:8px 6px; width:110px; min-width:100px; text-align:center;">
@@ -3960,22 +3977,36 @@
       `;
     }).join('');
 
-    const itemSelects = document.querySelectorAll('#quotLinesContainer tr td:nth-child(2) select');
-    _quotLines.forEach((ln, idx) => {
-      if (itemSelects[idx]) itemSelects[idx].value = ln.ItemId || '';
-    });
+    updateQuotTotals();
   }
 
-  function pickQuotItem(idx, itemId) {
-    const item = (state.data.inventory || []).find(x => x.ItemId === itemId);
-    _quotLines[idx].ItemId = itemId;
+  function onQuotItemSelect(idx, val) {
+    if (!_quotLines[idx]) return;
+    const v = String(val || '').trim().toLowerCase();
+    const item = (state.data.inventory || []).find(it => {
+      const full = `${it.SKU ? it.SKU + ' - ' : ''}${it.Name}`.toLowerCase();
+      return full === v ||
+             (it.SKU && it.SKU.toLowerCase() === v) ||
+             (it.Name && it.Name.toLowerCase() === v) ||
+             (it.ItemId && it.ItemId.toLowerCase() === v);
+    });
+
     if (item) {
+      _quotLines[idx].ItemId = item.ItemId;
       _quotLines[idx].ItemCode = item.SKU || '';
-      _quotLines[idx].Description = item.Name || '';
+      _quotLines[idx].Description = item.Name;
       _quotLines[idx].UnitPrice = Number(item.UnitPrice) || 0;
+      _quotLines[idx].ItemDisplay = `${item.SKU ? item.SKU + ' - ' : ''}${item.Name}`;
+    } else {
+      _quotLines[idx].Description = val;
+      _quotLines[idx].ItemDisplay = val;
     }
     renderQuotLines();
     updateQuotTotals();
+  }
+
+  function pickQuotItem(idx, itemId) {
+    onQuotItemSelect(idx, itemId);
   }
 
   function addQuotLine() {
@@ -6429,16 +6460,36 @@
       }
     }
 
-    await gas('saveReportEntry', 'CallReports', {
-      CallId: id || undefined,
+    const finalId = id || ('CALL-' + Date.now() + '-' + Math.floor(Math.random() * 1000));
+    const payload = {
+      CallId: finalId,
       ReportType: reportType,
       DataJson: JSON.stringify(obj),
-      CreatedBy: state.user.Name
-    });
+      CreatedBy: state.user.Name,
+      CreatedAt: obj.Date || state.data.today || new Date().toISOString().slice(0, 10)
+    };
+
+    // Optimistic local update (0ms)
+    if (!state.data.callReports) state.data.callReports = [];
+    const idx = state.data.callReports.findIndex(x => x.CallId === finalId);
+    if (idx >= 0) {
+      state.data.callReports[idx] = payload;
+    } else {
+      state.data.callReports.unshift(payload);
+    }
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+
+    // Direct Supabase save (20ms)
+    if (window.sbClient) {
+      window.sbClient.from('CallReports').upsert(payload).then();
+    }
 
     closeModal();
     showToast('Call Report saved successfully!');
-    await refreshData();
+    renderCallReportsView();
+
+    // Background sync to Google Apps Script
+    gas('saveReportEntry', 'CallReports', payload).catch(e => console.error(e));
   }
 
   async function removeCallReport(id) {
@@ -8698,10 +8749,14 @@
   }
 
   async function adjustStockQuick(itemId, delta) {
-    const it = state.data.inventory.find(x => x.ItemId === itemId);
+    const it = (state.data.inventory || []).find(x => x.ItemId === itemId);
     if (!it) return;
-    await gas('saveInventoryItem', { ...it, StockQty: Math.max(0, (Number(it.StockQty) || 0) + delta) });
-    await refreshData();
+    it.StockQty = Math.max(0, Math.round(((Number(it.StockQty) || 0) + delta) * 100) / 100);
+    it.UpdatedAt = state.data.today || new Date().toISOString().slice(0, 10);
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+    if (window.sbClient) window.sbClient.from('Inventory').upsert(it).then();
+    renderView();
+    gas('saveInventoryItem', it).catch(e => console.error(e));
   }
 
   function exportStockExcel() {
@@ -8761,7 +8816,7 @@
       `
         <div class="form-row">
           <div class="form-group">
-            <label style="font-weight:700;">Item Code * ${!itemId ? '<span style="font-size:11px; color:var(--primary); font-weight:normal;">(Auto-generated)</span>' : ''}</label>
+            <label style="font-weight:700;">Item Code * <span style="font-size:11px; color:var(--primary); font-weight:normal;">(Custom Code or Auto-generated)</span></label>
             <input id="fItSku" value="${esc(it.SKU || autoSku)}" placeholder="e.g. JD-001-84" style="font-weight:700; font-family:monospace;">
           </div>
           <div class="form-group">
@@ -8815,7 +8870,8 @@
 
   async function submitInventory(itemId) {
     let sku = document.getElementById('fItSku')?.value.trim();
-    if (!sku || (!itemId && (state.data.inventory || []).some(x => String(x.SKU || '').trim().toLowerCase() === sku.toLowerCase()))) {
+    // Use user-entered SKU; only generate next SKU if field was left blank
+    if (!sku) {
       sku = generateNextSKU();
     }
     const name = document.getElementById('fItName')?.value.trim();
@@ -9008,11 +9064,22 @@
     it.StockQty = newQty;
     it.UpdatedAt = dateVal;
 
+    // Optimistic local update (0ms)
+    const idx = (state.data.inventory || []).findIndex(x => x.ItemId === itemId);
+    if (idx >= 0) state.data.inventory[idx] = { ...it };
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+
+    // Direct Supabase save (20ms)
+    if (window.sbClient) {
+      window.sbClient.from('Inventory').upsert(it).then();
+    }
+
     closeModal();
     showToast(`✅ Stock In Confirmed: Added ${qtyIn} ${it.Unit || 'L'} to ${it.SKU || it.Name}! New Stock: ${newQty} ${it.Unit || 'L'}`);
+    renderView();
 
-    // Instant save to Supabase / Local / Sheets
-    await gas('saveInventoryItem', it);
+    // Background sync to Google Apps Script
+    gas('saveInventoryItem', it).catch(e => console.error(e));
 
     // Record transaction log entry
     gas('saveTransaction', {
@@ -9025,8 +9092,6 @@
       RefId: it.ItemId,
       RecordedBy: state.user?.Name || 'System'
     }).catch(e => console.warn(e));
-
-    renderView();
   }
 
   async function removeInventory(id) {
@@ -9456,19 +9521,52 @@
     } else if (tab === 'attendance') {
       const rows = [...(state.data.attendance || [])].reverse();
       body = `
+        <!-- Fingerprint Biometric Device Readiness Card -->
+        <div class="card" style="margin-bottom:14px; background:#f0fdf4; border:1.5px solid #16a34a; padding:12px 16px; border-radius:8px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div style="font-size:30px;">👆</div>
+              <div>
+                <div style="font-weight:700; color:#166534; font-size:14px; display:flex; align-items:center; gap:8px;">
+                  Fingerprint Biometric Device Integration
+                  <span class="badge" style="background:#fef3c7; color:#b45309; border:1px solid #fcd34d; font-size:11px;">Hardware Setup Pending</span>
+                </div>
+                <div style="font-size:12px; color:#15803d; margin-top:2px;">
+                  System is fully prepared for biometric fingerprint integration. You can import machine punch logs (CSV/Excel) or record manual punches until hardware installation is complete.
+                </div>
+              </div>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="btn btn-sm btn-success" style="background:#16a34a; border-color:#16a34a; font-weight:700;" onclick="openFingerprintLogModal()">📥 Import Machine Log (CSV)</button>
+              <button class="btn btn-sm btn-primary" onclick="openManualPunchModal()">+ Record Punch</button>
+            </div>
+          </div>
+        </div>
+
         <div class="section-header">
           <div>
             <h3 style="margin:0; font-size:15px; color:var(--text);">Daily Attendance Records</h3>
-            <div style="font-size:12px; color:var(--muted);">View employee punch in/out timestamps, duration, and daily status.</div>
+            <div style="font-size:12px; color:var(--muted);">View employee punch in/out timestamps, duration, method (Fingerprint / Web), and daily status.</div>
           </div>
           <div class="section-actions">
-            <input class="search-input" placeholder="Search by name or date..." oninput="filterTable('attTable', this.value)">
+            <input class="search-input" placeholder="Search by name, date or method..." oninput="filterTable('attTable', this.value)">
             <button class="btn btn-secondary" onclick="exportAttendanceExcel()">⬇ Export Excel</button>
           </div>
         </div>
         <div class="card table-wrap">
           <table id="attTable">
-            <thead><tr style="background:#f1f5f9;"><th>Date</th><th>Team Member</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th>Status</th></tr></thead>
+            <thead>
+              <tr style="background:#f1f5f9;">
+                <th>Date</th>
+                <th>Team Member</th>
+                <th>Biometric ID</th>
+                <th>Method</th>
+                <th>Clock In</th>
+                <th>Clock Out</th>
+                <th>Duration</th>
+                <th>Status</th>
+              </tr>
+            </thead>
             <tbody>
               ${rows.map(a => {
                 let duration = '-';
@@ -9480,17 +9578,24 @@
                     if (diffM > 0) duration = `${Math.floor(diffM / 60)}h ${diffM % 60}m`;
                   } catch (e) {}
                 }
+                const emp = (state.data.employees || []).find(e => e.EmpId === a.UserId || e.Name === a.UserName);
+                const bioId = a.BiometricId || (emp ? (emp.BiometricId || emp.NIC || '-') : '-');
+                const methodBadge = a.Method === 'Fingerprint'
+                  ? '<span class="badge" style="background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;">👆 Fingerprint</span>'
+                  : '<span class="badge badge-secondary">💻 Web / Manual</span>';
                 return `
                   <tr>
                     <td>${esc(a.Date)}</td>
                     <td><b>${esc(a.UserName)}</b></td>
+                    <td><code style="font-weight:700; color:#0f766e;">${esc(bioId)}</code></td>
+                    <td>${methodBadge}</td>
                     <td><span class="badge badge-success">${esc(a.ClockIn)}</span></td>
-                    <td>${a.ClockOut ? `<span class="badge badge-info">${esc(a.ClockOut)}</span>` : '<span class="badge badge-warning">Active (Clocked In)</span>'}</td>
+                    <td>${a.ClockOut ? `<span class="badge badge-info">${esc(a.ClockOut)}</span>` : '<span class="badge badge-warning">Active</span>'}</td>
                     <td><b>${esc(duration)}</b></td>
-                    <td>${statusBadge(a.Status)}</td>
+                    <td>${statusBadge(a.Status || 'Present')}</td>
                   </tr>
                 `;
-              }).join('') || '<tr><td colspan="6" style="color:var(--muted)">No attendance records yet.</td></tr>'}
+              }).join('') || '<tr><td colspan="8" style="color:var(--muted); text-align:center;">No attendance records found.</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -9980,6 +10085,147 @@
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Employees');
     XLSX.writeFile(wb, `Employees_${state.data.today || new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
+
+  
+  /* ==========================================================================
+   * Fingerprint Biometric Device Handlers (Requirement 6)
+   * ======================================================================== */
+
+  function openFingerprintLogModal() {
+    openModal(
+      '📥 Import Fingerprint Machine Logs (CSV / Excel)',
+      `
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:12px; border-radius:6px; margin-bottom:14px; font-size:12.5px; color:#166534;">
+          <b>Fingerprint Device Log Formats Supported:</b> Standard USB / Network punch export (Columns: Enroll ID, Date, Clock In, Clock Out).
+        </div>
+        <div class="form-group">
+          <label style="font-weight:700;">Select Device Punch Log File (.csv or .xlsx)</label>
+          <input type="file" id="fFpLogFile" accept=".csv, .xlsx, .xls, .dat, .txt" style="padding:8px; border:1.5px dashed #cbd5e1; border-radius:6px; width:100%;">
+        </div>
+        <div class="form-group">
+          <label style="font-weight:700;">Or Paste Machine Log Data</label>
+          <textarea id="fFpLogText" rows="4" placeholder="EnrollID, Date, TimeIn, TimeOut&#10;101, 2026-11-18, 08:30, 17:00" style="font-family:monospace; font-size:12px;"></textarea>
+        </div>
+      `,
+      `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-success" style="background:#16a34a; border-color:#16a34a; font-weight:700;" onclick="submitFingerprintLogImport()">📥 Import &amp; Process Punches</button>
+      `
+    );
+  }
+
+  async function submitFingerprintLogImport() {
+    const text = document.getElementById('fFpLogText')?.value.trim();
+    if (!text) {
+      showToast('Please upload a file or paste machine log lines.');
+      return;
+    }
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    let count = 0;
+    lines.forEach(l => {
+      const parts = l.split(/[,\t]/).map(p => p.trim());
+      if (parts.length >= 3 && !parts[0].toLowerCase().includes('enroll')) {
+        const enrollId = parts[0];
+        const date = parts[1];
+        const clockIn = parts[2];
+        const clockOut = parts[3] || '';
+        const emp = (state.data.employees || []).find(e => (e.BiometricId && String(e.BiometricId) === String(enrollId)) || e.NIC === enrollId || e.EmpId === enrollId);
+        const userName = emp ? emp.Name : ('User #' + enrollId);
+        const record = {
+          AttId: 'ATT-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+          Date: date,
+          UserId: emp ? emp.EmpId : enrollId,
+          UserName: userName,
+          BiometricId: enrollId,
+          ClockIn: clockIn,
+          ClockOut: clockOut,
+          Method: 'Fingerprint'
+        };
+        (state.data.attendance = state.data.attendance || []).unshift(record);
+        count++;
+      }
+    });
+
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+    closeModal();
+    renderEmployeesView();
+    showToast(`✅ Successfully imported ${count} fingerprint punch records!`);
+  }
+
+  function openManualPunchModal() {
+    const emps = (state.data.employees || []).filter(e => e.Status !== 'Inactive');
+    openModal(
+      '🕒 Record Manual Attendance Punch',
+      `
+        <div class="form-group">
+          <label style="font-weight:700;">Employee *</label>
+          <select id="fManPunchEmp" style="height:38px;">
+            ${emps.map(e => `<option value="${esc(e.EmpId)}" data-name="${esc(e.Name)}">${esc(e.Name)} (${esc(e.Position || e.Designation || 'Staff')})</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label style="font-weight:700;">Date *</label>
+            <input type="date" id="fManPunchDate" value="${state.data.today || new Date().toISOString().slice(0, 10)}">
+          </div>
+          <div class="form-group">
+            <label style="font-weight:700;">Method</label>
+            <select id="fManPunchMethod">
+              <option value="Manual Entry">💻 Manual Entry</option>
+              <option value="Fingerprint">👆 Fingerprint Device Punch</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label style="font-weight:700;">Clock In Time *</label>
+            <input type="time" id="fManPunchIn" value="08:30">
+          </div>
+          <div class="form-group">
+            <label style="font-weight:700;">Clock Out Time</label>
+            <input type="time" id="fManPunchOut" value="17:00">
+          </div>
+        </div>
+      `,
+      `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitManualPunch()">Save Attendance</button>
+      `
+    );
+  }
+
+  async function submitManualPunch() {
+    const sel = document.getElementById('fManPunchEmp');
+    const empId = sel?.value;
+    const empName = sel?.options[sel.selectedIndex]?.getAttribute('data-name') || sel?.options[sel.selectedIndex]?.text || '';
+    const date = document.getElementById('fManPunchDate')?.value;
+    const clockIn = document.getElementById('fManPunchIn')?.value;
+    const clockOut = document.getElementById('fManPunchOut')?.value || '';
+    const method = document.getElementById('fManPunchMethod')?.value || 'Manual Entry';
+
+    if (!empId || !date || !clockIn) {
+      showToast('Please fill Employee, Date, and Clock In time.');
+      return;
+    }
+
+    const emp = (state.data.employees || []).find(e => e.EmpId === empId);
+    const newRecord = {
+      AttId: 'ATT-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      Date: date,
+      UserId: empId,
+      UserName: empName,
+      BiometricId: emp?.BiometricId || emp?.NIC || '-',
+      ClockIn: clockIn,
+      ClockOut: clockOut,
+      Method: method
+    };
+
+    (state.data.attendance = state.data.attendance || []).unshift(newRecord);
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+    closeModal();
+    renderEmployeesView();
+    showToast(`Attendance recorded for ${empName}!`);
   }
 
   function renderAttendanceView() {
