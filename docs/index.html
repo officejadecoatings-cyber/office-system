@@ -2388,15 +2388,16 @@
                 <th style="width:110px; text-align:center;">Rank</th>
                 <th>Sales Person</th>
                 <th>Designation</th>
-                <th style="text-align:right;">Sales Amount</th>
-                <th style="text-align:right;">Collection Amount</th>
-                <th style="text-align:center;">Collection %</th>
+                <th style="text-align:right;">Sales (Actual / Target)</th>
+                <th style="text-align:center;">Sales Achieved %</th>
+                <th style="text-align:right;">Collection (Actual / Target)</th>
+                <th style="text-align:center;">Collection Achieved %</th>
                 <th style="text-align:center;">Invoices</th>
               </tr>
             </thead>
             <tbody>
               ${spList.length === 0 ? `
-                <tr><td colspan="7" style="text-align:center; padding:24px; color:var(--muted);">No sales records found for this period. Try selecting a broader date range.</td></tr>
+                <tr><td colspan="8" style="text-align:center; padding:24px; color:var(--muted);">No sales records found for this period. Try selecting a broader date range.</td></tr>
               ` : spList.map((sp, idx) => {
                 const rank = idx + 1;
                 let rankBadge = '';
@@ -2405,7 +2406,11 @@
                 else if (rank === 3) rankBadge = '<span style="display:inline-block; font-size:13px; font-weight:800; background:#ffedd5; color:#9a3412; padding:3px 10px; border-radius:12px; border:1px solid #fdba74;">🥉 Rank 3</span>';
                 else rankBadge = `<span style="display:inline-block; font-size:12.5px; font-weight:700; color:#64748b; padding:2px 8px;">#${rank}</span>`;
 
-                const pctOfTotal = totalSales > 0 ? ((sp.sales / totalSales) * 100).toFixed(1) : 0;
+                const matchedEmp = (state.data.employees || []).find(e => (e.Name || '').toLowerCase().trim() === sp.name.toLowerCase()) || {};
+                const sTarget = Number(matchedEmp.SalesTarget || 0);
+                const cTarget = Number(matchedEmp.CollectionTarget || 0);
+                const sAchRate = sTarget > 0 ? ((sp.sales / sTarget) * 100).toFixed(1) : null;
+                const cAchRate = cTarget > 0 ? ((sp.collected / cTarget) * 100).toFixed(1) : null;
                 const spRate = sp.sales > 0 ? ((sp.collected / sp.sales) * 100).toFixed(1) : (sp.collected > 0 ? 100 : 0);
 
                 return `
@@ -2423,21 +2428,35 @@
                     <td><b>${esc(sp.designation)}</b></td>
                     <td style="text-align:right;">
                       <div style="font-weight:800; font-size:14px; color:#0f766e;">${fmtMoney(sp.sales)}</div>
-                      <div style="font-size:10.5px; color:var(--muted);">${pctOfTotal}% of total</div>
-                      <div style="background:#e2e8f0; border-radius:4px; height:5px; width:100%; margin-top:3px; overflow:hidden;">
-                        <div style="background:#0f766e; height:100%; width:${pctOfTotal}%;"></div>
-                      </div>
+                      ${sTarget > 0 ? `<div style="font-size:11px; color:#047857; font-weight:600;">Target: ${fmtMoney(sTarget)}</div>` : '<div style="font-size:10.5px; color:var(--muted);">No Target Set</div>'}
+                    </td>
+                    <td style="text-align:center;">
+                      ${sAchRate !== null ? `
+                        <span class="badge ${Number(sAchRate) >= 100 ? 'badge-success' : (Number(sAchRate) >= 60 ? 'badge-warning' : 'badge-danger')}" style="font-size:12px; font-weight:800;">
+                          ${sAchRate}%
+                        </span>
+                        <div style="background:#e2e8f0; border-radius:4px; height:5px; width:90px; margin:4px auto 0 auto; overflow:hidden;">
+                          <div style="background:#0f766e; height:100%; width:${Math.min(100, Number(sAchRate))}%;"></div>
+                        </div>
+                      ` : '<span style="color:var(--muted); font-size:11.5px;">-</span>'}
                     </td>
                     <td style="text-align:right;">
                       <div style="font-weight:800; font-size:14px; color:#16a34a;">${fmtMoney(sp.collected)}</div>
-                      <div style="font-size:10.5px; color:${sp.collected >= sp.sales && sp.sales > 0 ? '#16a34a' : '#d97706'};">
-                        ${sp.sales > sp.collected ? 'Bal: ' + fmtMoney(sp.sales - sp.collected) : 'Fully Collected'}
-                      </div>
+                      ${cTarget > 0 ? `<div style="font-size:11px; color:#15803d; font-weight:600;">Target: ${fmtMoney(cTarget)}</div>` : '<div style="font-size:10.5px; color:var(--muted);">No Target Set</div>'}
                     </td>
                     <td style="text-align:center;">
-                      <span class="badge ${spRate >= 80 ? 'badge-success' : (spRate >= 50 ? 'badge-info' : 'badge-warning')}" style="font-weight:700;">
-                        ${spRate}%
-                      </span>
+                      ${cAchRate !== null ? `
+                        <span class="badge ${Number(cAchRate) >= 100 ? 'badge-success' : (Number(cAchRate) >= 60 ? 'badge-warning' : 'badge-danger')}" style="font-size:12px; font-weight:800;">
+                          ${cAchRate}%
+                        </span>
+                        <div style="background:#e2e8f0; border-radius:4px; height:5px; width:90px; margin:4px auto 0 auto; overflow:hidden;">
+                          <div style="background:#16a34a; height:100%; width:${Math.min(100, Number(cAchRate))}%;"></div>
+                        </div>
+                      ` : `
+                        <span class="badge ${spRate >= 80 ? 'badge-success' : 'badge-info'}" style="font-weight:700;">
+                          ${spRate}%
+                        </span>
+                      `}
                     </td>
                     <td style="text-align:center;">
                       <span class="badge badge-muted">${sp.invoiceCount}</span>
@@ -2450,6 +2469,7 @@
               <tr style="background:#f8fafc; font-weight:800; border-top:2px solid #0f766e;">
                 <td colspan="3" style="text-align:right; font-size:13.5px;">TOTALS:</td>
                 <td style="text-align:right; font-size:14.5px; color:#0f766e;">${fmtMoney(totalSales)}</td>
+                <td style="text-align:center;">-</td>
                 <td style="text-align:right; font-size:14.5px; color:#16a34a;">${fmtMoney(totalCollection)}</td>
                 <td style="text-align:center; font-size:13.5px;"><span class="badge badge-primary">${overallRate}%</span></td>
                 <td style="text-align:center;">${periodInvoices.length}</td>
@@ -3237,15 +3257,18 @@
     }
 
     // 2. Increment Next Invoice No in Company Profile & Settings
-    if (!invoiceId) {
-      const comp = (state.data.companyProfiles || []).find(c => c.CompanyId === payload.invoice.CompanyId);
-      if (comp && comp.NextInvoiceNo) {
-        const n = parseInt(comp.NextInvoiceNo, 10);
-        if (!isNaN(n)) comp.NextInvoiceNo = String(n + 1);
+    const comp = (state.data.companyProfiles || []).find(c => c.CompanyId === payload.invoice.CompanyId) || (state.data.companyProfiles || [])[0];
+    const savedInvNum = extractLastNumber(payload.invoice.InvoiceNo);
+    if (savedInvNum > 0) {
+      if (comp) {
+        comp.NextInvoiceNo = String(savedInvNum + 1);
+        if (window.sbClient && comp.CompanyId) {
+          window.sbClient.from('CompanyProfiles').upsert(comp).then();
+        }
+        gas('saveCompanyProfile', comp).catch(e => console.error(e));
       }
-      if (state.data.settings && state.data.settings.NextInvoiceNo) {
-        const n = parseInt(state.data.settings.NextInvoiceNo, 10);
-        if (!isNaN(n)) state.data.settings.NextInvoiceNo = String(n + 1);
+      if (state.data.settings) {
+        state.data.settings.NextInvoiceNo = String(savedInvNum + 1);
       }
     }
 
@@ -3786,56 +3809,38 @@
 
   function generateNextInvoiceNo(companyId) {
     const comp = companyId ? (state.data.companyProfiles || []).find(c => c.CompanyId === companyId) : ((state.data.companyProfiles || []).find(c => c.IsDefault === 'Yes') || (state.data.companyProfiles || [])[0]);
-    const prefix = comp ? (comp.InvoicePrefix || 'JDI') : ((state.data.settings && state.data.settings.InvoicePrefix) || 'JDI');
+    const prefix = comp ? (comp.InvoicePrefix || '') : '';
     const invs = state.data.invoices || [];
-    let baseNum = comp && comp.NextInvoiceNo ? parseInt(comp.NextInvoiceNo, 10) : ((state.data.settings && state.data.settings.NextInvoiceNo) ? parseInt(state.data.settings.NextInvoiceNo, 10) : 8800);
-    if (isNaN(baseNum)) baseNum = 8800;
-
+    let maxExisting = 0;
     invs.forEach(i => {
-      const invNo = String(i.InvoiceNo || '').trim();
-      const m = invNo.match(/(\d+)/g);
-      if (m) {
-        m.forEach(str => {
-          const n = parseInt(str, 10);
-          if (!isNaN(n) && n >= baseNum) {
-            baseNum = n + 1;
-          }
-        });
-      }
+      const n = extractLastNumber(i.InvoiceNo);
+      if (n > maxExisting) maxExisting = n;
     });
-
-    let candidate = (prefix || '') + baseNum;
-    while (invs.some(i => String(i.InvoiceNo || '').trim().toLowerCase() === candidate.toLowerCase())) {
-      baseNum++;
-      candidate = (prefix || '') + baseNum;
+    const configured = comp && comp.NextInvoiceNo ? parseInt(comp.NextInvoiceNo, 10) : 0;
+    let nextNum = Math.max(configured || 150, maxExisting + 1);
+    let candidate = (prefix || '') + nextNum;
+    while (invs.some(i => String(i.InvoiceNo || '').trim().toLowerCase() === candidate.toLowerCase() || extractLastNumber(i.InvoiceNo) === nextNum)) {
+      nextNum++;
+      candidate = (prefix || '') + nextNum;
     }
     return candidate;
   }
 
   function getNextQuotationNo(companyId) {
     const comp = companyId ? (state.data.companyProfiles || []).find(c => c.CompanyId === companyId) : ((state.data.companyProfiles || []).find(c => c.IsDefault === 'Yes') || (state.data.companyProfiles || [])[0]);
-    const prefix = comp ? (comp.QuotePrefix || 'JDQ') : ((state.data.settings && state.data.settings.QuotePrefix) || 'JDQ');
+    const prefix = comp ? (comp.QuotePrefix || '') : '';
     const quotes = state.data.quotations || [];
-    let baseNum = comp && comp.NextQuoteNo ? parseInt(comp.NextQuoteNo, 10) : ((state.data.settings && state.data.settings.NextQuoteNo) ? parseInt(state.data.settings.NextQuoteNo, 10) : 8800);
-    if (isNaN(baseNum)) baseNum = 8800;
-
+    let maxExisting = 0;
     quotes.forEach(q => {
-      const qNo = String(q.QuotationNo || '').trim();
-      const m = qNo.match(/(\d+)/g);
-      if (m) {
-        m.forEach(str => {
-          const n = parseInt(str, 10);
-          if (!isNaN(n) && n >= baseNum) {
-            baseNum = n + 1;
-          }
-        });
-      }
+      const n = extractLastNumber(q.QuotationNo);
+      if (n > maxExisting) maxExisting = n;
     });
-
-    let candidate = (prefix || '') + baseNum;
-    while (quotes.some(q => String(q.QuotationNo || '').trim().toLowerCase() === candidate.toLowerCase())) {
-      baseNum++;
-      candidate = (prefix || '') + baseNum;
+    const configured = comp && comp.NextQuoteNo ? parseInt(comp.NextQuoteNo, 10) : 0;
+    let nextNum = Math.max(configured || 150, maxExisting + 1);
+    let candidate = (prefix || '') + nextNum;
+    while (quotes.some(q => String(q.QuotationNo || '').trim().toLowerCase() === candidate.toLowerCase() || extractLastNumber(q.QuotationNo) === nextNum)) {
+      nextNum++;
+      candidate = (prefix || '') + nextNum;
     }
     return candidate;
   }
@@ -4409,15 +4414,18 @@
     const localQuotId = quotId || ('QT-' + Date.now());
     payload.QuotationId = localQuotId;
 
-    if (!quotId) {
-      const comp = (state.data.companyProfiles || []).find(c => c.CompanyId === companyId);
-      if (comp && comp.NextQuoteNo) {
-        const n = parseInt(comp.NextQuoteNo, 10);
-        if (!isNaN(n)) comp.NextQuoteNo = String(n + 1);
+    const comp = (state.data.companyProfiles || []).find(c => c.CompanyId === companyId) || (state.data.companyProfiles || [])[0];
+    const savedQuotNum = extractLastNumber(payload.QuotationNo);
+    if (savedQuotNum > 0) {
+      if (comp) {
+        comp.NextQuoteNo = String(savedQuotNum + 1);
+        if (window.sbClient && comp.CompanyId) {
+          window.sbClient.from('CompanyProfiles').upsert(comp).then();
+        }
+        gas('saveCompanyProfile', comp).catch(e => console.error(e));
       }
-      if (state.data.settings && state.data.settings.NextQuoteNo) {
-        const n = parseInt(state.data.settings.NextQuoteNo, 10);
-        if (!isNaN(n)) state.data.settings.NextQuoteNo = String(n + 1);
+      if (state.data.settings) {
+        state.data.settings.NextQuoteNo = String(savedQuotNum + 1);
       }
     }
 
@@ -4686,20 +4694,20 @@
   let _outEndDate = '';
   let _outSearch = '';
 
+  function extractLastNumber(str) {
+    if (!str) return 0;
+    const m = String(str).trim().match(/(\d+)(?!.*\d)/);
+    return m ? parseInt(m[1], 10) : 0;
+  }
+
   function getInvOutstandingPending(inv) {
     if (!inv) return 0;
+    if (inv.Status === 'Cancelled' || inv.PaymentStatus === 'Cancel' || inv.Status === 'Free Issue') return 0;
     const invAmt = Number(inv.Total || 0);
-    const pStatus = inv.PaymentStatus || (inv.Status === 'Paid' ? 'Paid' : 'Unpaid');
-    if (pStatus === 'Paid' || pStatus === 'Realised' || inv.Status === 'Paid' || inv.Status === 'Free Issue' || pStatus === 'Cancel' || inv.Status === 'Cancelled') {
-      return 0;
-    }
     const paidAmt = Number(inv.PaidAmount || 0);
     const tokenAmt = Number(inv.TokenAmount || 0);
     const returnAmt = Number(inv.ReturnAmount || 0);
-    if (pStatus === 'Return') {
-      return Math.max(0, invAmt - paidAmt - (returnAmt > 0 ? returnAmt : (invAmt - paidAmt)));
-    }
-    return Math.max(0, invAmt - paidAmt - tokenAmt);
+    return Math.max(0, invAmt - paidAmt - tokenAmt - returnAmt);
   }
 
   function getPaymentStatusBadgeClass(pStatus) {
@@ -4777,8 +4785,8 @@
 
     const rowsHtml = allInvs.map(inv => {
       const invAmt = Number(inv.Total || 0);
-      const paidAmt = (inv.PaymentStatus === 'Paid' || inv.Status === 'Paid') ? invAmt : Number(inv.PaidAmount || 0);
       const pendingAmt = getInvOutstandingPending(inv);
+      const paidAmt = (pendingAmt <= 0 && (inv.PaymentStatus === 'Paid' || inv.Status === 'Paid')) ? invAmt : Number(inv.PaidAmount || 0);
       const isPastDue = pendingAmt > 0 && daysBetween(inv.DueDate || inv.Date, state.data.today) > 0;
       const dueDays = daysBetween(inv.DueDate || inv.Date, state.data.today);
       const collDays = inv.RealisedDate ? daysBetween(inv.Date, inv.RealisedDate) : '-';
@@ -5271,11 +5279,13 @@
 
     if (pStatus === 'Cancel') {
       inv.Status = 'Cancelled';
+      inv.PaymentStatus = 'Cancel';
     } else if (pending <= 0) {
       inv.Status = 'Paid';
       inv.PaymentStatus = 'Paid';
     } else {
       inv.Status = 'Pending';
+      inv.PaymentStatus = (cumulativePaid > 0) ? (pStatus === 'Cheque Bounce' ? 'Cheque Bounce' : (pStatus === 'Unrealized' ? 'Unrealized' : 'Unpaid')) : (pStatus || 'Unpaid');
     }
 
     // 1. Stock Return Increment
@@ -9269,6 +9279,60 @@
           </table>
         </div>
       `;
+        } else if (tab === 'targets') {
+      const salesEmps = emps.filter(e => e.Position === 'Sales Officer' || (e.Designation || '').toLowerCase().includes('sales') || e.SalesTarget);
+      const displayList = salesEmps.length > 0 ? salesEmps : emps;
+      body = `
+        <div class="section-header">
+          <div>
+            <h3 style="margin:0; font-size:15px; color:var(--text);">🎯 Sales Person Monthly Targets</h3>
+            <div style="font-size:12px; color:var(--muted);">Set monthly Sales and Collection targets for sales personnel to monitor achievement in rankings.</div>
+          </div>
+          <div class="section-actions">
+            <button class="btn btn-primary" onclick="openSalesTargetModal()">+ Set Sales Target</button>
+          </div>
+        </div>
+        <div class="card table-wrap">
+          <table id="empTargetTable">
+            <thead>
+              <tr style="background:#f1f5f9;">
+                <th>Sales Person</th>
+                <th>Designation / Role</th>
+                <th style="text-align:right;">Monthly Sales Target</th>
+                <th style="text-align:right;">Monthly Collection Target</th>
+                <th>Target Notes / Period</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${displayList.map(e => `
+                <tr>
+                  <td>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <img src="${e.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(e.Name || 'User') + '&background=0f766e&color=fff')}" style="width:28px; height:28px; border-radius:50%; object-fit:cover; background:#e2e8f0;">
+                      <div>
+                        <b>${esc(e.Name)}</b>
+                        ${e.Phone ? `<div style="font-size:11px; color:var(--muted);">${esc(e.Phone)}</div>` : ''}
+                      </div>
+                    </div>
+                  </td>
+                  <td><b>${esc(e.Designation || e.Position || 'Sales Officer')}</b></td>
+                  <td style="text-align:right; font-weight:700; color:#0f766e;">
+                    ${e.SalesTarget ? fmtMoney(e.SalesTarget) : '<span style="color:var(--muted); font-weight:normal;">Not Set</span>'}
+                  </td>
+                  <td style="text-align:right; font-weight:700; color:#16a34a;">
+                    ${e.CollectionTarget ? fmtMoney(e.CollectionTarget) : '<span style="color:var(--muted); font-weight:normal;">Not Set</span>'}
+                  </td>
+                  <td>${esc(e.TargetPeriod || 'Current Month')}</td>
+                  <td>
+                    <button class="btn btn-sm btn-primary" onclick="openSalesTargetModal('${esc(e.EmpId)}')">✏️ Set Target</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
     } else if (tab === 'attendance') {
       const rows = [...(state.data.attendance || [])].reverse();
       body = `
@@ -9379,6 +9443,7 @@
       <div class="tabs" style="margin-bottom:16px;">
         <button class="tab-btn ${tab === 'directory' ? 'active' : ''}" onclick="state.empTab='directory'; renderEmployeesView()">👥 Employee Directory (${emps.length})</button>
         <button class="tab-btn ${tab === 'bank' ? 'active' : ''}" onclick="state.empTab='bank'; renderEmployeesView()">🏦 Bank Details (${emps.filter(e => e.BankName || e.BankAccountNo).length}/${emps.length})</button>
+        <button class="tab-btn ${tab === 'targets' ? 'active' : ''}" onclick="state.empTab='targets'; renderEmployeesView()">🎯 Sales Person Targets (${emps.filter(e => e.SalesTarget || e.Position === 'Sales Officer').length})</button>
         <button class="tab-btn ${tab === 'attendance' ? 'active' : ''}" onclick="state.empTab='attendance'; renderEmployeesView()">🕒 Daily Attendance (${(state.data.attendance || []).length})</button>
         <button class="tab-btn ${tab === 'leaves' ? 'active' : ''}" onclick="state.empTab='leaves'; renderEmployeesView()">🏖️ Leaves Taken &amp; Requests (${leaves.length})</button>
       </div>
