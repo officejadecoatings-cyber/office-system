@@ -8716,13 +8716,18 @@
   }
 
   async function submitInventory(itemId) {
-    const sku = document.getElementById('fItSku').value.trim();
-    const name = document.getElementById('fItName').value.trim();
-    const unit = document.getElementById('fItUnit').value;
-    const price = parseFloat(document.getElementById('fItPrice').value) || 0;
-    const qty = parseFloat(document.getElementById('fItQty').value) || 0;
-    const cat = document.getElementById('fItCat').value.trim() || 'General';
-    const reo = parseFloat(document.getElementById('fItReo').value) || 5;
+    let sku = document.getElementById('fItSku')?.value.trim();
+    if (!sku || (!itemId && (state.data.inventory || []).some(x => String(x.SKU || '').trim().toLowerCase() === sku.toLowerCase()))) {
+      sku = generateNextSKU();
+    }
+    const name = document.getElementById('fItName')?.value.trim();
+    const uSize = document.getElementById('fItUnitSize')?.value.trim() || '500';
+    const uType = document.getElementById('fItUnitType')?.value || (document.getElementById('fItUnit') ? document.getElementById('fItUnit').value : 'ML');
+    const unit = `${uSize} ${uType}`.trim();
+    const price = parseFloat(document.getElementById('fItPrice')?.value) || 0;
+    const qty = parseFloat(document.getElementById('fItQty')?.value) || 0;
+    const cat = document.getElementById('fItCat')?.value.trim() || 'General';
+    const reo = parseFloat(document.getElementById('fItReo')?.value) || 5;
 
     if (!sku || !name) {
       showToast('Please enter SKU Code and Product Name.');
@@ -8739,13 +8744,30 @@
       StockQty: qty,
       ReorderLevel: reo,
       Unit: unit,
-      UpdatedAt: state.data.today || todayStr_()
+      UpdatedAt: state.data.today || new Date().toISOString().slice(0, 10)
     };
+
+    // Optimistic local update (0ms)
+    if (!state.data.inventory) state.data.inventory = [];
+    const idx = state.data.inventory.findIndex(x => x.ItemId === finalId);
+    if (idx >= 0) {
+      state.data.inventory[idx] = payload;
+    } else {
+      state.data.inventory.push(payload);
+    }
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+
+    // Direct Supabase save (20ms)
+    if (window.sbClient) {
+      window.sbClient.from('Inventory').upsert(payload).then();
+    }
 
     closeModal();
     showToast(itemId ? 'Product updated!' : 'Product added to stock!');
-    await gas('saveInventoryItem', payload);
     renderView();
+
+    // Background sync to Google Apps Script
+    gas('saveInventoryItem', payload).catch(e => console.error(e));
   }
 
   /* ==========================================================================
@@ -9616,6 +9638,98 @@
     closeModal();
     showToast('Employee saved successfully!');
     await refreshData();
+  }
+
+  /* ==========================================================================
+   * Sales Person Target Management
+   * ======================================================================== */
+
+  function openSalesTargetModal(empId) {
+    const emps = state.data.employees || [];
+    const salesEmps = emps.filter(e => e.Position === 'Sales Officer' || (e.Designation || '').toLowerCase().includes('sales') || e.SalesTarget);
+    const list = salesEmps.length > 0 ? salesEmps : emps;
+    if (!list.length) {
+      showToast('No employees found to assign targets');
+      return;
+    }
+    const selectedEmp = empId ? emps.find(e => e.EmpId === empId) : list[0];
+
+    openModal(
+      'Set Sales Person Targets',
+      `
+        <div class="form-group">
+          <label style="font-weight:700;">Select Sales Person *</label>
+          <select id="fTargetEmpId" onchange="onTargetEmpSelectChange(this.value)" style="font-weight:600; font-size:13.5px; height:38px;">
+            ${list.map(e => `
+              <option value="${esc(e.EmpId)}" ${(selectedEmp && selectedEmp.EmpId === e.EmpId) ? 'selected' : ''}>
+                ${esc(e.Name)} (${esc(e.Designation || e.Position || 'Sales Officer')})
+              </option>
+            `).join('')}
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label style="font-weight:700; color:#0f766e;">Monthly Sales Target (LKR) *</label>
+            <input type="number" step="0.01" min="0" id="fTargetSales" value="${selectedEmp ? (selectedEmp.SalesTarget || '') : ''}" placeholder="e.g. 500000" style="font-weight:700; font-size:14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight:700; color:#16a34a;">Monthly Collection Target (LKR) *</label>
+            <input type="number" step="0.01" min="0" id="fTargetCollection" value="${selectedEmp ? (selectedEmp.CollectionTarget || '') : ''}" placeholder="e.g. 450000" style="font-weight:700; font-size:14px;">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Target Period / Month</label>
+          <input id="fTargetPeriod" value="${esc(selectedEmp ? (selectedEmp.TargetPeriod || 'Current Month') : 'Current Month')}" placeholder="e.g. November 2026">
+        </div>
+      `,
+      `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitSalesTarget()">💾 Save Targets</button>
+      `
+    );
+  }
+
+  function onTargetEmpSelectChange(empId) {
+    const e = (state.data.employees || []).find(x => x.EmpId === empId);
+    if (!e) return;
+    const sInput = document.getElementById('fTargetSales');
+    const cInput = document.getElementById('fTargetCollection');
+    const pInput = document.getElementById('fTargetPeriod');
+    if (sInput) sInput.value = e.SalesTarget || '';
+    if (cInput) cInput.value = e.CollectionTarget || '';
+    if (pInput) pInput.value = e.TargetPeriod || 'Current Month';
+  }
+
+  async function submitSalesTarget() {
+    const empId = document.getElementById('fTargetEmpId')?.value;
+    const sTarget = Number(document.getElementById('fTargetSales')?.value || 0);
+    const cTarget = Number(document.getElementById('fTargetCollection')?.value || 0);
+    const period = document.getElementById('fTargetPeriod')?.value.trim() || 'Current Month';
+
+    const emp = (state.data.employees || []).find(e => e.EmpId === empId);
+    if (!emp) {
+      showToast('Please select a valid employee');
+      return;
+    }
+
+    emp.SalesTarget = sTarget;
+    emp.CollectionTarget = cTarget;
+    emp.TargetPeriod = period;
+
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+
+    // Persist to Supabase (20ms) and Google Apps Script
+    if (window.sbClient) {
+      window.sbClient.from('Employees').upsert(emp).then();
+    }
+    gas('saveEmployee', emp).catch(e => console.error(e));
+
+    closeModal();
+    if (state.view === 'employees') renderEmployeesView();
+    if (state.view === 'sales') renderManagerSalesView();
+    showToast(`🎯 Targets updated for ${emp.Name}! Sales Target: ${fmtMoney(sTarget)}`);
   }
 
   function openEmployeeBankModal(empId = null) {
