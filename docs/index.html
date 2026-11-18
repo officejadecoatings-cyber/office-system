@@ -1918,8 +1918,8 @@
     const { invoices, transactions, inventory, tasks, attendance, today } = state.data;
     const totalIncome = transactions.filter(t => t.Type === 'Income').reduce((s, t) => s + Number(t.Amount || 0), 0);
     const totalExpense = transactions.filter(t => t.Type === 'Expense').reduce((s, t) => s + Number(t.Amount || 0), 0);
-    const pendingInv = invoices.filter(i => i.Status === 'Pending');
-    const pendingSum = pendingInv.reduce((s, i) => s + Number(i.Total || 0), 0);
+    const pendingInv = invoices.filter(i => i.Status !== 'Cancelled' && getInvOutstandingPending(i) > 0);
+    const pendingSum = invoices.reduce((s, i) => s + getInvOutstandingPending(i), 0);
     const lowStock = inventory.filter(i => Number(i.StockQty) <= Number(i.ReorderLevel));
     const openTasks = tasks.filter(t => t.Status !== 'Done');
     const todayAtt = attendance.filter(a => a.Date === today);
@@ -2031,11 +2031,11 @@
     if (tab === 'invoices') {
       const rows = [...state.data.invoices].reverse();
       const allInvoices = state.data.invoices || [];
-      const totalSales = allInvoices.reduce((s, i) => s + (i.Status !== 'Cancelled' ? Number(i.Total || 0) : 0), 0);
+      const totalSales = getNetSales(allInvoices);
       const totalCollected = allInvoices.reduce((s, i) => s + (i.Status !== 'Cancelled' ? (i.Status === 'Paid' ? Number(i.Total || 0) : Number(i.PaidAmount || 0)) : 0), 0);
       const totalCreditOutstanding = allInvoices.reduce((s, i) => {
         if (i.Status === 'Paid' || i.Status === 'Cancelled' || i.Status === 'Free Issue') return s;
-        return s + Math.max(0, Number(i.Total || 0) - Number(i.PaidAmount || 0));
+        return s + getInvOutstandingPending(i);
       }, 0);
       const totalOverdueCredit = allInvoices.reduce((s, i) => {
         if (i.Status === 'Paid' || i.Status === 'Cancelled' || i.Status === 'Free Issue') return s;
@@ -2244,7 +2244,9 @@
 
     periodInvoices.forEach(i => {
       const isFree = (i.Status === 'Free Issue');
-      const invAmt = isFree ? 0 : Number(i.Total || 0);
+      const retAmt = Number(i.ReturnAmount || 0);
+      const tokAmt = Number(i.TokenAmount || 0);
+      const invAmt = isFree ? 0 : Math.max(0, Number(i.Total || 0) - retAmt - tokAmt);
       const paidAmt = Number(i.PaidAmount || 0);
 
       if (isFree) freeIssueCount++;
@@ -2671,14 +2673,7 @@
       BankDetails: defaultBank
     };
     if (!inv.InvoiceNo && !invoiceId) {
-      const comp = (state.data.companyProfiles || []).find(c => c.CompanyId === inv.CompanyId) || defaultComp;
-      if (comp && (comp.InvoicePrefix || comp.NextInvoiceNo)) {
-        inv.InvoiceNo = `${comp.InvoicePrefix || 'INV-'}${comp.NextInvoiceNo || '1001'}`;
-      } else if (state.data.settings && (state.data.settings.InvoicePrefix || state.data.settings.NextInvoiceNo)) {
-        inv.InvoiceNo = `${state.data.settings.InvoicePrefix || 'INV-'}${state.data.settings.NextInvoiceNo || '1001'}`;
-      } else {
-        inv.InvoiceNo = 'INV-' + (1001 + (state.data.invoices || []).length);
-      }
+      inv.InvoiceNo = generateNextInvoiceNo(inv.CompanyId);
     }
     if (!inv.BankDetails && defaultBank) {
       inv.BankDetails = defaultBank;
@@ -3056,9 +3051,7 @@
       }
       const invNoEl = document.getElementById('fInvNo');
       if (invNoEl && !_currentEditingInvoiceId) {
-        if (comp.InvoicePrefix || comp.NextInvoiceNo) {
-          invNoEl.value = `${comp.InvoicePrefix || 'INV-'}${comp.NextInvoiceNo || '1001'}`;
-        }
+        invNoEl.value = generateNextInvoiceNo(comp.CompanyId);
       }
     }
   }
@@ -3257,8 +3250,11 @@
     }
 
     // 3. Save to Google Apps Script & Update Local Cache
-    const assignedInvNo = document.getElementById('fInvNo')?.value.trim();
-    if (assignedInvNo) payload.invoice.InvoiceNo = assignedInvNo;
+    let assignedInvNo = document.getElementById('fInvNo')?.value.trim();
+    if (!assignedInvNo || (!invoiceId && (state.data.invoices || []).some(i => String(i.InvoiceNo || '').trim().toLowerCase() === assignedInvNo.toLowerCase()))) {
+      assignedInvNo = generateNextInvoiceNo(payload.invoice.CompanyId);
+    }
+    payload.invoice.InvoiceNo = assignedInvNo;
 
     payload.invoice.InvoiceId = invoiceId || '';
     if (status === 'Free Issue') {
@@ -3784,25 +3780,156 @@
 
   let _quotLines = [];
 
-  function getNextQuotationNo(companyId) {
-    if (companyId) {
-      const comp = (state.data.companyProfiles || []).find(c => c.CompanyId === companyId);
-      if (comp && comp.NextQuoteNo) {
-        return (comp.QuotePrefix || '') + comp.NextQuoteNo;
+  /* ==========================================================================
+   * Sequential Unique Code & ID Generators (Guaranteed No Duplicates)
+   * ======================================================================== */
+
+  function generateNextInvoiceNo(companyId) {
+    const comp = companyId ? (state.data.companyProfiles || []).find(c => c.CompanyId === companyId) : ((state.data.companyProfiles || []).find(c => c.IsDefault === 'Yes') || (state.data.companyProfiles || [])[0]);
+    const prefix = comp ? (comp.InvoicePrefix || 'JDI') : ((state.data.settings && state.data.settings.InvoicePrefix) || 'JDI');
+    const invs = state.data.invoices || [];
+    let baseNum = comp && comp.NextInvoiceNo ? parseInt(comp.NextInvoiceNo, 10) : ((state.data.settings && state.data.settings.NextInvoiceNo) ? parseInt(state.data.settings.NextInvoiceNo, 10) : 8800);
+    if (isNaN(baseNum)) baseNum = 8800;
+
+    invs.forEach(i => {
+      const invNo = String(i.InvoiceNo || '').trim();
+      const m = invNo.match(/(\d+)/g);
+      if (m) {
+        m.forEach(str => {
+          const n = parseInt(str, 10);
+          if (!isNaN(n) && n >= baseNum) {
+            baseNum = n + 1;
+          }
+        });
       }
+    });
+
+    let candidate = (prefix || '') + baseNum;
+    while (invs.some(i => String(i.InvoiceNo || '').trim().toLowerCase() === candidate.toLowerCase())) {
+      baseNum++;
+      candidate = (prefix || '') + baseNum;
     }
-    if (state.data.settings && state.data.settings.NextQuoteNo) {
-      return (state.data.settings.QuotePrefix || '') + state.data.settings.NextQuoteNo;
-    }
-    const quotes = state.data.quotations || [];
-    if (quotes.length === 0) return '754';
-    const nums = quotes.map(q => {
-      const m = String(q.QuotationNo || '').match(/\d+/);
-      return m ? parseInt(m[0], 10) : 0;
-    }).filter(n => !isNaN(n) && n > 0);
-    const max = nums.length ? Math.max(...nums) : 753;
-    return String(max + 1);
+    return candidate;
   }
+
+  function getNextQuotationNo(companyId) {
+    const comp = companyId ? (state.data.companyProfiles || []).find(c => c.CompanyId === companyId) : ((state.data.companyProfiles || []).find(c => c.IsDefault === 'Yes') || (state.data.companyProfiles || [])[0]);
+    const prefix = comp ? (comp.QuotePrefix || 'JDQ') : ((state.data.settings && state.data.settings.QuotePrefix) || 'JDQ');
+    const quotes = state.data.quotations || [];
+    let baseNum = comp && comp.NextQuoteNo ? parseInt(comp.NextQuoteNo, 10) : ((state.data.settings && state.data.settings.NextQuoteNo) ? parseInt(state.data.settings.NextQuoteNo, 10) : 8800);
+    if (isNaN(baseNum)) baseNum = 8800;
+
+    quotes.forEach(q => {
+      const qNo = String(q.QuotationNo || '').trim();
+      const m = qNo.match(/(\d+)/g);
+      if (m) {
+        m.forEach(str => {
+          const n = parseInt(str, 10);
+          if (!isNaN(n) && n >= baseNum) {
+            baseNum = n + 1;
+          }
+        });
+      }
+    });
+
+    let candidate = (prefix || '') + baseNum;
+    while (quotes.some(q => String(q.QuotationNo || '').trim().toLowerCase() === candidate.toLowerCase())) {
+      baseNum++;
+      candidate = (prefix || '') + baseNum;
+    }
+    return candidate;
+  }
+
+  function generateNextSKU() {
+    const items = state.data.inventory || [];
+    let prefix = 'JD-001-';
+    let maxNum = 0;
+    let foundPattern = false;
+
+    items.forEach(it => {
+      const s = String(it.SKU || '').trim();
+      const m = s.match(/^(JD-001-)(\d+)$/i);
+      if (m) {
+        foundPattern = true;
+        prefix = m[1];
+        const n = parseInt(m[2], 10);
+        if (!isNaN(n) && n > maxNum) maxNum = n;
+      }
+    });
+
+    if (!foundPattern) {
+      items.forEach(it => {
+        const s = String(it.SKU || '').trim();
+        const m = s.match(/^(.*?)(\d+)$/);
+        if (m) {
+          prefix = m[1] || 'SKU-';
+          const n = parseInt(m[2], 10);
+          if (!isNaN(n) && n > maxNum) maxNum = n;
+        }
+      });
+    }
+
+    if (maxNum === 0) maxNum = 80 + items.length;
+    let nextNum = maxNum + 1;
+    let candidate = prefix + nextNum;
+    while (items.some(it => String(it.SKU || '').trim().toLowerCase() === candidate.toLowerCase())) {
+      nextNum++;
+      candidate = prefix + nextNum;
+    }
+    return candidate;
+  }
+
+  function generateNextCustomerCode() {
+    const custs = state.data.customers || [];
+    let maxNum = 680;
+    custs.forEach(c => {
+      const s = String(c.CustomerCode || '').trim();
+      const m = s.match(/(\d+)/);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        if (!isNaN(n) && n > maxNum) maxNum = n;
+      }
+    });
+    let nextNum = maxNum + 1;
+    let candidate = String(nextNum);
+    while (custs.some(c => String(c.CustomerCode || '').trim().toLowerCase() === candidate.toLowerCase())) {
+      nextNum++;
+      candidate = String(nextNum);
+    }
+    return candidate;
+  }
+
+  function generateNextEmployeeCode() {
+    const emps = state.data.employees || [];
+    let maxNum = 0;
+    emps.forEach(e => {
+      const s = String(e.EmpNo || e.NIC || '').trim();
+      const m = s.match(/(?:EMP[-_]?)(\d+)/i);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        if (!isNaN(n) && n > maxNum) maxNum = n;
+      }
+    });
+    if (maxNum === 0) maxNum = emps.length;
+    let nextNum = maxNum + 1;
+    let candidate = 'EMP-' + String(nextNum).padStart(3, '0');
+    while (emps.some(e => String(e.EmpNo || '').trim().toLowerCase() === candidate.toLowerCase())) {
+      nextNum++;
+      candidate = 'EMP-' + String(nextNum).padStart(3, '0');
+    }
+    return candidate;
+  }
+
+  function getNetSales(invoices) {
+    return (invoices || []).reduce((sum, inv) => {
+      if (inv.Status === 'Cancelled' || inv.PaymentStatus === 'Cancel') return sum;
+      const total = Number(inv.Total || 0);
+      const ret = Number(inv.ReturnAmount || 0);
+      const tok = Number(inv.TokenAmount || 0);
+      return sum + Math.max(0, total - ret - tok);
+    }, 0);
+  }
+
 
   function renderQuotationView() {
     ensureDataDefaults();
@@ -4687,7 +4814,8 @@
           <td style="text-align:center; font-weight:700; color:${isPastDue ? 'var(--danger)' : 'inherit'};">${dueDays > 0 ? (dueDays + ' d') : (dueDays === 0 ? 'Due Today' : Math.abs(dueDays) + ' d left')}</td>
           <td style="text-align:center;">${collDays !== '-' ? (collDays + ' d') : '-'}</td>
           <td style="text-align:center; white-space:nowrap;">
-            <button class="btn btn-sm btn-primary" onclick="openOutstandingPaymentModal('${esc(inv.InvoiceId)}')">✏️ Update</button>
+            <button class="btn btn-sm btn-primary" onclick="openOutstandingPaymentModal('${esc(inv.InvoiceId)}')">+ Pay</button>
+            <button class="btn btn-sm btn-secondary" onclick="openOutstandingPaymentModal('${esc(inv.InvoiceId)}')">✏️ Update</button>
           </td>
         </tr>
       `;
@@ -4728,6 +4856,7 @@
             ${(_outStartDate || _outEndDate || _outSearch || _outFilterStatus !== 'All') ? `<button class="btn btn-sm btn-secondary" style="margin:0; padding:4px 8px; font-size:11px;" onclick="_outStartDate=''; _outEndDate=''; _outSearch=''; _outFilterStatus='All'; renderOutstandingView();">Reset</button>` : ''}
           </div>
           <div style="display:flex; align-items:center; gap:8px;">
+            <button class="btn btn-primary" onclick="openOutstandingPaymentModal()" style="font-weight:700;">+ Record Payment</button>
             <button class="btn btn-success" onclick="exportOutstandingExcel()">📥 Export to Excel</button>
             <button class="btn btn-secondary" onclick="printOutstandingExcel()">🖨️ Print</button>
           </div>
@@ -4846,105 +4975,207 @@
   }
 
   function openOutstandingPaymentModal(invoiceId) {
-    const inv = (state.data.invoices || []).find(i => i.InvoiceId === invoiceId);
-    if (!inv) return;
+    const allInvs = (state.data.invoices || []).filter(i => i.Status !== 'Cancelled');
+    
+    // If no invoiceId provided, pick the first unpaid invoice or let user choose from dropdown
+    let targetInvId = invoiceId;
+    if (!targetInvId) {
+      const pendingInvs = allInvs.filter(i => getInvOutstandingPending(i) > 0);
+      targetInvId = pendingInvs.length ? pendingInvs[0].InvoiceId : (allInvs.length ? allInvs[0].InvoiceId : '');
+    }
 
-    const tot = Number(inv.Total || 0);
-    const paid = Number(inv.PaidAmount || 0);
-    const bal = Math.max(0, tot - paid);
+    const inv = allInvs.find(i => i.InvoiceId === targetInvId);
+    if (!inv && allInvs.length === 0) {
+      showToast('No sales invoices found to record payment.');
+      return;
+    }
 
-    let realizedMonth = inv.RealizedMonth || '';
-    if (!realizedMonth && inv.RealisedDate) {
+    const tot = inv ? Number(inv.Total || 0) : 0;
+    const paid = inv ? Number(inv.PaidAmount || 0) : 0;
+    const tokenAmt = inv ? Number(inv.TokenAmount || 0) : 0;
+    const returnAmt = inv ? Number(inv.ReturnAmount || 0) : 0;
+    const bal = inv ? getInvOutstandingPending(inv) : 0;
+
+    let realizedMonth = inv ? (inv.RealizedMonth || '') : '';
+    if (!realizedMonth && inv && inv.RealisedDate) {
       try {
         const d = new Date(inv.RealisedDate);
         realizedMonth = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
       } catch (e) {}
     }
 
-    const curStatus = inv.PaymentStatus || (inv.Status === 'Paid' ? 'Paid' : 'Unpaid');
+    const curStatus = inv ? (inv.PaymentStatus || (inv.Status === 'Paid' ? 'Paid' : 'Unpaid')) : 'Paid';
+
+    // Parse or initialize installment history
+    const payments = (inv && Array.isArray(inv.Payments)) ? inv.Payments : [];
+
+    const invSelectOptions = allInvs.map(i => {
+      const p = getInvOutstandingPending(i);
+      const isSel = (i.InvoiceId === targetInvId);
+      return `<option value="${esc(i.InvoiceId)}" ${isSel ? 'selected' : ''}>
+        ${esc(i.InvoiceNo)} - ${esc(i.CustomerName)} (Total: ${fmtMoney(i.Total)} | Due: ${fmtMoney(p)})
+      </option>`;
+    }).join('');
+
+    // Available inventory items for return
+    const stockItems = state.data.inventory || [];
+    const stockItemOptions = `<option value="">-- Select Product to Return (Optional) --</option>` + stockItems.map(it => 
+      `<option value="${esc(it.ItemId)}">${esc(it.SKU)} - ${esc(it.Name)} (${esc(it.Unit || 'Units')})</option>`
+    ).join('');
 
     openModal(
-      'Update Payment / Cheque Details (' + inv.InvoiceNo + ')',
+      'Record Payment Installment / Details (' + (inv ? inv.InvoiceNo : 'New') + ')',
       `
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-weight:700; color:#1e3a8a;">Select Sales Invoice *</label>
+          <select id="fOutSelectInv" onchange="openOutstandingPaymentModal(this.value)" style="font-weight:600; font-size:13.5px; height:38px;">
+            ${invSelectOptions}
+          </select>
+        </div>
+
         <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-bottom:14px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <div><b>Customer:</b> ${esc(inv.CustomerName)}</div>
-            <div><b>Invoice Date:</b> ${esc(inv.Date)}</div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px;">
+            <div><b>Customer:</b> ${esc(inv ? inv.CustomerName : '-')}</div>
+            <div><b>Invoice Date:</b> ${esc(inv ? inv.Date : '-')}</div>
           </div>
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div><b>Invoice Amount:</b> ${fmtMoney(tot)}</div>
-            <div><b>Current Balance Due:</b> <span style="color:var(--danger); font-weight:700;">${fmtMoney(bal)}</span></div>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label>Cheque No (Cq. No)</label>
-            <input id="fOutCqNo" placeholder="e.g. 849201" value="${esc(inv.ChequeNo || '')}">
-          </div>
-          <div class="form-group">
-            <label>Bank Name</label>
-            <input id="fOutBank" placeholder="e.g. Commercial Bank / Sampath" value="${esc(inv.ChequeBank || '')}">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <div><b>Invoice Total:</b> ${fmtMoney(tot)}</div>
+            <div><b>Total Paid So Far:</b> <span style="color:var(--success); font-weight:700;">${fmtMoney(paid)}</span></div>
+            <div><b>Remaining Balance:</b> <span style="color:var(--danger); font-weight:700; font-size:14px;">${fmtMoney(bal)}</span></div>
           </div>
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label>Cheque Date (Chq Date)</label>
-            <input type="date" id="fOutChqDate" value="${esc(inv.ChequeDate || '')}">
+        ${payments.length > 0 ? `
+          <div style="margin-bottom:14px; border:1px solid #e2e8f0; border-radius:6px; overflow:hidden;">
+            <div style="background:#f1f5f9; padding:6px 12px; font-size:12px; font-weight:700; color:#334155; display:flex; justify-content:space-between;">
+              <span>📜 Previous Payment Installments (${payments.length})</span>
+              <span>Cumulative Paid: <b>${fmtMoney(paid)}</b></span>
+            </div>
+            <div style="max-height:140px; overflow-y:auto;">
+              <table style="width:100%; font-size:11.5px; border-collapse:collapse;">
+                <thead>
+                  <tr style="background:#f8fafc; color:#64748b; border-bottom:1px solid #e2e8f0;">
+                    <th style="padding:4px 6px; text-align:center;">#</th>
+                    <th style="padding:4px 6px; text-align:center;">Date</th>
+                    <th style="padding:4px 6px; text-align:right;">Amount</th>
+                    <th style="padding:4px 6px; text-align:center;">Status</th>
+                    <th style="padding:4px 6px; text-align:center;">Cheque / Bank</th>
+                    <th style="padding:4px 6px; text-align:center;">Receipt #</th>
+                    <th style="padding:4px 6px; text-align:center;">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${payments.map((p, idx) => `
+                    <tr style="border-bottom:1px solid #f1f5f9;">
+                      <td style="padding:4px 6px; text-align:center;">${idx + 1}</td>
+                      <td style="padding:4px 6px; text-align:center;">${esc(p.Date || '-')}</td>
+                      <td style="padding:4px 6px; text-align:right; font-weight:700; color:#0f766e;">${fmtMoney(p.Amount || 0)}</td>
+                      <td style="padding:4px 6px; text-align:center;"><span class="badge ${getPaymentStatusBadgeClass(p.Status)}">${esc(p.Status || 'Paid')}</span></td>
+                      <td style="padding:4px 6px; text-align:center;">${esc(p.ChequeNo ? (p.ChequeNo + (p.ChequeBank ? ' - ' + p.ChequeBank : '')) : (p.Notes || '-'))}</td>
+                      <td style="padding:4px 6px; text-align:center;">${esc(p.ReceiptNo || '-')}</td>
+                      <td style="padding:4px 6px; text-align:center;">
+                        <button class="btn btn-sm btn-danger" style="padding:1px 6px; font-size:10px;" onclick="removePaymentInstallment('${esc(targetInvId)}', '${esc(p.PaymentId)}')">✕</button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div class="form-group">
-            <label>Cheque Amount (Cq. Amt)</label>
-            <input type="number" step="0.01" id="fOutCqAmt" placeholder="0.00" value="${inv.ChequeAmount || (bal > 0 ? bal : '')}">
-          </div>
-        </div>
+        ` : ''}
 
-        <div class="form-row">
-          <div class="form-group">
-            <label>Realised / Paid Amount (Realised Amt) *</label>
-            <input type="number" step="0.01" id="fOutRealisedAmt" placeholder="0.00" value="${paid > 0 ? paid : ''}">
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; padding:10px 12px; margin-bottom:12px;">
+          <div style="font-weight:700; color:#166534; font-size:13px; margin-bottom:6px;">➕ Add Payment Installment / Cheque / Return Entry</div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label style="font-weight:700; color:#166534;">Payment / Installment Amount (LKR) *</label>
+              <input type="number" step="0.01" id="fOutRealisedAmt" placeholder="0.00" value="${bal > 0 ? bal : ''}" style="font-weight:700; font-size:14px;">
+            </div>
+            <div class="form-group">
+              <label style="font-weight:700;">Payment Date *</label>
+              <input type="date" id="fOutRealisedDate" value="${esc(state.data.today)}" onchange="onRealisedDateChange(this.value)">
+            </div>
           </div>
-          <div class="form-group">
-            <label>Realised Date</label>
-            <input type="date" id="fOutRealisedDate" value="${esc(inv.RealisedDate || state.data.today)}" onchange="onRealisedDateChange(this.value)">
-          </div>
-        </div>
 
-        <div class="form-row">
+          <div class="form-row">
+            <div class="form-group">
+              <label style="font-weight:700;">Payment Status / Method *</label>
+              <select id="fOutPaymentStatus" onchange="onOutPaymentStatusChange(this.value, ${tot}, ${bal})">
+                ${['Paid', 'Unpaid', 'Cheque Bounce', 'Unrealized', 'Cancel', 'Token', 'Return', 'Cheque Cancel'].map(st =>
+                  `<option value="${st}" ${st === 'Paid' ? 'selected' : ''}>${st}</option>`
+                ).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Receipt No (Optional)</label>
+              <input id="fOutReceiptNo" placeholder="e.g. REC-1024" value="">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Cheque No (Cq. No)</label>
+              <input id="fOutCqNo" placeholder="e.g. 849201" value="">
+            </div>
+            <div class="form-group">
+              <label>Bank Name</label>
+              <input id="fOutBank" placeholder="e.g. Commercial Bank / Sampath" value="">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Cheque Date</label>
+              <input type="date" id="fOutChqDate" value="">
+            </div>
+            <div class="form-group">
+              <label>Cheque Amount (LKR)</label>
+              <input type="number" step="0.01" id="fOutCqAmt" placeholder="0.00" value="">
+            </div>
+          </div>
+
           <div class="form-group">
             <label>Realized Month</label>
             <input id="fOutRealizedMonth" placeholder="e.g. November 2026" value="${esc(realizedMonth || '')}">
           </div>
-          <div class="form-group">
-            <label>Receipt No</label>
-            <input id="fOutReceiptNo" placeholder="e.g. REC-1024" value="${esc(inv.ReceiptNo || '')}">
+
+          <div class="form-group" id="fOutTokenGroup" style="display:none; background:#f3e8ff; border:1px solid #d8b4fe; padding:10px; border-radius:6px; margin-top:8px;">
+            <label style="color:#6b21a8; font-weight:700;">Token / Discount Deduction Amount</label>
+            <input type="number" step="0.01" id="fOutTokenAmt" placeholder="0.00" value="">
+            <div style="font-size:11.5px; color:#7e22ce; margin-top:3px;">This token deduction amount is deducted from the outstanding invoice balance and company sales.</div>
           </div>
-        </div>
 
-        <div class="form-group">
-          <label>Payment Status *</label>
-          <select id="fOutPaymentStatus" onchange="onOutPaymentStatusChange(this.value, ${tot}, ${bal})">
-            ${['Paid', 'Unpaid', 'Cheque Bounce', 'Unrealized', 'Cancel', 'Token', 'Return', 'Cheque Cancel'].map(st =>
-              `<option value="${st}" ${(curStatus === st || (curStatus === 'Realised' && st === 'Paid')) ? 'selected' : ''}>${st}</option>`
-            ).join('')}
-          </select>
-        </div>
+          <div class="form-group" id="fOutReturnGroup" style="display:none; background:#fff7ed; border:1px solid #fdba74; padding:10px; border-radius:6px; margin-top:8px;">
+            <label style="color:#9a3412; font-weight:700;">Returned Goods Amount (LKR) *</label>
+            <input type="number" step="0.01" id="fOutReturnAmt" placeholder="0.00" value="${bal}">
+            
+            <div class="form-row" style="margin-top:8px;">
+              <div class="form-group" style="flex:2;">
+                <label style="color:#9a3412; font-weight:600;">Product Returned (Adds back to Stock)</label>
+                <select id="fOutReturnItem">
+                  ${stockItemOptions}
+                </select>
+              </div>
+              <div class="form-group" style="flex:1;">
+                <label style="color:#9a3412; font-weight:600;">Returned Qty</label>
+                <input type="number" step="any" min="0" id="fOutReturnQty" placeholder="e.g. 5">
+              </div>
+            </div>
+            <div style="font-size:11.5px; color:#c2410c; margin-top:3px;">
+              🔄 <b>Stock Return:</b> The returned quantity will automatically be added back to Stock / Inventory, and the returned amount will be deducted from invoice balance &amp; Net Sales!
+            </div>
+          </div>
 
-        <div class="form-group" id="fOutTokenGroup" style="display:${curStatus === 'Token' ? '' : 'none'}; background:#f3e8ff; border:1px solid #d8b4fe; padding:10px; border-radius:6px; margin-top:8px;">
-          <label style="color:#6b21a8; font-weight:700;">Token / Discount Deduction Amount</label>
-          <input type="number" step="0.01" id="fOutTokenAmt" placeholder="0.00" value="${inv.TokenAmount || ''}">
-          <div style="font-size:11.5px; color:#7e22ce; margin-top:3px;">This token deduction amount is deducted from the outstanding invoice balance.</div>
-        </div>
-
-        <div class="form-group" id="fOutReturnGroup" style="display:${curStatus === 'Return' ? '' : 'none'}; background:#fff7ed; border:1px solid #fdba74; padding:10px; border-radius:6px; margin-top:8px;">
-          <label style="color:#9a3412; font-weight:700;">Returned Goods Amount</label>
-          <input type="number" step="0.01" id="fOutReturnAmt" placeholder="0.00" value="${inv.ReturnAmount !== undefined ? inv.ReturnAmount : bal}">
-          <div style="font-size:11.5px; color:#c2410c; margin-top:3px;">Returned goods value is deducted from the invoice outstanding amount.</div>
+          <div class="form-group" style="margin-top:8px;">
+            <label>Notes / Remarks (Optional)</label>
+            <input id="fOutNotes" placeholder="e.g. Partial payment received via cash deposit" value="">
+          </div>
         </div>
       `,
       `
         <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="submitOutstandingPayment('${esc(invoiceId)}')">Save Payment Details</button>
+        <button class="btn btn-primary" onclick="submitOutstandingPayment('${esc(targetInvId)}')">💾 Save Payment Installment</button>
       `
     );
   }
@@ -4961,73 +5192,221 @@
 
   function submitOutstandingPayment(invoiceId) {
     const inv = (state.data.invoices || []).find(i => i.InvoiceId === invoiceId);
-    if (!inv) return;
+    if (!inv) {
+      showToast('Error: Invoice not found');
+      return;
+    }
 
     const cqNo = document.getElementById('fOutCqNo')?.value.trim() || '';
     const bank = document.getElementById('fOutBank')?.value.trim() || '';
     const cqDate = document.getElementById('fOutChqDate')?.value || '';
     const cqAmt = Number(document.getElementById('fOutCqAmt')?.value || 0);
-    const realisedAmt = Number(document.getElementById('fOutRealisedAmt')?.value || 0);
-    const realisedDate = document.getElementById('fOutRealisedDate')?.value || '';
+    const payAmt = Number(document.getElementById('fOutRealisedAmt')?.value || 0);
+    const realisedDate = document.getElementById('fOutRealisedDate')?.value || state.data.today;
     const realizedMonth = document.getElementById('fOutRealizedMonth')?.value.trim() || '';
     const receiptNo = document.getElementById('fOutReceiptNo')?.value.trim() || '';
-    const pStatus = document.getElementById('fOutPaymentStatus')?.value || 'Pending';
+    const pStatus = document.getElementById('fOutPaymentStatus')?.value || 'Paid';
     const tokenAmt = Number(document.getElementById('fOutTokenAmt')?.value || 0);
     const returnAmt = Number(document.getElementById('fOutReturnAmt')?.value || 0);
+    const returnItemId = document.getElementById('fOutReturnItem')?.value || '';
+    const returnQty = Number(document.getElementById('fOutReturnQty')?.value || 0);
+    const notes = document.getElementById('fOutNotes')?.value.trim() || '';
 
-    // Update in-memory optimistically (0ms)
-    inv.ChequeNo = cqNo;
-    inv.ChequeBank = bank;
-    inv.ChequeDate = cqDate;
-    inv.ChequeAmount = cqAmt;
-    inv.PaidAmount = realisedAmt;
-    inv.RealisedDate = realisedDate;
-    inv.RealizedMonth = realizedMonth;
-    inv.ReceiptNo = receiptNo;
-    inv.PaymentStatus = pStatus;
-    inv.TokenAmount = tokenAmt;
-    inv.ReturnAmount = returnAmt;
-
-    const tot = Number(inv.Total || 0);
-    if (pStatus === 'Paid' || realisedAmt >= tot) {
-      inv.Status = 'Paid';
-    } else if (pStatus === 'Cancel') {
-      inv.Status = 'Cancelled';
-    } else if (pStatus === 'Return') {
-      inv.Status = (returnAmt >= tot) ? 'Cancelled' : 'Pending';
-    } else if (pStatus === 'Token') {
-      inv.Status = (realisedAmt + tokenAmt >= tot) ? 'Paid' : 'Pending';
-    } else if (pStatus === 'Unrealized') {
-      inv.Status = 'Pending';
-    } else if (pStatus === 'Cheque Bounce' || pStatus === 'Cheque Cancel' || pStatus === 'Unpaid') {
-      inv.Status = (realisedAmt > 0) ? 'Pending' : 'Unpaid';
-    } else if (realisedAmt > 0) {
-      inv.Status = 'Pending';
-    }
-
-    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
-
-    closeModal();
-    renderOutstandingView();
-    showToast('Payment & Cheque details updated!');
-
-    // Background sync
-    gas('updateInvoicePayment', {
-      InvoiceId: invoiceId,
+    // Create installment record
+    const installment = {
+      PaymentId: 'PAY-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      InvoiceId: inv.InvoiceId,
+      InvoiceNo: inv.InvoiceNo,
+      Date: realisedDate,
+      Amount: payAmt,
+      Status: pStatus,
       ChequeNo: cqNo,
       ChequeBank: bank,
       ChequeDate: cqDate,
       ChequeAmount: cqAmt,
-      RealisedAmount: realisedAmt,
-      PaidAmount: realisedAmt,
       RealisedDate: realisedDate,
       RealizedMonth: realizedMonth,
       ReceiptNo: receiptNo,
-      PaymentStatus: pStatus,
       TokenAmount: tokenAmt,
       ReturnAmount: returnAmt,
+      ReturnItemId: returnItemId,
+      ReturnQty: returnQty,
+      Notes: notes,
+      RecordedBy: state.user.Name,
+      RecordedAt: new Date().toISOString()
+    };
+
+    inv.Payments = inv.Payments || [];
+    inv.Payments.push(installment);
+
+    // Sum all previous installments + this one
+    let cumulativePaid = 0;
+    let cumulativeToken = 0;
+    let cumulativeReturn = 0;
+
+    inv.Payments.forEach(p => {
+      const st = p.Status;
+      if (st === 'Paid' || st === 'Realised' || (!['Unpaid', 'Cheque Bounce', 'Unrealized', 'Cancel', 'Token', 'Return', 'Cheque Cancel'].includes(st) && p.Amount > 0)) {
+        cumulativePaid += Number(p.Amount || 0);
+      }
+      if (p.TokenAmount) cumulativeToken += Number(p.TokenAmount || 0);
+      if (p.ReturnAmount) cumulativeReturn += Number(p.ReturnAmount || 0);
+    });
+
+    // Update invoice fields
+    inv.PaidAmount = cumulativePaid;
+    inv.TokenAmount = cumulativeToken;
+    inv.ReturnAmount = cumulativeReturn;
+    inv.PaymentStatus = pStatus;
+    if (cqNo) inv.ChequeNo = cqNo;
+    if (bank) inv.ChequeBank = bank;
+    if (cqDate) inv.ChequeDate = cqDate;
+    if (cqAmt) inv.ChequeAmount = cqAmt;
+    if (realisedDate) inv.RealisedDate = realisedDate;
+    if (realizedMonth) inv.RealizedMonth = realizedMonth;
+    if (receiptNo) inv.ReceiptNo = receiptNo;
+
+    const tot = Number(inv.Total || 0);
+    const pending = Math.max(0, tot - cumulativePaid - cumulativeToken - cumulativeReturn);
+
+    if (pStatus === 'Cancel') {
+      inv.Status = 'Cancelled';
+    } else if (pending <= 0) {
+      inv.Status = 'Paid';
+      inv.PaymentStatus = 'Paid';
+    } else {
+      inv.Status = 'Pending';
+    }
+
+    // 1. Stock Return Increment
+    if ((pStatus === 'Return' || returnQty > 0) && returnItemId) {
+      const invItem = (state.data.inventory || []).find(x => x.ItemId === returnItemId);
+      if (invItem && returnQty > 0) {
+        invItem.StockQty = (Number(invItem.StockQty) || 0) + returnQty;
+        invItem.UpdatedAt = state.data.today;
+        
+        // Sync Inventory to Supabase & Sheet
+        if (window.sbClient) {
+          window.sbClient.from('Inventory').upsert(invItem).then();
+        }
+        gas('saveInventoryItem', invItem).catch(e => console.error(e));
+      }
+    }
+
+    // 2. Record Income Transaction if Paid/Realised amount > 0
+    if (payAmt > 0 && (pStatus === 'Paid' || pStatus === 'Realised')) {
+      const tx = {
+        TxId: 'TX-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+        Date: realisedDate,
+        Type: 'Income',
+        Category: 'Sales / Invoice Payment',
+        Description: `Payment installment for ${inv.InvoiceNo} (${inv.CustomerName || 'Customer'})`,
+        Amount: payAmt,
+        RefId: inv.InvoiceId,
+        RecordedBy: state.user.Name
+      };
+      state.data.transactions = state.data.transactions || [];
+      state.data.transactions.push(tx);
+      if (window.sbClient) window.sbClient.from('Transactions').insert(tx).then();
+      gas('saveTransaction', tx).catch(e => console.error(e));
+    }
+
+    // 3. Save to Supabase and LocalStorage
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+
+    if (window.sbClient) {
+      window.sbClient.from('Invoices').upsert({
+        InvoiceId: inv.InvoiceId,
+        PaidAmount: inv.PaidAmount,
+        PaymentStatus: inv.PaymentStatus,
+        Status: inv.Status,
+        ChequeNo: inv.ChequeNo || '',
+        ChequeBank: inv.ChequeBank || '',
+        ChequeDate: inv.ChequeDate || '',
+        ChequeAmount: inv.ChequeAmount || 0,
+        RealisedDate: inv.RealisedDate || '',
+        RealizedMonth: inv.RealizedMonth || '',
+        ReceiptNo: inv.ReceiptNo || '',
+        TokenAmount: inv.TokenAmount || 0,
+        ReturnAmount: inv.ReturnAmount || 0
+      }).then();
+    }
+
+    closeModal();
+    renderOutstandingView();
+    showToast(`✅ Payment installment recorded! Balance remaining: ${fmtMoney(pending)}`);
+
+    // 4. Background sync to Google Apps Script
+    gas('updateInvoicePayment', {
+      InvoiceId: inv.InvoiceId,
+      ChequeNo: inv.ChequeNo || '',
+      ChequeBank: inv.ChequeBank || '',
+      ChequeDate: inv.ChequeDate || '',
+      ChequeAmount: inv.ChequeAmount || 0,
+      RealisedAmount: inv.PaidAmount,
+      PaidAmount: inv.PaidAmount,
+      RealisedDate: inv.RealisedDate || '',
+      RealizedMonth: inv.RealizedMonth || '',
+      ReceiptNo: inv.ReceiptNo || '',
+      PaymentStatus: inv.PaymentStatus,
+      TokenAmount: inv.TokenAmount || 0,
+      ReturnAmount: inv.ReturnAmount || 0,
       Status: inv.Status
     }).catch(err => console.error('updateInvoicePayment error:', err));
+  }
+
+  function removePaymentInstallment(invoiceId, paymentId) {
+    if (!confirm('Are you sure you want to remove this payment installment?')) return;
+    const inv = (state.data.invoices || []).find(i => i.InvoiceId === invoiceId);
+    if (!inv || !Array.isArray(inv.Payments)) return;
+
+    inv.Payments = inv.Payments.filter(p => p.PaymentId !== paymentId);
+
+    // Recalculate cumulative values
+    let cumulativePaid = 0;
+    let cumulativeToken = 0;
+    let cumulativeReturn = 0;
+
+    inv.Payments.forEach(p => {
+      const st = p.Status;
+      if (st === 'Paid' || st === 'Realised' || (!['Unpaid', 'Cheque Bounce', 'Unrealized', 'Cancel', 'Token', 'Return', 'Cheque Cancel'].includes(st) && p.Amount > 0)) {
+        cumulativePaid += Number(p.Amount || 0);
+      }
+      if (p.TokenAmount) cumulativeToken += Number(p.TokenAmount || 0);
+      if (p.ReturnAmount) cumulativeReturn += Number(p.ReturnAmount || 0);
+    });
+
+    inv.PaidAmount = cumulativePaid;
+    inv.TokenAmount = cumulativeToken;
+    inv.ReturnAmount = cumulativeReturn;
+
+    const tot = Number(inv.Total || 0);
+    const pending = Math.max(0, tot - cumulativePaid - cumulativeToken - cumulativeReturn);
+    if (pending <= 0) {
+      inv.Status = 'Paid';
+      inv.PaymentStatus = 'Paid';
+    } else {
+      inv.Status = 'Pending';
+      inv.PaymentStatus = (cumulativePaid > 0) ? 'Unpaid' : 'Unpaid';
+    }
+
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+
+    if (window.sbClient) {
+      window.sbClient.from('Invoices').upsert({
+        InvoiceId: inv.InvoiceId,
+        PaidAmount: inv.PaidAmount,
+        PaymentStatus: inv.PaymentStatus,
+        Status: inv.Status,
+        TokenAmount: inv.TokenAmount,
+        ReturnAmount: inv.ReturnAmount
+      }).then();
+    }
+
+    closeModal();
+    openOutstandingPaymentModal(invoiceId);
+    renderOutstandingView();
+    showToast('Payment installment removed and balances recalculated.');
   }
 
   function exportOutstandingExcel() {
@@ -8241,12 +8620,33 @@
     return 'SKU-' + (maxNum + 1);
   }
 
+  function updateUnitDisplayPreview() {
+    const s = document.getElementById('fItUnitSize')?.value.trim() || '500';
+    const u = document.getElementById('fItUnitType')?.value || 'ML';
+    const el = document.getElementById('unitDisplayPreview');
+    if (el) el.innerHTML = 'Unit displayed as: <b>' + esc(s + ' ' + u) + '</b>';
+  }
+
   function openInventoryModal(itemId) {
     const autoSku = generateNextSKU();
     const it = itemId ? (state.data.inventory || []).find(x => x.ItemId === itemId) : {
-      SKU: autoSku, Name: '', Category: 'General', UnitPrice: 0, StockQty: 0, ReorderLevel: 5, Unit: 'L'
+      SKU: autoSku, Name: '', Category: 'General', UnitPrice: 0, StockQty: 0, ReorderLevel: 5, Unit: '500 ML'
     };
-    const normUnit = String(it.Unit || 'L').toUpperCase().trim();
+
+    let curSize = '500';
+    let curType = 'ML';
+    const rawUnit = String(it.Unit || '').trim();
+    const unitMatch = rawUnit.match(/^([\d.]+)\s*([a-zA-Z]+)$/);
+    if (unitMatch) {
+      curSize = unitMatch[1];
+      curType = unitMatch[2].toUpperCase();
+    } else if (rawUnit) {
+      if (['ML', 'L', 'G', 'KG'].includes(rawUnit.toUpperCase())) {
+        curType = rawUnit.toUpperCase();
+        curSize = (curType === 'ML' || curType === 'G') ? '500' : '1';
+      }
+    }
+    if (!['ML', 'L', 'G', 'KG'].includes(curType)) curType = 'ML';
 
     openModal(
       itemId ? 'Edit Product' : 'Add Product to Stock',
@@ -8257,13 +8657,19 @@
             <input id="fItSku" value="${esc(it.SKU || autoSku)}" placeholder="e.g. JD-001-84" style="font-weight:700; font-family:monospace;">
           </div>
           <div class="form-group">
-            <label style="font-weight:700;">Unit Measurement (Selective) *</label>
-            <select id="fItUnit" style="font-weight:700; font-size:13.5px; height:38px;">
-              <option value="ML" ${normUnit === 'ML' ? 'selected' : ''}>ML (Milliliters)</option>
-              <option value="L" ${normUnit === 'L' || !normUnit ? 'selected' : ''}>L (Liters)</option>
-              <option value="G" ${normUnit === 'G' ? 'selected' : ''}>G (Grams)</option>
-              <option value="KG" ${normUnit === 'KG' ? 'selected' : ''}>KG (Kilograms)</option>
-            </select>
+            <label style="font-weight:700;">Pack / Volume Size &amp; Unit * <span style="font-size:11px; color:var(--muted); font-weight:normal;">(e.g. 500 ML, 1 L, 4 L, 1 KG)</span></label>
+            <div style="display:flex; gap:8px;">
+              <input type="number" step="any" min="0.01" id="fItUnitSize" value="${curSize}" placeholder="e.g. 500" style="flex:1; font-weight:700; height:38px;" oninput="updateUnitDisplayPreview()">
+              <select id="fItUnitType" style="flex:1.2; font-weight:700; font-size:13.5px; height:38px;" onchange="updateUnitDisplayPreview()">
+                <option value="ML" ${curType === 'ML' ? 'selected' : ''}>ML (Milliliters)</option>
+                <option value="L" ${curType === 'L' ? 'selected' : ''}>L (Liters)</option>
+                <option value="G" ${curType === 'G' ? 'selected' : ''}>G (Grams)</option>
+                <option value="KG" ${curType === 'KG' ? 'selected' : ''}>KG (Kilograms)</option>
+              </select>
+            </div>
+            <div id="unitDisplayPreview" style="font-size:11.5px; color:#0f766e; font-weight:600; margin-top:3px;">
+              Unit displayed as: <b>${curSize} ${curType}</b>
+            </div>
           </div>
         </div>
         
@@ -8563,8 +8969,9 @@
   }
 
   function openCustomerModal(custId) {
+    const autoCustCode = generateNextCustomerCode();
     const c = custId ? (state.data.customers || []).find(x => x.CustomerId === custId) : {
-      CustomerCode: '',
+      CustomerCode: autoCustCode,
       Name: '',
       BusinessIdentifier: '',
       BillingAddress: '',
@@ -8981,7 +9388,9 @@
   }
 
   function openEmployeeModal(id) {
+    const autoEmpNo = generateNextEmployeeCode();
     const e = id ? (state.data.employees || []).find(x => x.EmpId === id) : {
+      EmpNo: autoEmpNo,
       Name: '',
       Designation: '',
       Address: '',
