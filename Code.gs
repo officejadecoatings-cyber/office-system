@@ -11,7 +11,7 @@ const SCHEMA = {
   Users: ['UserId', 'Name', 'Email', 'Role', 'Pin', 'Status', 'AllowedTabs', 'Avatar', 'NIC'],
   Customers: ['CustomerId', 'CustomerCode', 'Name', 'BusinessIdentifier', 'BillingAddress', 'DeliveryAddress', 'Email', 'Phone', 'CreditLimit', 'SalesOfficerId', 'SalesOfficerName', 'Notes', 'CreatedAt'],
   Inventory: ['ItemId', 'SKU', 'Name', 'Category', 'UnitPrice', 'StockQty', 'ReorderLevel', 'Unit', 'UpdatedAt'],
-  Invoices: ['InvoiceId', 'InvoiceNo', 'CustomerId', 'CustomerName', 'Date', 'DueDate', 'Status', 'Subtotal', 'Discount', 'TaxAmount', 'Total', 'PaidAmount', 'Notes', 'CreatedBy', 'QuoteNo', 'SalesPerson', 'CustomerAddress', 'CustomerPhone', 'BankDetails', 'CompanyId', 'ChequeNo', 'ChequeBank', 'ChequeDate', 'ChequeAmount', 'RealisedDate', 'RealizedMonth', 'ReceiptNo', 'PaymentStatus', 'TokenAmount', 'ReturnAmount'],
+  Invoices: ['InvoiceId', 'InvoiceNo', 'CustomerId', 'CustomerName', 'Date', 'DueDate', 'Status', 'Subtotal', 'Discount', 'TaxAmount', 'Total', 'PaidAmount', 'Notes', 'CreatedBy', 'QuoteNo', 'SalesPerson', 'CustomerAddress', 'CustomerPhone', 'BankDetails', 'CompanyId', 'ChequeNo', 'ChequeBank', 'ChequeDate', 'ChequeAmount', 'RealisedDate', 'RealizedMonth', 'ReceiptNo', 'PaymentStatus', 'TokenAmount', 'ReturnAmount', 'DispatchStatus', 'DispatchedDate', 'DispatchedBy', 'PaymentsJson'],
   InvoiceItems: ['LineId', 'InvoiceId', 'ItemId', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal', 'ItemCode', 'DiscountPercent'],
   CompanyProfiles: ['CompanyId', 'CompanyName', 'Address', 'Phone', 'Email', 'Website', 'BankName', 'Branch', 'AccountNo', 'Logo', 'IsDefault', 'InvoicePrefix', 'NextInvoiceNo', 'QuotePrefix', 'NextQuoteNo', 'CreatedAt'],
   Quotations: ['QuotationId', 'QuotationNo', 'Date', 'CustomerId', 'CustomerName', 'BillingAddress', 'Description', 'TotalAmount', 'Status', 'DataJson', 'CompanyId', 'CreatedBy', 'CreatedAt'],
@@ -63,7 +63,7 @@ function doPost(e) {
       saveCompanyProfile, deleteCompanyProfile,
       saveQuotation, deleteQuotation,
       saveInventoryItem, deleteInventoryItem,
-      saveInvoice, deleteInvoice,
+      saveInvoice, deleteInvoice, updateInvoicePayment, dispatchInvoice,
       saveCreditor, deleteCreditor,
       savePettyCash, deletePettyCash,
       saveReportEntry, deleteReportEntry, importReportEntries, clearReportEntries,
@@ -595,7 +595,8 @@ function saveInvoice(payload) {
       // Restore stock from old items if old invoice wasn't Draft/Cancelled
       const oldInv = existing.find(i => String(i.InvoiceId).trim() === String(invoice.InvoiceId).trim());
       const oldItems = readSheetObjects_('InvoiceItems').filter(li => String(li.InvoiceId).trim() === String(invoice.InvoiceId).trim());
-      if (oldInv && oldInv.Status !== 'Draft' && oldInv.Status !== 'Cancelled') {
+      // If old invoice was dispatched, refund stock before re-evaluating
+      if (oldInv && oldInv.Status !== 'Draft' && oldInv.Status !== 'Cancelled' && oldInv.DispatchStatus !== 'Not Dispatched') {
         adjustInventoryStock_(oldItems, +1);
       }
       // Delete old line items
@@ -607,6 +608,14 @@ function saveInvoice(payload) {
           liSheet.deleteRow(i + 1);
         }
       }
+    }
+
+    // Default DispatchStatus to 'Dispatched' if not set
+    if (!invoice.DispatchStatus) {
+      invoice.DispatchStatus = 'Dispatched';
+    }
+    if (invoice.DispatchStatus === 'Dispatched' && !invoice.DispatchedDate) {
+      invoice.DispatchedDate = invoice.Date || todayStr_();
     }
 
     // Save invoice header
@@ -629,8 +638,8 @@ function saveInvoice(payload) {
       appendRowObject_('InvoiceItems', li);
     });
 
-    // Deduct stock if active order/invoice
-    if (invoice.Status !== 'Draft' && invoice.Status !== 'Cancelled') {
+    // Deduct stock ONLY if active AND DispatchStatus is Dispatched
+    if (invoice.Status !== 'Draft' && invoice.Status !== 'Cancelled' && invoice.DispatchStatus !== 'Not Dispatched') {
       adjustInventoryStock_(items, -1);
     }
 
@@ -698,8 +707,32 @@ function updateInvoicePayment(payload) {
     if (payload.TokenAmount !== undefined) updates.TokenAmount = Number(payload.TokenAmount) || 0;
     if (payload.ReturnAmount !== undefined) updates.ReturnAmount = Number(payload.ReturnAmount) || 0;
     if (payload.Status) updates.Status = payload.Status;
+    if (payload.Total !== undefined) updates.Total = Number(payload.Total) || 0;
+    if (payload.PaymentsJson) {
+      updates.PaymentsJson = typeof payload.PaymentsJson === 'string' ? payload.PaymentsJson : JSON.stringify(payload.PaymentsJson);
+    }
     updateRowByKey_('Invoices', 'InvoiceId', invId, updates);
     return updates;
+  });
+}
+
+function dispatchInvoice(invoiceId, dispatchedDate, dispatchedBy, notes) {
+  return withLock_(() => {
+    const inv = readSheetObjects_('Invoices').find(i => i.InvoiceId === invoiceId);
+    if (!inv) throw new Error('Invoice not found: ' + invoiceId);
+    if (inv.DispatchStatus === 'Dispatched') return inv;
+
+    const items = readSheetObjects_('InvoiceItems').filter(li => String(li.InvoiceId).trim() === String(invoiceId).trim());
+    adjustInventoryStock_(items, -1);
+
+    const updates = {
+      DispatchStatus: 'Dispatched',
+      DispatchedDate: dispatchedDate || todayStr_(),
+      DispatchedBy: dispatchedBy || '',
+      Notes: [inv.Notes || '', notes ? 'Dispatch: ' + notes : ''].filter(Boolean).join(' | ')
+    };
+    updateRowByKey_('Invoices', 'InvoiceId', invoiceId, updates);
+    return Object.assign({}, inv, updates);
   });
 }
 
@@ -707,7 +740,7 @@ function deleteInvoice(invoiceId) {
   return withLock_(() => {
     const oldInv = readSheetObjects_('Invoices').find(i => i.InvoiceId === invoiceId);
     const oldItems = readSheetObjects_('InvoiceItems').filter(li => li.InvoiceId === invoiceId);
-    if (oldInv && oldInv.Status !== 'Draft' && oldInv.Status !== 'Cancelled') {
+    if (oldInv && oldInv.Status !== 'Draft' && oldInv.Status !== 'Cancelled' && oldInv.DispatchStatus !== 'Not Dispatched') {
       adjustInventoryStock_(oldItems, +1);
     }
     const ss = getSpreadsheet_();

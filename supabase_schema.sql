@@ -87,9 +87,17 @@ CREATE TABLE IF NOT EXISTS "Invoices" (
   "ReceiptNo" TEXT DEFAULT '',
   "PaymentStatus" TEXT DEFAULT '',
   "TokenAmount" TEXT DEFAULT '',
-  "ReturnAmount" TEXT DEFAULT ''
+  "ReturnAmount" TEXT DEFAULT '',
+  "DispatchStatus" TEXT DEFAULT 'Dispatched',
+  "DispatchedDate" TEXT DEFAULT '',
+  "DispatchedBy" TEXT DEFAULT '',
+  "PaymentsJson" TEXT DEFAULT ''
 );
 ALTER TABLE "Invoices" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "Invoices" ADD COLUMN IF NOT EXISTS "DispatchStatus" TEXT DEFAULT 'Dispatched';
+ALTER TABLE "Invoices" ADD COLUMN IF NOT EXISTS "DispatchedDate" TEXT DEFAULT '';
+ALTER TABLE "Invoices" ADD COLUMN IF NOT EXISTS "DispatchedBy" TEXT DEFAULT '';
+ALTER TABLE "Invoices" ADD COLUMN IF NOT EXISTS "PaymentsJson" TEXT DEFAULT '';
 
 -- Table: "InvoiceItems"
 CREATE TABLE IF NOT EXISTS "InvoiceItems" (

@@ -1177,15 +1177,65 @@
   }
 
   /* ==========================================================================
-   * 2. Invoicing, Orders & Accounts
+   * 2. Invoicing, Orders & Accounts (with Dispatch Tracking & Date Filtering)
    * ======================================================================== */
 
+  let _invStartDate = '';
+  let _invEndDate = '';
+  let _invSearch = '';
+  let _invSortField = 'Date';
+  let _invSortDir = 'desc';
+
+  function sortInvoicesTable(field) {
+    if (_invSortField === field) {
+      _invSortDir = _invSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      _invSortField = field;
+      _invSortDir = 'asc';
+    }
+    renderInvoicesView();
+  }
+
   function renderInvoicesView() {
-    const tab = state.invTab;
+    ensureDataDefaults();
+    const tab = state.invTab || 'invoices';
+    state.invTab = tab;
+
+    const allInvoices = state.data.invoices || [];
+    const notDispatchedCount = allInvoices.filter(i => i.DispatchStatus === 'Not Dispatched' && i.Status !== 'Cancelled').length;
+
     let body = '';
-    if (tab === 'invoices') {
-      const rows = [...state.data.invoices].reverse();
-      const allInvoices = state.data.invoices || [];
+    if (tab === 'invoices' || tab === 'notDispatched') {
+      let rows = [...allInvoices];
+
+      // Tab filtering
+      if (tab === 'notDispatched') {
+        rows = rows.filter(i => i.DispatchStatus === 'Not Dispatched' && i.Status !== 'Cancelled');
+      }
+
+      // Date Range Filtering
+      if (_invStartDate) {
+        rows = rows.filter(i => (i.Date || '') >= _invStartDate);
+      }
+      if (_invEndDate) {
+        rows = rows.filter(i => (i.Date || '') <= _invEndDate);
+      }
+
+      // Search filtering
+      if (_invSearch) {
+        const q = _invSearch.toLowerCase().trim();
+        rows = rows.filter(i => 
+          (i.InvoiceNo || '').toLowerCase().includes(q) ||
+          (i.CustomerName || '').toLowerCase().includes(q) ||
+          (i.SalesPerson || '').toLowerCase().includes(q) ||
+          (i.Status || '').toLowerCase().includes(q) ||
+          (i.DispatchStatus || '').toLowerCase().includes(q)
+        );
+      }
+
+      // Sorting
+      rows = sortList(rows, _invSortField, _invSortDir);
+
       const totalSales = getNetSales(allInvoices);
       const totalCollected = allInvoices.reduce((s, i) => s + (i.Status !== 'Cancelled' ? (i.Status === 'Paid' ? Number(i.Total || 0) : Number(i.PaidAmount || 0)) : 0), 0);
       const totalCreditOutstanding = allInvoices.reduce((s, i) => {
@@ -1198,39 +1248,82 @@
         return isPastDue ? s + Math.max(0, Number(i.Total || 0) - Number(i.PaidAmount || 0)) : s;
       }, 0);
 
+      const getSortIcon = (f) => (_invSortField === f ? (_invSortDir === 'asc' ? ' 🔼' : ' 🔽') : ' ↕');
+
       body = `
         <div class="kpi-grid">
           <div class="card"><div class="kpi-label">Total Invoiced Sales</div><div class="kpi-val">${fmtMoney(totalSales)}</div></div>
           <div class="card"><div class="kpi-label">Total Collected (Paid)</div><div class="kpi-val" style="color:var(--success)">${fmtMoney(totalCollected)}</div></div>
           <div class="card"><div class="kpi-label">Outstanding Credit (Unpaid/Pending)</div><div class="kpi-val" style="color:var(--warning)">${fmtMoney(totalCreditOutstanding)}</div></div>
-          <div class="card"><div class="kpi-label">Overdue Credit (Past Due Date)</div><div class="kpi-val" style="color:var(--danger)">${fmtMoney(totalOverdueCredit)}</div></div>
+          <div class="card"><div class="kpi-label">Not Dispatched Orders</div><div class="kpi-val" style="color:${notDispatchedCount ? '#ea580c' : 'var(--muted)'};">${notDispatchedCount}</div></div>
         </div>
-        <div class="section-header">
-          <input class="search-input" id="invSearch" placeholder="Search sales invoices..." oninput="filterTable('invTable', this.value)">
-          <button class="btn btn-primary" onclick="openInvoiceModal()">+ New Sales Invoice / Order</button>
+
+        <!-- Filter Bar with Date Range Presets -->
+        <div class="card" style="margin-bottom:14px; background:#f8fafc; border:1px solid #cbd5e1; padding:12px 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; flex:1;">
+              <input class="search-input" id="invSearch" placeholder="Search invoices, customer, sales person..." value="${esc(_invSearch)}" oninput="_invSearch=this.value; renderInvoicesView();" style="min-width:240px; flex:1;">
+              <div style="display:inline-flex; align-items:center; gap:4px;">
+                <span style="font-size:12px; font-weight:700; color:var(--text);">From:</span>
+                <input type="date" value="${esc(_invStartDate)}" onchange="_invStartDate=this.value; renderInvoicesView();" style="padding:5px 8px; font-size:12px; border:1px solid #cbd5e1; border-radius:6px; background:#fff;">
+              </div>
+              <div style="display:inline-flex; align-items:center; gap:4px;">
+                <span style="font-size:12px; font-weight:700; color:var(--text);">To:</span>
+                <input type="date" value="${esc(_invEndDate)}" onchange="_invEndDate=this.value; renderInvoicesView();" style="padding:5px 8px; font-size:12px; border:1px solid #cbd5e1; border-radius:6px; background:#fff;">
+              </div>
+              ${(_invStartDate || _invEndDate || _invSearch) ? `<button class="btn btn-sm btn-secondary" onclick="_invStartDate=''; _invEndDate=''; _invSearch=''; renderInvoicesView();">Reset</button>` : ''}
+            </div>
+            <div>
+              <button class="btn btn-primary" onclick="openInvoiceModal()">+ New Sales Invoice / Order</button>
+            </div>
+          </div>
         </div>
+
         <div class="card table-wrap">
           <table id="invTable">
-            <thead><tr><th>Invoice #</th><th>Date</th><th>Customer</th><th>Sales Person</th><th>Total</th><th>Paid / Balance</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr>
+                <th style="cursor:pointer;" onclick="sortInvoicesTable('InvoiceNo')">Invoice #${getSortIcon('InvoiceNo')}</th>
+                <th style="cursor:pointer;" onclick="sortInvoicesTable('Date')">Date${getSortIcon('Date')}</th>
+                <th style="cursor:pointer;" onclick="sortInvoicesTable('CustomerName')">Customer${getSortIcon('CustomerName')}</th>
+                <th style="cursor:pointer;" onclick="sortInvoicesTable('SalesPerson')">Sales Person${getSortIcon('SalesPerson')}</th>
+                <th style="cursor:pointer; text-align:right;" onclick="sortInvoicesTable('Total')">Total${getSortIcon('Total')}</th>
+                <th style="text-align:right;">Paid / Balance</th>
+                <th style="cursor:pointer; text-align:center;" onclick="sortInvoicesTable('Status')">Status${getSortIcon('Status')}</th>
+                <th style="cursor:pointer; text-align:center;" onclick="sortInvoicesTable('DispatchStatus')">Dispatch${getSortIcon('DispatchStatus')}</th>
+                <th style="text-align:center;">Actions</th>
+              </tr>
+            </thead>
             <tbody>
               ${rows.map(i => {
                 const bal = Math.max(0, Number(i.Total || 0) - Number(i.PaidAmount || 0));
+                const isNotDisp = (i.DispatchStatus === 'Not Dispatched');
+                const dispBadge = isNotDisp 
+                  ? '<span class="badge" style="background:#ffedd5; color:#c2410c; border:1px solid #fdba74;">📦 Not Dispatched</span>'
+                  : '<span class="badge badge-success">🚚 Dispatched</span>';
                 return `
                 <tr>
                   <td><b>${esc(i.InvoiceNo)}</b></td>
                   <td>${esc(i.Date)}</td>
                   <td>${esc(i.CustomerName)}</td>
                   <td><b>${esc(i.SalesPerson || '-')}</b></td>
-                  <td>${fmtMoney(i.Total)}</td>
-                  <td>${i.Status === 'Paid' ? `<span style="color:var(--success); font-weight:600;">${fmtMoney(i.Total)}</span>` : `${fmtMoney(i.PaidAmount || 0)}${bal > 0 ? `<div style="font-size:11px; color:var(--danger);">Bal: ${fmtMoney(bal)}</div>` : ''}`}</td>
-                  <td>${statusBadge(i.Status)}</td>
-                  <td>
+                  <td style="text-align:right;"><b>${fmtMoney(i.Total)}</b></td>
+                  <td style="text-align:right;">
+                    ${i.Status === 'Paid' ? `<span style="color:var(--success); font-weight:700;">${fmtMoney(i.Total)}</span>` : `${fmtMoney(i.PaidAmount || 0)}${bal > 0 ? `<div style="font-size:11px; color:var(--danger); font-weight:700;">Bal: ${fmtMoney(bal)}</div>` : ''}`}
+                  </td>
+                  <td style="text-align:center;">${statusBadge(i.Status)}</td>
+                  <td style="text-align:center;">
+                    ${dispBadge}
+                    ${i.DispatchedDate ? `<div style="font-size:10.5px; color:var(--muted);">${esc(i.DispatchedDate)}</div>` : ''}
+                  </td>
+                  <td style="text-align:center; white-space:nowrap;">
+                    ${isNotDisp ? `<button class="btn btn-sm btn-success" style="background:#16a34a; border-color:#16a34a; font-weight:700; margin-right:4px;" onclick="openDispatchInvoiceModal('${esc(i.InvoiceId)}')">🚚 Dispatch</button>` : ''}
                     <button class="btn btn-sm btn-secondary" onclick="printInvoice('${esc(i.InvoiceId)}')">Print</button>
                     <button class="btn btn-sm btn-secondary" onclick="openInvoiceModal('${esc(i.InvoiceId)}')">Edit</button>
                     <button class="btn btn-sm btn-danger" onclick="removeInvoice('${esc(i.InvoiceId)}')">Del</button>
                   </td>
                 </tr>
-              `;}).join('') || '<tr><td colspan="8" style="color:var(--muted)">No sales invoices created yet.</td></tr>'}
+              `;}).join('') || `<tr><td colspan="9" style="color:var(--muted); text-align:center; padding:20px;">${tab === 'notDispatched' ? 'Great! All invoices have been dispatched.' : 'No sales invoices matching filter.'}</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -1271,9 +1364,13 @@
     }
 
     document.getElementById('mainContent').innerHTML = `
-      <div class="tabs">
-        <button class="tab-btn ${tab === 'invoices' ? 'active' : ''}" onclick="state.invTab='invoices'; renderInvoicesView()">Sales Invoices & Orders</button>
-        <button class="tab-btn ${tab === 'accounts' ? 'active' : ''}" onclick="state.invTab='accounts'; renderInvoicesView()">Income & Expenses</button>
+      <div class="tabs" style="margin-bottom:14px;">
+        <button class="tab-btn ${tab === 'invoices' ? 'active' : ''}" onclick="state.invTab='invoices'; renderInvoicesView()">Sales Invoices &amp; Orders</button>
+        <button class="tab-btn ${tab === 'notDispatched' ? 'active' : ''}" onclick="state.invTab='notDispatched'; renderInvoicesView()" style="position:relative;">
+          🚚 Not Dispatched Orders
+          ${notDispatchedCount > 0 ? `<span style="background:#ea580c; color:#fff; font-size:11px; font-weight:800; padding:2px 7px; border-radius:10px; margin-left:6px;">${notDispatchedCount}</span>` : ''}
+        </button>
+        <button class="tab-btn ${tab === 'accounts' ? 'active' : ''}" onclick="state.invTab='accounts'; renderInvoicesView()">Income &amp; Expenses</button>
       </div>
       ${body}
     `;
@@ -1775,6 +1872,18 @@
         }
       }
     });
+
+    // Ensure invoice dispatch status and payments array
+    (state.data.invoices || []).forEach(inv => {
+      if (!inv.DispatchStatus) inv.DispatchStatus = 'Dispatched';
+      if (!inv.DispatchedDate && inv.DispatchStatus === 'Dispatched') inv.DispatchedDate = inv.Date || state.data.today;
+      if (inv.PaymentsJson && (!inv.Payments || !inv.Payments.length)) {
+        try {
+          inv.Payments = typeof inv.PaymentsJson === 'string' ? JSON.parse(inv.PaymentsJson) : inv.PaymentsJson;
+        } catch(e) { inv.Payments = []; }
+      }
+      if (!Array.isArray(inv.Payments)) inv.Payments = [];
+    });
   }
 
   let _invLines = [];
@@ -1976,6 +2085,20 @@
         <div class="form-row">
           <div class="form-group"><label>Invoice Date</label><input type="date" id="fInvDate" value="${esc(inv.Date)}"></div>
           <div class="form-group"><label>Due Date</label><input type="date" id="fInvDue" value="${esc(inv.DueDate)}"></div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label style="font-weight:700; color:#0f766e;">Dispatch Status *</label>
+            <select id="fInvDispatch" style="font-weight:700;">
+              <option value="Yes" ${inv.DispatchStatus !== 'Not Dispatched' ? 'selected' : ''}>Yes (Dispatch Immediately - Deduct Warehouse Stock)</option>
+              <option value="No" ${inv.DispatchStatus === 'Not Dispatched' ? 'selected' : ''}>No (Not Dispatched - Hold in Warehouse)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Dispatched By (Optional)</label>
+            <input id="fInvDispatchedBy" placeholder="Person name / Staff..." value="${esc(inv.DispatchedBy || '')}">
+          </div>
         </div>
 
         <div class="form-row">
@@ -2393,6 +2516,9 @@
     const existing = invoiceId ? state.data.invoices.find(i => i.InvoiceId === invoiceId) : null;
     const finalPaid = status === 'Paid' ? total : (status === 'Free Issue' ? 0 : paid);
 
+    const dispatchVal = document.getElementById('fInvDispatch')?.value || 'Yes';
+    const dispatchedBy = document.getElementById('fInvDispatchedBy')?.value.trim() || '';
+
     const payload = {
       invoice: {
         InvoiceId: invoiceId || '',
@@ -2414,6 +2540,9 @@
         Total: total,
         PaidAmount: finalPaid,
         Notes: document.getElementById('fInvNotes').value,
+        DispatchStatus: (dispatchVal === 'No') ? 'Not Dispatched' : 'Dispatched',
+        DispatchedDate: (dispatchVal === 'No') ? '' : (document.getElementById('fInvDate')?.value || state.data.today),
+        DispatchedBy: dispatchedBy,
         CreatedBy: state.user.Name
       },
       items: _invLines.filter(l => (l.ItemName || '').trim() !== '').map(l => ({
@@ -2427,8 +2556,24 @@
       }))
     };
 
-    // 1. Stock Deduction: Deduct quantities from inventory immediately
-    if (status !== 'Draft' && status !== 'Cancelled') {
+    // 1. Stock Availability Check & Deduction
+    if (payload.invoice.DispatchStatus === 'Dispatched' && status !== 'Draft' && status !== 'Cancelled') {
+      // Validate available stock for each line item
+      for (const li of payload.items) {
+        const invItem = state.data.inventory.find(x => 
+          (li.ItemId && x.ItemId === li.ItemId) ||
+          (li.ItemCode && x.SKU && String(x.SKU).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase()) ||
+          (li.ItemName && x.Name && String(x.Name).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
+        );
+        const avail = invItem ? (Number(invItem.StockQty) || 0) : 0;
+        const req = Number(li.Qty) || 0;
+        if (req > avail) {
+          alert(`Cannot issue sales invoice: Insufficient warehouse stock!\n\nProduct: ${li.ItemName || li.ItemCode}\nAvailable in Stock: ${avail} ${invItem ? (invItem.Unit || '') : ''}\nRequested on Invoice: ${req}\n\nPlease reduce the quantity or select "Dispatch Status: No" to save without immediate dispatch.`);
+          return;
+        }
+      }
+
+      // Deduct quantities from inventory immediately
       payload.items.forEach(li => {
         const invItem = state.data.inventory.find(x => 
           (li.ItemId && x.ItemId === li.ItemId) ||
@@ -2438,6 +2583,7 @@
         if (invItem) {
           invItem.StockQty = Math.max(0, (Number(invItem.StockQty) || 0) - (Number(li.Qty) || 0));
           invItem.UpdatedAt = state.data.today;
+          if (window.sbClient) window.sbClient.from('Inventory').upsert(invItem).then();
         }
       });
     }
@@ -2502,7 +2648,7 @@
     verifyPinAndExecute('delete invoice ' + id, async () => {
       const oldInv = (state.data.invoices || []).find(i => i.InvoiceId === id);
       const oldItems = (state.data.invoiceItems || []).filter(li => li.InvoiceId === id);
-      if (oldInv && oldInv.Status !== 'Draft' && oldInv.Status !== 'Cancelled') {
+      if (oldInv && oldInv.Status !== 'Draft' && oldInv.Status !== 'Cancelled' && oldInv.DispatchStatus !== 'Not Dispatched') {
         oldItems.forEach(li => {
           const invItem = state.data.inventory.find(x => 
             (li.ItemId && x.ItemId === li.ItemId) ||
@@ -2511,6 +2657,7 @@
           );
           if (invItem) {
             invItem.StockQty = (Number(invItem.StockQty) || 0) + (Number(li.Qty) || 0);
+            if (window.sbClient) window.sbClient.from('Inventory').upsert(invItem).then();
           }
         });
       }
@@ -2521,6 +2668,174 @@
       showToast('Sales Invoice deleted.');
       gas('deleteInvoice', id).catch(err => console.error(err));
     });
+  }
+
+  function openDispatchInvoiceModal(invoiceId) {
+    const inv = (state.data.invoices || []).find(i => i.InvoiceId === invoiceId);
+    if (!inv) {
+      showToast('Invoice not found');
+      return;
+    }
+    const items = (state.data.invoiceItems || []).filter(li => li.InvoiceId === invoiceId);
+
+    let allAvail = true;
+    const itemsHtml = items.map(li => {
+      const invItem = state.data.inventory.find(x => 
+        (li.ItemId && x.ItemId === li.ItemId) ||
+        (li.ItemCode && x.SKU && String(x.SKU).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase()) ||
+        (li.ItemName && x.Name && String(x.Name).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
+      );
+      const avail = invItem ? (Number(invItem.StockQty) || 0) : 0;
+      const req = Number(li.Qty) || 0;
+      const ok = avail >= req;
+      if (!ok) allAvail = false;
+      return `
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:6px 8px;"><b>${esc(li.ItemCode || '-')}</b></td>
+          <td style="padding:6px 8px;">${esc(li.ItemName || '')}</td>
+          <td style="padding:6px 8px; text-align:center;"><b>${req}</b></td>
+          <td style="padding:6px 8px; text-align:center;">
+            <b style="color:${ok ? '#16a34a' : '#dc2626'}">${avail} ${esc(invItem?.Unit || '')}</b>
+          </td>
+          <td style="padding:6px 8px; text-align:center;">
+            ${ok ? '<span class="badge badge-success">Sufficient</span>' : '<span class="badge badge-danger">Insufficient</span>'}
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    const staffOpts = (state.data.employees || []).filter(e => e.Status === 'Active').map(e =>
+      `<option value="${esc(e.Name)}">${esc(e.Name)} (${esc(e.Designation || e.Position || 'Staff')})</option>`
+    ).join('');
+
+    openModal(
+      '🚚 Dispatch Invoice Goods (' + esc(inv.InvoiceNo) + ')',
+      `
+        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-bottom:14px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <div><b>Invoice #:</b> ${esc(inv.InvoiceNo)}</div>
+            <div><b>Customer:</b> ${esc(inv.CustomerName)}</div>
+          </div>
+          <div style="display:flex; justify-content:space-between;">
+            <div><b>Invoice Date:</b> ${esc(inv.Date)}</div>
+            <div><b>Total Amount:</b> <b>${fmtMoney(inv.Total)}</b></div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px; border:1px solid #e2e8f0; border-radius:6px; overflow:hidden;">
+          <div style="background:#f1f5f9; padding:6px 12px; font-weight:700; font-size:12.5px; color:#334155;">
+            📦 Items to Dispatch &amp; Warehouse Stock Verification
+          </div>
+          <table style="width:100%; font-size:12px; border-collapse:collapse;">
+            <thead>
+              <tr style="background:#f8fafc; color:#64748b; border-bottom:1px solid #e2e8f0;">
+                <th style="padding:6px 8px; text-align:left;">Code</th>
+                <th style="padding:6px 8px; text-align:left;">Item Name</th>
+                <th style="padding:6px 8px; text-align:center;">Qty to Dispatch</th>
+                <th style="padding:6px 8px; text-align:center;">Warehouse Stock</th>
+                <th style="padding:6px 8px; text-align:center;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml || '<tr><td colspan="5" style="text-align:center; padding:10px;">No items on this invoice.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+
+        ${!allAvail ? `
+          <div style="background:#fee2e2; border:1px solid #f87171; border-radius:6px; padding:8px 12px; color:#991b1b; font-size:12.5px; font-weight:600; margin-bottom:12px;">
+            ⚠️ One or more items do not have sufficient warehouse stock. Please add stock via Factory Stock In first.
+          </div>
+        ` : ''}
+
+        <div class="form-row">
+          <div class="form-group">
+            <label style="font-weight:700;">Dispatch Date *</label>
+            <input type="date" id="fDispDate" value="${esc(state.data.today)}">
+          </div>
+          <div class="form-group">
+            <label>Dispatched By (Person / Staff)</label>
+            <select id="fDispBy" style="font-size:13.5px; height:38px;">
+              <option value="">-- Select Person (Optional) --</option>
+              ${staffOpts}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Dispatch Notes / Vehicle No / Details (Optional)</label>
+          <input id="fDispNotes" placeholder="e.g. Dispatched via Lorry WP CA-1234, Driver: Kamal">
+        </div>
+      `,
+      `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-success" ${!allAvail ? 'disabled style="opacity:0.6;"' : ''} onclick="submitDispatchInvoice('${esc(invoiceId)}')">
+          🚚 Confirm &amp; Deduct Stock
+        </button>
+      `
+    );
+  }
+
+  async function submitDispatchInvoice(invoiceId) {
+    const inv = (state.data.invoices || []).find(i => i.InvoiceId === invoiceId);
+    if (!inv) return;
+    const items = (state.data.invoiceItems || []).filter(li => li.InvoiceId === invoiceId);
+
+    // Verify stock
+    for (const li of items) {
+      const invItem = state.data.inventory.find(x => 
+        (li.ItemId && x.ItemId === li.ItemId) ||
+        (li.ItemCode && x.SKU && String(x.SKU).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase()) ||
+        (li.ItemName && x.Name && String(x.Name).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
+      );
+      const avail = invItem ? (Number(invItem.StockQty) || 0) : 0;
+      const req = Number(li.Qty) || 0;
+      if (req > avail) {
+        alert(`Cannot dispatch: Insufficient stock for ${li.ItemName || li.ItemCode}! Available: ${avail}, Required: ${req}`);
+        return;
+      }
+    }
+
+    const dDate = document.getElementById('fDispDate')?.value || state.data.today;
+    const dBy = document.getElementById('fDispBy')?.value || state.user.Name;
+    const dNotes = document.getElementById('fDispNotes')?.value.trim() || '';
+
+    // Deduct stock
+    items.forEach(li => {
+      const invItem = state.data.inventory.find(x => 
+        (li.ItemId && x.ItemId === li.ItemId) ||
+        (li.ItemCode && x.SKU && String(x.SKU).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase()) ||
+        (li.ItemName && x.Name && String(x.Name).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
+      );
+      if (invItem) {
+        invItem.StockQty = Math.max(0, (Number(invItem.StockQty) || 0) - (Number(li.Qty) || 0));
+        invItem.UpdatedAt = dDate;
+        if (window.sbClient) window.sbClient.from('Inventory').upsert(invItem).then();
+      }
+    });
+
+    inv.DispatchStatus = 'Dispatched';
+    inv.DispatchedDate = dDate;
+    inv.DispatchedBy = dBy;
+    if (dNotes) {
+      inv.Notes = [inv.Notes || '', 'Dispatch: ' + dNotes].filter(Boolean).join(' | ');
+    }
+
+    closeModal();
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+    renderView();
+    showToast(`🚚 Invoice ${inv.InvoiceNo} dispatched successfully! Stock deducted.`);
+
+    if (window.sbClient) {
+      window.sbClient.from('Invoices').upsert({
+        InvoiceId: inv.InvoiceId,
+        DispatchStatus: 'Dispatched',
+        DispatchedDate: dDate,
+        DispatchedBy: dBy,
+        Notes: inv.Notes
+      }).then();
+    }
+    gas('dispatchInvoice', invoiceId, dDate, dBy, dNotes).catch(e => console.error(e));
   }
 
   function printInvoice(invoiceId) {
@@ -3122,25 +3437,88 @@
   }
 
 
+  let _quotStartDate = '';
+  let _quotEndDate = '';
+  let _quotSearch = '';
+  let _quotSortField = 'Date';
+  let _quotSortDir = 'desc';
+
+  function sortQuotTable(field) {
+    if (_quotSortField === field) {
+      _quotSortDir = _quotSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      _quotSortField = field;
+      _quotSortDir = 'asc';
+    }
+    renderQuotationView();
+  }
+
   function renderQuotationView() {
     ensureDataDefaults();
-    const quotes = [...(state.data.quotations || [])].reverse();
+    let quotes = [...(state.data.quotations || [])];
+
+    // Filter by date range
+    if (_quotStartDate) {
+      quotes = quotes.filter(q => (q.Date || '') >= _quotStartDate);
+    }
+    if (_quotEndDate) {
+      quotes = quotes.filter(q => (q.Date || '') <= _quotEndDate);
+    }
+
+    // Filter by search
+    if (_quotSearch) {
+      const s = _quotSearch.toLowerCase().trim();
+      quotes = quotes.filter(q =>
+        (q.QuotationNo || '').toLowerCase().includes(s) ||
+        (q.CustomerName || '').toLowerCase().includes(s) ||
+        (q.Description || '').toLowerCase().includes(s)
+      );
+    }
+
+    // Sort
+    quotes.sort((a, b) => {
+      let va = a[_quotSortField] || '';
+      let vb = b[_quotSortField] || '';
+      if (_quotSortField === 'TotalAmount') {
+        va = Number(va) || 0;
+        vb = Number(vb) || 0;
+      }
+      if (va < vb) return _quotSortDir === 'asc' ? -1 : 1;
+      if (va > vb) return _quotSortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    const sortArrow = (f) => _quotSortField === f ? (_quotSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+
     document.getElementById('mainContent').innerHTML = `
-      <div class="section-header">
-        <input class="search-input" placeholder="Search quotations by #, customer..." oninput="filterTable('quotTable', this.value)">
-        <button class="btn btn-primary" onclick="openQuotationModal()">+ New Quotation</button>
+      <div class="card" style="margin-bottom:12px; padding:12px 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:4px;">
+              <label style="font-size:12px; font-weight:700; margin:0;">From:</label>
+              <input type="date" value="${esc(_quotStartDate)}" onchange="_quotStartDate=this.value; renderQuotationView()" style="padding:4px 8px; font-size:12.5px;">
+            </div>
+            <div style="display:flex; align-items:center; gap:4px;">
+              <label style="font-size:12px; font-weight:700; margin:0;">To:</label>
+              <input type="date" value="${esc(_quotEndDate)}" onchange="_quotEndDate=this.value; renderQuotationView()" style="padding:4px 8px; font-size:12.5px;">
+            </div>
+            <input class="search-input" placeholder="Search quotation #, customer..." value="${esc(_quotSearch)}" oninput="_quotSearch=this.value; renderQuotationView()" style="width:240px; margin:0;">
+            ${(_quotStartDate || _quotEndDate || _quotSearch) ? `<button class="btn btn-sm btn-secondary" onclick="_quotStartDate=''; _quotEndDate=''; _quotSearch=''; renderQuotationView()">Reset</button>` : ''}
+          </div>
+          <button class="btn btn-primary" onclick="openQuotationModal()">+ New Quotation</button>
+        </div>
       </div>
 
-      <div class="card table-wrap" style="margin-top:12px;">
+      <div class="card table-wrap">
         <table id="quotTable">
           <thead>
             <tr>
-              <th>Quotation #</th>
-              <th>Date</th>
-              <th>Customer</th>
-              <th>Total Amount</th>
-              <th>Status</th>
-              <th>Actions</th>
+              <th onclick="sortQuotTable('QuotationNo')" style="cursor:pointer;">Quotation #${sortArrow('QuotationNo')}</th>
+              <th onclick="sortQuotTable('Date')" style="cursor:pointer;">Date${sortArrow('Date')}</th>
+              <th onclick="sortQuotTable('CustomerName')" style="cursor:pointer;">Customer${sortArrow('CustomerName')}</th>
+              <th onclick="sortQuotTable('TotalAmount')" style="cursor:pointer; text-align:right;">Total Amount${sortArrow('TotalAmount')}</th>
+              <th onclick="sortQuotTable('Status')" style="cursor:pointer; text-align:center;">Status${sortArrow('Status')}</th>
+              <th style="text-align:center;">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -3149,15 +3527,15 @@
                 <td><b>${esc(q.QuotationNo)}</b></td>
                 <td>${esc(q.Date)}</td>
                 <td>${esc(q.CustomerName || '-')}</td>
-                <td><b>${fmtMoney(q.TotalAmount || 0)}</b></td>
-                <td>${statusBadge(q.Status || 'Draft')}</td>
-                <td>
+                <td style="text-align:right;"><b>${fmtMoney(q.TotalAmount || 0)}</b></td>
+                <td style="text-align:center;">${statusBadge(q.Status || 'Draft')}</td>
+                <td style="text-align:center;">
                   <button class="btn btn-sm btn-secondary" onclick="printQuotation('${esc(q.QuotationId)}')">Print</button>
                   <button class="btn btn-sm btn-secondary" onclick="openQuotationModal('${esc(q.QuotationId)}')">Edit</button>
                   <button class="btn btn-sm btn-danger" onclick="removeQuotation('${esc(q.QuotationId)}')">Del</button>
                 </td>
               </tr>
-            `).join('') || '<tr><td colspan="6" style="color:var(--muted); text-align:center;">No quotations created yet. Click "+ New Quotation" to create one.</td></tr>'}
+            `).join('') || '<tr><td colspan="6" style="color:var(--muted); text-align:center;">No quotations match the filter. Click "+ New Quotation" to create one.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -3289,18 +3667,18 @@
 
           <!-- Line items table matching the photo -->
           <div style="margin-bottom:14px; overflow-x:auto;">
-            <table style="width:100%; border-collapse:collapse; min-width:1080px;">
+            <table class="line-items-table" style="width:100%; border-collapse:collapse; min-width:1160px;">
               <thead>
                 <tr style="border-bottom:2px solid #e2e8f0; color:#1e293b; font-size:12.5px; text-transform:uppercase; letter-spacing:0.03em; background:#f8fafc;">
                   <th style="width:28px; text-align:center; padding:10px 4px;"></th>
-                  <th style="padding:10px 8px; width:220px; min-width:210px; text-align:left; font-weight:700;">Code / Item</th>
-                  <th style="padding:10px 8px; min-width:240px; text-align:left; font-weight:700;">Description</th>
-                  <th style="padding:10px 8px; width:90px; min-width:90px; text-align:center; font-weight:700;">Qty</th>
-                  <th style="padding:10px 8px; width:150px; min-width:150px; text-align:right; font-weight:700;">Unit Price</th>
-                  <th style="padding:10px 8px; width:100px; min-width:100px; text-align:center; font-weight:700;">Discount</th>
-                  <th style="padding:10px 8px; width:160px; min-width:160px; text-align:right; font-weight:700;">Amount</th>
-                  <th style="padding:10px 8px; width:95px; min-width:95px; text-align:center; font-weight:700;">Tax</th>
-                  <th style="width:38px; text-align:center; padding:10px 4px;"></th>
+                  <th style="padding:10px 8px; width:260px; min-width:240px; text-align:left; font-weight:700;">Code / Item</th>
+                  <th style="padding:10px 8px; min-width:260px; text-align:left; font-weight:700;">Description</th>
+                  <th style="padding:10px 6px; width:110px; min-width:100px; text-align:center; font-weight:700;">Qty</th>
+                  <th style="padding:10px 8px; width:160px; min-width:150px; text-align:right; font-weight:700;">Unit Price</th>
+                  <th style="padding:10px 8px; width:110px; min-width:100px; text-align:center; font-weight:700;">Discount</th>
+                  <th style="padding:10px 8px; width:170px; min-width:160px; text-align:right; font-weight:700;">Amount</th>
+                  <th style="padding:10px 8px; width:115px; min-width:105px; text-align:center; font-weight:700;">Tax</th>
+                  <th style="width:42px; text-align:center; padding:10px 4px;"></th>
                 </tr>
               </thead>
               <tbody id="quotLinesContainer"></tbody>
@@ -3449,7 +3827,7 @@
 
   function renderQuotLines() {
     const invOpts = (state.data.inventory || []).map(it => `
-      <option value="${esc(it.ItemId)}">${esc(it.SKU ? it.SKU + ' - ' : '')}${esc(it.Name)}</option>
+      <option value="${esc(it.ItemId)}">${esc(it.SKU ? it.SKU + ' - ' : '')}${esc(it.Name)} (${it.StockQty} ${esc(it.Unit || 'Units')})</option>
     `).join('');
 
     const container = document.getElementById('quotLinesContainer');
@@ -3461,45 +3839,63 @@
       const lineTotal = Math.round((lineSub - lineDisc) * 100) / 100;
       ln.Amount = lineTotal;
 
+      const matchedItem = (state.data.inventory || []).find(it => it.ItemId === ln.ItemId);
+      let stockAlertHtml = '';
+      if (matchedItem) {
+        const avail = Number(matchedItem.StockQty) || 0;
+        const req = Number(ln.Qty) || 0;
+        if (req > avail) {
+          stockAlertHtml = `<div style="font-size:10.5px; font-weight:700; color:#dc2626; margin-top:3px; background:#fee2e2; border:1px solid #fca5a5; padding:1px 4px; border-radius:4px; white-space:nowrap;">⚠️ In Stock: ${avail}</div>`;
+        } else {
+          stockAlertHtml = `<div style="font-size:10.5px; font-weight:600; color:#059669; margin-top:3px; white-space:nowrap;">✓ Stock: ${avail}</div>`;
+        }
+      }
+
       return `
         <tr style="border-bottom:1px solid #f1f5f9; background:#ffffff;">
           <td style="color:#94a3b8; font-size:14px; text-align:center; cursor:grab; width:28px; padding:8px 4px;">↕</td>
-          <td style="padding:8px 8px; width:220px; min-width:210px;">
-            <select onchange="pickQuotItem(${idx}, this.value)" style="width:100%; height:36px; padding:6px 8px; font-size:13px; font-weight:500; border:1.5px solid #cbd5e1; border-radius:6px; background:#fff; color:#0f172a;">
+          <td style="padding:8px 8px; width:260px; min-width:240px;">
+            <select onchange="pickQuotItem(${idx}, this.value)" style="width:100%; height:38px; padding:6px 8px; font-size:13px; font-weight:500; border:1.5px solid #cbd5e1; border-radius:6px; background:#fff; color:#0f172a; box-sizing:border-box;">
               <option value="">-- Select Code / Item --</option>
               ${invOpts}
             </select>
           </td>
-          <td style="padding:8px 8px; min-width:240px;">
-            <input placeholder="Product description" value="${esc(ln.Description || '')}" oninput="_quotLines[${idx}].Description=this.value" style="width:100%; height:36px; padding:6px 10px; font-size:13px; border:1.5px solid #cbd5e1; border-radius:6px; color:#0f172a; box-sizing:border-box;">
+          <td style="padding:8px 8px; min-width:260px;">
+            <input placeholder="Product description" value="${esc(ln.Description || '')}" oninput="_quotLines[${idx}].Description=this.value" style="width:100%; height:38px; padding:6px 10px; font-size:13px; border:1.5px solid #cbd5e1; border-radius:6px; color:#0f172a; box-sizing:border-box;">
           </td>
-          <td style="padding:8px 6px; width:90px; min-width:90px; text-align:center;">
-            <input type="number" min="1" step="any" value="${ln.Qty || 1}" oninput="_quotLines[${idx}].Qty=Number(this.value); updateQuotTotals()" style="width:100%; min-width:76px; height:36px; line-height:34px; text-align:center; padding:4px 6px; font-size:14px; font-weight:700; color:#0f172a; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:6px; box-sizing:border-box;">
+          <td style="padding:8px 6px; width:110px; min-width:100px; text-align:center;">
+            <input type="number" min="1" step="any" value="${ln.Qty || 1}" oninput="_quotLines[${idx}].Qty=Number(this.value); updateQuotTotals(); renderQuotLines();" style="width:100%; height:38px; line-height:36px; text-align:center; padding:4px 6px; font-size:14px; font-weight:700; color:#0f172a; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:6px; box-sizing:border-box;">
+            ${stockAlertHtml}
           </td>
-          <td style="padding:8px 8px; width:150px; min-width:150px; text-align:right;">
-            <input type="number" step="0.01" value="${ln.UnitPrice || 0}" oninput="_quotLines[${idx}].UnitPrice=Number(this.value); updateQuotTotals()" style="width:100%; min-width:130px; height:36px; line-height:34px; text-align:right; padding:4px 8px; font-size:13.5px; font-weight:600; color:#0f172a; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:6px; box-sizing:border-box;">
+          <td style="padding:8px 8px; width:160px; min-width:150px; text-align:right;">
+            <input type="number" step="0.01" value="${ln.UnitPrice || 0}" oninput="_quotLines[${idx}].UnitPrice=Number(this.value); updateQuotTotals()" style="width:100%; height:38px; line-height:36px; text-align:right; padding:4px 10px; font-size:14px; font-weight:600; color:#0f172a; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:6px; box-sizing:border-box;">
           </td>
-          <td style="padding:8px 8px; width:100px; min-width:100px; text-align:center;">
+          <td style="padding:8px 8px; width:110px; min-width:100px; text-align:center;">
             <div style="display:flex; align-items:center; gap:4px; justify-content:center;">
-              <input type="number" step="0.1" min="0" placeholder="0" value="${ln.Discount || 0}" oninput="_quotLines[${idx}].Discount=Number(this.value); updateQuotTotals()" style="width:65px; height:36px; line-height:34px; text-align:center; padding:4px; font-size:13px; font-weight:600; border:1.5px solid #cbd5e1; border-radius:6px; box-sizing:border-box;">
+              <input type="number" step="0.1" min="0" placeholder="0" value="${ln.Discount || 0}" oninput="_quotLines[${idx}].Discount=Number(this.value); updateQuotTotals()" style="width:70px; height:38px; line-height:36px; text-align:center; padding:4px 6px; font-size:13px; font-weight:600; border:1.5px solid #cbd5e1; border-radius:6px; box-sizing:border-box;">
               <span style="font-size:13px; font-weight:700; color:#64748b;">%</span>
             </div>
           </td>
-          <td style="padding:8px 8px; width:160px; min-width:160px; text-align:right;">
-            <input readonly value="${Number(lineTotal).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}" id="quotLineAmt_${idx}" style="width:100%; min-width:140px; height:36px; line-height:34px; text-align:right; font-weight:700; padding:4px 8px; font-size:14px; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:6px; color:#0f172a; box-sizing:border-box;">
+          <td style="padding:8px 8px; width:170px; min-width:160px; text-align:right;">
+            <input readonly value="${Number(lineTotal).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}" id="quotLineAmt_${idx}" style="width:100%; height:38px; line-height:36px; text-align:right; font-weight:700; padding:4px 12px; font-size:14px; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:6px; color:#0f172a; box-sizing:border-box;">
           </td>
-          <td style="padding:8px 8px; width:95px; min-width:95px; text-align:center;">
-            <select onchange="_quotLines[${idx}].Tax=this.value" style="width:100%; height:36px; padding:4px 6px; font-size:12.5px; border:1.5px solid #cbd5e1; border-radius:6px; color:#475569; background:#fff; box-sizing:border-box;">
+          <td style="padding:8px 8px; width:115px; min-width:105px; text-align:center;">
+            <select onchange="_quotLines[${idx}].Tax=this.value" style="width:100%; height:38px; padding:4px 8px; font-size:13px; border:1.5px solid #cbd5e1; border-radius:6px; color:#475569; background:#fff; box-sizing:border-box;">
               <option ${ln.Tax === 'No tax' ? 'selected' : ''}>No tax</option>
               <option ${ln.Tax === '0%' ? 'selected' : ''}>0%</option>
             </select>
           </td>
-          <td style="padding:8px 4px; width:38px; text-align:center;">
-            <button type="button" onclick="removeQuotLine(${idx})" style="background:#dc2626; color:#fff; border:none; border-radius:6px; width:32px; height:32px; cursor:pointer; font-weight:700; font-size:14px; display:inline-flex; align-items:center; justify-content:center;">✕</button>
+          <td style="padding:8px 4px; width:42px; text-align:center;">
+            <button type="button" onclick="removeQuotLine(${idx})" style="background:#dc2626; color:#fff; border:none; border-radius:6px; width:34px; height:34px; cursor:pointer; font-weight:700; font-size:14px; display:inline-flex; align-items:center; justify-content:center;">✕</button>
           </td>
         </tr>
       `;
     }).join('');
+
+    const itemSelects = document.querySelectorAll('#quotLinesContainer tr td:nth-child(2) select');
+    _quotLines.forEach((ln, idx) => {
+      if (itemSelects[idx]) itemSelects[idx].value = ln.ItemId || '';
+    });
   }
 
   function pickQuotItem(idx, itemId) {
@@ -3879,6 +4275,9 @@
   let _outStartDate = '';
   let _outEndDate = '';
   let _outSearch = '';
+  let _outSubTab = 'pending';
+  let _outSortField = 'Date';
+  let _outSortDir = 'desc';
 
   function extractLastNumber(str) {
     if (!str) return 0;
@@ -3893,17 +4292,27 @@
     const paidAmt = Number(inv.PaidAmount || 0);
     const tokenAmt = Number(inv.TokenAmount || 0);
     const returnAmt = Number(inv.ReturnAmount || 0);
-    return Math.max(0, invAmt - paidAmt - tokenAmt - returnAmt);
+    return Math.max(0, Math.round((invAmt - paidAmt - tokenAmt - returnAmt) * 100) / 100);
   }
 
   function getPaymentStatusBadgeClass(pStatus) {
-    if (pStatus === 'Paid' || pStatus === 'Realised') return 'badge-success';
+    if (pStatus === 'Paid' || pStatus === 'Realised' || pStatus === 'Realized') return 'badge-success';
     if (pStatus === 'Unpaid' || pStatus === 'Cheque Bounce') return 'badge-danger';
     if (pStatus === 'Cancel' || pStatus === 'Cheque Cancel') return 'badge-secondary';
     if (pStatus === 'Token') return 'badge-info';
-    if (pStatus === 'Return') return 'badge-warning';
-    if (pStatus === 'Unrealized') return 'badge-warning';
+    if (pStatus === 'Return' || pStatus === 'Good Return') return 'badge-warning';
+    if (pStatus === 'Unrealized' || pStatus === 'Deposited') return 'badge-warning';
     return 'badge-warning';
+  }
+
+  function sortOutTable(field) {
+    if (_outSortField === field) {
+      _outSortDir = _outSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      _outSortField = field;
+      _outSortDir = 'asc';
+    }
+    renderOutstandingView();
   }
 
   function renderOutstandingView() {
@@ -3923,7 +4332,7 @@
       allInvs = allInvs.filter(i => !i.CompanyId || i.CompanyId === _outFilterCompany);
     }
 
-    // Filter by date range (Requirement 3)
+    // Filter by date range
     if (_outStartDate) {
       allInvs = allInvs.filter(i => (i.Date || '') >= _outStartDate);
     }
@@ -3943,15 +4352,26 @@
       );
     }
 
-    // Filter by status (8 User Payment Statuses + All)
+    // Filter by status dropdown
     if (_outFilterStatus && _outFilterStatus !== 'All') {
       allInvs = allInvs.filter(i => {
         const curStatus = i.PaymentStatus || (i.Status === 'Paid' ? 'Paid' : (i.Status === 'Cancelled' ? 'Cancel' : 'Unpaid'));
         if (_outFilterStatus === curStatus) return true;
-        if (_outFilterStatus === 'Paid' && (curStatus === 'Realised' || i.Status === 'Paid')) return true;
+        if (_outFilterStatus === 'Paid' && (curStatus === 'Realised' || curStatus === 'Realized' || i.Status === 'Paid')) return true;
         if (_outFilterStatus === 'Cancel' && curStatus === 'Cancelled') return true;
         return false;
       });
+    }
+
+    // Tab counts before sub-tab filtering
+    const pendingInvsCount = allInvs.filter(i => getInvOutstandingPending(i) > 0 && i.Status !== 'Cancelled' && i.PaymentStatus !== 'Cancel').length;
+    const settledInvsCount = allInvs.filter(i => getInvOutstandingPending(i) <= 0 && i.Status !== 'Cancelled' && i.PaymentStatus !== 'Cancel').length;
+
+    // Apply sub-tab
+    if (_outSubTab === 'pending') {
+      allInvs = allInvs.filter(i => getInvOutstandingPending(i) > 0 && i.Status !== 'Cancelled' && i.PaymentStatus !== 'Cancel');
+    } else if (_outSubTab === 'settled') {
+      allInvs = allInvs.filter(i => getInvOutstandingPending(i) <= 0 && i.Status !== 'Cancelled' && i.PaymentStatus !== 'Cancel');
     }
 
     // Summary calculations
@@ -3959,6 +4379,27 @@
     const totalChqAmt = allInvs.reduce((s, i) => s + Number(i.ChequeAmount || 0), 0);
     const totalRealisedAmt = allInvs.reduce((s, i) => s + ((i.PaymentStatus === 'Paid' || i.Status === 'Paid') ? Number(i.Total || 0) : Number(i.PaidAmount || 0)), 0);
     const totalPendingAmt = allInvs.reduce((s, i) => s + getInvOutstandingPending(i), 0);
+
+    // Sort
+    allInvs.sort((a, b) => {
+      let va = a[_outSortField] || '';
+      let vb = b[_outSortField] || '';
+      if (_outSortField === 'Total' || _outSortField === 'PaidAmount' || _outSortField === 'ChequeAmount') {
+        va = Number(va) || 0;
+        vb = Number(vb) || 0;
+      } else if (_outSortField === 'Pending') {
+        va = getInvOutstandingPending(a);
+        vb = getInvOutstandingPending(b);
+      } else if (_outSortField === 'DueDays') {
+        va = daysBetween(a.DueDate || a.Date, state.data.today);
+        vb = daysBetween(b.DueDate || b.Date, state.data.today);
+      }
+      if (va < vb) return _outSortDir === 'asc' ? -1 : 1;
+      if (va > vb) return _outSortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    const sortArrow = (f) => _outSortField === f ? (_outSortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
     const compOptions = `<option value="">-- All Companies --</option>` + companies.map(c => 
       `<option value="${esc(c.CompanyId)}" ${_outFilterCompany === c.CompanyId ? 'selected' : ''}>${esc(c.CompanyName)}</option>`
@@ -3985,14 +4426,18 @@
         } catch (e) {}
       }
 
-      const pStatus = inv.PaymentStatus || (inv.Status === 'Paid' ? 'Paid' : (inv.Status === 'Cancelled' ? 'Cancel' : (pendingAmt > 0 ? (isPastDue ? 'Unpaid' : 'Unpaid') : inv.Status)));
+      const pStatus = inv.PaymentStatus || (inv.Status === 'Paid' ? 'Paid' : (inv.Status === 'Cancelled' ? 'Cancel' : (pendingAmt > 0 ? 'Unpaid' : inv.Status)));
       const statusBadgeClass = getPaymentStatusBadgeClass(pStatus);
+      const isSettled = pendingAmt <= 0 && inv.Status !== 'Cancelled' && inv.PaymentStatus !== 'Cancel';
 
       return `
         <tr class="${isPastDue ? 'row-overdue' : ''}" data-invamt="${invAmt}" data-chqamt="${Number(inv.ChequeAmount || 0)}" data-paidamt="${paidAmt}" data-pendingamt="${pendingAmt}">
           <td style="text-align:center;">${esc(inv.Date || '-')}</td>
           <td><b>${esc(inv.CustomerName || '-')}</b></td>
-          <td style="text-align:center;"><b>${esc(inv.InvoiceNo || '-')}</b></td>
+          <td style="text-align:center;">
+            <b>${esc(inv.InvoiceNo || '-')}</b>
+            ${isSettled ? '<span class="paid-seal" style="margin-left:6px;">PAID</span>' : ''}
+          </td>
           <td style="text-align:right;">${fmtMoney(invAmt)}</td>
           <td style="text-align:center;">${esc(inv.ChequeNo || '-')}</td>
           <td>${esc(inv.ChequeBank || '-')}</td>
@@ -4009,7 +4454,7 @@
           <td style="text-align:center;">${collDays !== '-' ? (collDays + ' d') : '-'}</td>
           <td style="text-align:center; white-space:nowrap;">
             <button class="btn btn-sm btn-primary" onclick="openOutstandingPaymentModal('${esc(inv.InvoiceId)}')">+ Pay</button>
-            <button class="btn btn-sm btn-secondary" onclick="openOutstandingPaymentModal('${esc(inv.InvoiceId)}')">✏️ Update</button>
+            <button class="btn btn-sm btn-secondary" onclick="openOutstandingPaymentModal('${esc(inv.InvoiceId)}')">✏️ Details</button>
           </td>
         </tr>
       `;
@@ -4027,6 +4472,19 @@
           <div style="font-size:14px; font-weight:700; color:#1e3a8a; border:1px solid #8ea9db; padding:4px 12px; border-radius:4px; background:#f2f5fb;">
             📅 ${esc(state.data.today || new Date().toISOString().slice(0,10))}
           </div>
+        </div>
+
+        <!-- Sub-tabs: Pending, Settled, All -->
+        <div style="display:flex; gap:8px; margin-bottom:12px; border-bottom:1.5px solid #e2e8f0; padding-bottom:10px; flex-wrap:wrap;">
+          <button class="btn ${_outSubTab === 'pending' ? 'btn-primary' : 'btn-secondary'}" onclick="_outSubTab='pending'; renderOutstandingView();" style="font-weight:700; display:flex; align-items:center; gap:6px;">
+            ⏳ Pending / Unpaid Invoices <span class="badge ${pendingInvsCount > 0 ? 'badge-danger' : 'badge-muted'}" style="margin-left:4px;">${pendingInvsCount}</span>
+          </button>
+          <button class="btn ${_outSubTab === 'settled' ? 'btn-success' : 'btn-secondary'}" onclick="_outSubTab='settled'; renderOutstandingView();" style="${_outSubTab === 'settled' ? 'background:#16a34a; border-color:#16a34a;' : ''} font-weight:700; display:flex; align-items:center; gap:6px;">
+            ✅ Settled / Paid Invoices <span class="badge badge-success" style="margin-left:4px;">${settledInvsCount}</span>
+          </button>
+          <button class="btn ${_outSubTab === 'all' ? 'btn-primary' : 'btn-secondary'}" onclick="_outSubTab='all'; renderOutstandingView();" style="font-weight:700;">
+            All Records
+          </button>
         </div>
 
         <!-- Filter and Action Bar -->
@@ -4070,24 +4528,24 @@
         <table class="excel-grid-table" id="outstandingExcelTable">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Customer</th>
-              <th>Inv. No</th>
-              <th>Inv. Amt</th>
-              <th>Cq. No</th>
-              <th>Bank</th>
-              <th>Chq Date</th>
-              <th>Cq. Amt</th>
-              <th>Realised Amt</th>
-              <th>Realised Date</th>
+              <th onclick="sortOutTable('Date')" style="cursor:pointer;">Date${sortArrow('Date')}</th>
+              <th onclick="sortOutTable('CustomerName')" style="cursor:pointer;">Customer${sortArrow('CustomerName')}</th>
+              <th onclick="sortOutTable('InvoiceNo')" style="cursor:pointer;">Inv. No${sortArrow('InvoiceNo')}</th>
+              <th onclick="sortOutTable('Total')" style="cursor:pointer; text-align:right;">Inv. Amt${sortArrow('Total')}</th>
+              <th onclick="sortOutTable('ChequeNo')" style="cursor:pointer;">Cq. No${sortArrow('ChequeNo')}</th>
+              <th onclick="sortOutTable('ChequeBank')" style="cursor:pointer;">Bank${sortArrow('ChequeBank')}</th>
+              <th onclick="sortOutTable('ChequeDate')" style="cursor:pointer;">Chq Date${sortArrow('ChequeDate')}</th>
+              <th onclick="sortOutTable('ChequeAmount')" style="cursor:pointer; text-align:right;">Cq. Amt${sortArrow('ChequeAmount')}</th>
+              <th onclick="sortOutTable('PaidAmount')" style="cursor:pointer; text-align:right;">Realised Amt${sortArrow('PaidAmount')}</th>
+              <th onclick="sortOutTable('RealisedDate')" style="cursor:pointer;">Realised Date${sortArrow('RealisedDate')}</th>
               <th>Realized month</th>
-              <th>Pending</th>
+              <th onclick="sortOutTable('Pending')" style="cursor:pointer; text-align:right;">Pending${sortArrow('Pending')}</th>
               <th>Receipt No</th>
-              <th>Payment status</th>
-              <th>S.P</th>
-              <th>Due Days</th>
+              <th onclick="sortOutTable('PaymentStatus')" style="cursor:pointer;">Payment status${sortArrow('PaymentStatus')}</th>
+              <th onclick="sortOutTable('SalesPerson')" style="cursor:pointer;">S.P${sortArrow('SalesPerson')}</th>
+              <th onclick="sortOutTable('DueDays')" style="cursor:pointer;">Due Days${sortArrow('DueDays')}</th>
               <th>Coll days</th>
-              <th>Actions</th>
+              <th style="text-align:center;">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -4141,37 +4599,11 @@
     if (kpiPend) kpiPend.textContent = fmtMoney(visiblePendingAmt);
   }
 
-  function onOutPaymentStatusChange(status, tot, bal) {
-    const tokenRow = document.getElementById('fOutTokenGroup');
-    const returnRow = document.getElementById('fOutReturnGroup');
-    const rAmtInput = document.getElementById('fOutRealisedAmt');
-    const cqAmtInput = document.getElementById('fOutCqAmt');
+  let _outReturnLines = [];
 
-    if (tokenRow) tokenRow.style.display = (status === 'Token') ? '' : 'none';
-    if (returnRow) returnRow.style.display = (status === 'Return') ? '' : 'none';
-
-    if (status === 'Paid') {
-      if (rAmtInput && (!Number(rAmtInput.value) || Number(rAmtInput.value) < tot)) {
-        rAmtInput.value = tot;
-      }
-    } else if (status === 'Unpaid') {
-      if (rAmtInput) rAmtInput.value = '0.00';
-      if (cqAmtInput) cqAmtInput.value = '0.00';
-    } else if (status === 'Cheque Bounce') {
-      if (rAmtInput) rAmtInput.value = '0.00';
-    } else if (status === 'Unrealized') {
-      if (rAmtInput) rAmtInput.value = '0.00';
-    } else if (status === 'Cancel') {
-      if (rAmtInput) rAmtInput.value = '0.00';
-    } else if (status === 'Cheque Cancel') {
-      if (rAmtInput) rAmtInput.value = '0.00';
-    }
-  }
-
-  function openOutstandingPaymentModal(invoiceId) {
+  function openOutstandingPaymentModal(invoiceId, initialMethod = 'Cheque') {
     const allInvs = (state.data.invoices || []).filter(i => i.Status !== 'Cancelled');
     
-    // If no invoiceId provided, pick the first unpaid invoice or let user choose from dropdown
     let targetInvId = invoiceId;
     if (!targetInvId) {
       const pendingInvs = allInvs.filter(i => getInvOutstandingPending(i) > 0);
@@ -4190,17 +4622,6 @@
     const returnAmt = inv ? Number(inv.ReturnAmount || 0) : 0;
     const bal = inv ? getInvOutstandingPending(inv) : 0;
 
-    let realizedMonth = inv ? (inv.RealizedMonth || '') : '';
-    if (!realizedMonth && inv && inv.RealisedDate) {
-      try {
-        const d = new Date(inv.RealisedDate);
-        realizedMonth = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-      } catch (e) {}
-    }
-
-    const curStatus = inv ? (inv.PaymentStatus || (inv.Status === 'Paid' ? 'Paid' : 'Unpaid')) : 'Paid';
-
-    // Parse or initialize installment history
     const payments = (inv && Array.isArray(inv.Payments)) ? inv.Payments : [];
 
     const invSelectOptions = allInvs.map(i => {
@@ -4211,14 +4632,20 @@
       </option>`;
     }).join('');
 
-    // Available inventory items for return
-    const stockItems = state.data.inventory || [];
-    const stockItemOptions = `<option value="">-- Select Product to Return (Optional) --</option>` + stockItems.map(it => 
-      `<option value="${esc(it.ItemId)}">${esc(it.SKU)} - ${esc(it.Name)} (${esc(it.Unit || 'Units')})</option>`
-    ).join('');
+    // Pre-populate return lines from invoice items
+    let invItems = (inv && Array.isArray(inv.Items) && inv.Items.length > 0) ? inv.Items : (state.data.invoiceItems || []).filter(x => x.InvoiceId === targetInvId);
+    _outReturnLines = invItems.map(it => ({
+      ItemId: it.ItemId,
+      ItemCode: it.ItemCode || it.SKU || '',
+      ItemName: it.ItemName || it.Description || '',
+      InvoicedQty: Number(it.Qty) || 0,
+      ReturnQty: 0,
+      UnitPrice: Number(it.UnitPrice) || 0,
+      LineTotal: 0
+    }));
 
     openModal(
-      'Record Payment Installment / Details (' + (inv ? inv.InvoiceNo : 'New') + ')',
+      'Record Payment / Method (' + (inv ? inv.InvoiceNo : 'New') + ')',
       `
         <div class="form-group" style="margin-bottom:12px;">
           <label style="font-weight:700; color:#1e3a8a;">Select Sales Invoice *</label>
@@ -4234,40 +4661,45 @@
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
             <div><b>Invoice Total:</b> ${fmtMoney(tot)}</div>
-            <div><b>Total Paid So Far:</b> <span style="color:var(--success); font-weight:700;">${fmtMoney(paid)}</span></div>
-            <div><b>Remaining Balance:</b> <span style="color:var(--danger); font-weight:700; font-size:14px;">${fmtMoney(bal)}</span></div>
+            <div><b>Total Paid:</b> <span style="color:var(--success); font-weight:700;">${fmtMoney(paid)}</span></div>
+            ${tokenAmt > 0 ? `<div><b>Token Deductions:</b> <span style="color:#7c3aed; font-weight:700;">${fmtMoney(tokenAmt)}</span></div>` : ''}
+            ${returnAmt > 0 ? `<div><b>Goods Returned:</b> <span style="color:#c2410c; font-weight:700;">${fmtMoney(returnAmt)}</span></div>` : ''}
+            <div style="background:#fef2f2; border:1.5px solid #f87171; border-radius:6px; padding:4px 10px;">
+              <b style="color:#991b1b;">Remaining Balance:</b> <span style="color:#dc2626; font-weight:800; font-size:15px;" id="outRemainingBalDisplay">${fmtMoney(bal)}</span>
+            </div>
           </div>
         </div>
 
         ${payments.length > 0 ? `
           <div style="margin-bottom:14px; border:1px solid #e2e8f0; border-radius:6px; overflow:hidden;">
             <div style="background:#f1f5f9; padding:6px 12px; font-size:12px; font-weight:700; color:#334155; display:flex; justify-content:space-between;">
-              <span>📜 Previous Payment Installments (${payments.length})</span>
+              <span>📜 Payment History &amp; Deductions (${payments.length})</span>
               <span>Cumulative Paid: <b>${fmtMoney(paid)}</b></span>
             </div>
-            <div style="max-height:140px; overflow-y:auto;">
+            <div style="max-height:150px; overflow-y:auto;">
               <table style="width:100%; font-size:11.5px; border-collapse:collapse;">
                 <thead>
                   <tr style="background:#f8fafc; color:#64748b; border-bottom:1px solid #e2e8f0;">
-                    <th style="padding:4px 6px; text-align:center;">#</th>
-                    <th style="padding:4px 6px; text-align:center;">Date</th>
-                    <th style="padding:4px 6px; text-align:right;">Amount</th>
-                    <th style="padding:4px 6px; text-align:center;">Status</th>
-                    <th style="padding:4px 6px; text-align:center;">Cheque / Bank</th>
-                    <th style="padding:4px 6px; text-align:center;">Receipt #</th>
-                    <th style="padding:4px 6px; text-align:center;">Action</th>
+                    <th style="padding:5px 6px; text-align:center;">#</th>
+                    <th style="padding:5px 6px; text-align:center;">Date</th>
+                    <th style="padding:5px 6px; text-align:center;">Method / Status</th>
+                    <th style="padding:5px 6px; text-align:right;">Amount</th>
+                    <th style="padding:5px 6px;">Cheque / Details</th>
+                    <th style="padding:5px 6px; text-align:center;">Receipt #</th>
+                    <th style="padding:5px 6px; text-align:center;">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${payments.map((p, idx) => `
                     <tr style="border-bottom:1px solid #f1f5f9;">
-                      <td style="padding:4px 6px; text-align:center;">${idx + 1}</td>
-                      <td style="padding:4px 6px; text-align:center;">${esc(p.Date || '-')}</td>
-                      <td style="padding:4px 6px; text-align:right; font-weight:700; color:#0f766e;">${fmtMoney(p.Amount || 0)}</td>
-                      <td style="padding:4px 6px; text-align:center;"><span class="badge ${getPaymentStatusBadgeClass(p.Status)}">${esc(p.Status || 'Paid')}</span></td>
-                      <td style="padding:4px 6px; text-align:center;">${esc(p.ChequeNo ? (p.ChequeNo + (p.ChequeBank ? ' - ' + p.ChequeBank : '')) : (p.Notes || '-'))}</td>
-                      <td style="padding:4px 6px; text-align:center;">${esc(p.ReceiptNo || '-')}</td>
-                      <td style="padding:4px 6px; text-align:center;">
+                      <td style="padding:5px 6px; text-align:center;">${idx + 1}</td>
+                      <td style="padding:5px 6px; text-align:center;">${esc(p.Date || '-')}</td>
+                      <td style="padding:5px 6px; text-align:center;"><span class="badge ${getPaymentStatusBadgeClass(p.Status)}">${esc(p.Method || p.Status || 'Cash')}</span></td>
+                      <td style="padding:5px 6px; text-align:right; font-weight:700; color:#0f766e;">${fmtMoney(p.Amount || p.TokenAmount || p.ReturnAmount || 0)}</td>
+                      <td style="padding:5px 6px;">${esc(p.ChequeNo ? ('Cq: ' + p.ChequeNo + (p.ChequeBank ? ' - ' + p.ChequeBank : '')) : (p.Notes || '-'))}</td>
+                      <td style="padding:5px 6px; text-align:center;">${esc(p.ReceiptNo || '-')}</td>
+                      <td style="padding:5px 6px; text-align:center; white-space:nowrap;">
+                        <button class="btn btn-sm btn-secondary" style="padding:1px 6px; font-size:10px; margin-right:3px;" onclick="editPaymentInstallment('${esc(targetInvId)}', '${esc(p.PaymentId)}')">✏️</button>
                         <button class="btn btn-sm btn-danger" style="padding:1px 6px; font-size:10px;" onclick="removePaymentInstallment('${esc(targetInvId)}', '${esc(p.PaymentId)}')">✕</button>
                       </td>
                     </tr>
@@ -4278,238 +4710,445 @@
           </div>
         ` : ''}
 
-        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; padding:10px 12px; margin-bottom:12px;">
-          <div style="font-weight:700; color:#166534; font-size:13px; margin-bottom:6px;">➕ Add Payment Installment / Cheque / Return Entry</div>
-          
-          <div class="form-row">
-            <div class="form-group">
-              <label style="font-weight:700; color:#166534;">Payment / Installment Amount (LKR) *</label>
-              <input type="number" step="0.01" id="fOutRealisedAmt" placeholder="0.00" value="${bal > 0 ? bal : ''}" style="font-weight:700; font-size:14px;">
-            </div>
-            <div class="form-group">
-              <label style="font-weight:700;">Payment Date *</label>
-              <input type="date" id="fOutRealisedDate" value="${esc(state.data.today)}" onchange="onRealisedDateChange(this.value)">
-            </div>
+        <!-- Top selective: Payment Status / Method * -->
+        <div style="background:#f0fdf4; border:1.5px solid #86efac; border-radius:8px; padding:14px; margin-bottom:12px;">
+          <div class="form-group" style="margin-bottom:12px;">
+            <label style="font-weight:800; font-size:13.5px; color:#166534;">Payment Status / Method *</label>
+            <select id="fOutMethod" onchange="onOutMethodSelectChange(this.value, '${esc(targetInvId)}')" style="font-weight:700; font-size:14px; height:40px; border:2px solid #16a34a; border-radius:6px; background:#fff;">
+              <option value="Cheque" ${initialMethod === 'Cheque' ? 'selected' : ''}>Cheque</option>
+              <option value="Cash" ${initialMethod === 'Cash' ? 'selected' : ''}>Cash</option>
+              <option value="Token" ${initialMethod === 'Token' ? 'selected' : ''}>Token</option>
+              <option value="Good Return" ${initialMethod === 'Good Return' ? 'selected' : ''}>Good Return</option>
+              <option value="Invoice Cancel" ${initialMethod === 'Invoice Cancel' ? 'selected' : ''}>Invoice Cancel</option>
+            </select>
           </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label style="font-weight:700;">Payment Status / Method *</label>
-              <select id="fOutPaymentStatus" onchange="onOutPaymentStatusChange(this.value, ${tot}, ${bal})">
-                ${['Paid', 'Unpaid', 'Cheque Bounce', 'Unrealized', 'Cancel', 'Token', 'Return', 'Cheque Cancel'].map(st =>
-                  `<option value="${st}" ${st === 'Paid' ? 'selected' : ''}>${st}</option>`
-                ).join('')}
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Receipt No (Optional)</label>
-              <input id="fOutReceiptNo" placeholder="e.g. REC-1024" value="">
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label>Cheque No (Cq. No)</label>
-              <input id="fOutCqNo" placeholder="e.g. 849201" value="">
-            </div>
-            <div class="form-group">
-              <label>Bank Name</label>
-              <input id="fOutBank" placeholder="e.g. Commercial Bank / Sampath" value="">
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label>Cheque Date</label>
-              <input type="date" id="fOutChqDate" value="">
-            </div>
-            <div class="form-group">
-              <label>Cheque Amount (LKR)</label>
-              <input type="number" step="0.01" id="fOutCqAmt" placeholder="0.00" value="">
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>Realized Month</label>
-            <input id="fOutRealizedMonth" placeholder="e.g. November 2026" value="${esc(realizedMonth || '')}">
-          </div>
-
-          <div class="form-group" id="fOutTokenGroup" style="display:none; background:#f3e8ff; border:1px solid #d8b4fe; padding:10px; border-radius:6px; margin-top:8px;">
-            <label style="color:#6b21a8; font-weight:700;">Token / Discount Deduction Amount</label>
-            <input type="number" step="0.01" id="fOutTokenAmt" placeholder="0.00" value="">
-            <div style="font-size:11.5px; color:#7e22ce; margin-top:3px;">This token deduction amount is deducted from the outstanding invoice balance and company sales.</div>
-          </div>
-
-          <div class="form-group" id="fOutReturnGroup" style="display:none; background:#fff7ed; border:1px solid #fdba74; padding:10px; border-radius:6px; margin-top:8px;">
-            <label style="color:#9a3412; font-weight:700;">Returned Goods Amount (LKR) *</label>
-            <input type="number" step="0.01" id="fOutReturnAmt" placeholder="0.00" value="${bal}">
-            
-            <div class="form-row" style="margin-top:8px;">
-              <div class="form-group" style="flex:2;">
-                <label style="color:#9a3412; font-weight:600;">Product Returned (Adds back to Stock)</label>
-                <select id="fOutReturnItem">
-                  ${stockItemOptions}
-                </select>
-              </div>
-              <div class="form-group" style="flex:1;">
-                <label style="color:#9a3412; font-weight:600;">Returned Qty</label>
-                <input type="number" step="any" min="0" id="fOutReturnQty" placeholder="e.g. 5">
-              </div>
-            </div>
-            <div style="font-size:11.5px; color:#c2410c; margin-top:3px;">
-              🔄 <b>Stock Return:</b> The returned quantity will automatically be added back to Stock / Inventory, and the returned amount will be deducted from invoice balance &amp; Net Sales!
-            </div>
-          </div>
-
-          <div class="form-group" style="margin-top:8px;">
-            <label>Notes / Remarks (Optional)</label>
-            <input id="fOutNotes" placeholder="e.g. Partial payment received via cash deposit" value="">
+          <div id="fOutMethodFieldsContainer">
+            ${renderOutMethodFields(initialMethod, inv, bal)}
           </div>
         </div>
       `,
       `
         <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="submitOutstandingPayment('${esc(targetInvId)}')">💾 Save Payment Installment</button>
-      `
+        <button class="btn btn-primary" onclick="submitOutstandingPayment('${esc(targetInvId)}')">💾 Save Payment Entry</button>
+      `,
+      true
     );
   }
 
-  function onRealisedDateChange(val) {
-    if (!val) return;
-    try {
-      const d = new Date(val);
-      const mStr = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-      const el = document.getElementById('fOutRealizedMonth');
-      if (el && !el.value) el.value = mStr;
-    } catch (e) {}
+  function onOutMethodSelectChange(method, invoiceId) {
+    const inv = (state.data.invoices || []).find(i => i.InvoiceId === invoiceId);
+    const bal = inv ? getInvOutstandingPending(inv) : 0;
+    const container = document.getElementById('fOutMethodFieldsContainer');
+    if (container) {
+      container.innerHTML = renderOutMethodFields(method, inv, bal);
+    }
   }
 
-  function submitOutstandingPayment(invoiceId) {
+  function renderOutMethodFields(method, inv, bal) {
+    const today = state.data.today || new Date().toISOString().slice(0, 10);
+
+    if (method === 'Cheque') {
+      return `
+        <div class="form-row">
+          <div class="form-group">
+            <label style="font-weight:700;">Cheque No *</label>
+            <input id="fOutChqNo" placeholder="e.g. 849201" style="font-weight:700; height:38px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight:700;">Cheque Amount (LKR) *</label>
+            <input type="number" step="0.01" id="fOutChqAmt" value="${bal > 0 ? bal : ''}" placeholder="0.00" style="font-weight:700; height:38px;">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label style="font-weight:700;">Bank Name *</label>
+            <input id="fOutChqBank" placeholder="e.g. Commercial Bank / Sampath Bank" style="height:38px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight:700;">Cheque Date *</label>
+            <input type="date" id="fOutChqDate" value="${today}" style="height:38px;">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Receipt No (Optional)</label>
+            <input id="fOutReceiptNo" placeholder="e.g. REC-1024" style="height:38px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight:700; color:#1e3a8a;">Status *</label>
+            <select id="fOutChqStatus" style="font-weight:700; height:38px;">
+              <option value="Deposited">Deposited</option>
+              <option value="Realized">Realized</option>
+              <option value="Cheque Bounce">Cheque Bounce</option>
+              <option value="Cheque Cancel">Cheque Cancel</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Notes / Remarks (Optional)</label>
+          <input id="fOutNotes" placeholder="e.g. Post-dated cheque deposited" style="height:38px;">
+        </div>
+        <div style="font-size:12px; color:#0f766e; background:#f0fdf4; border:1px solid #bbf7d0; padding:8px 10px; border-radius:6px; margin-top:6px;">
+          ℹ️ <b>Rule:</b> Only <b>'Realized'</b> status counts towards the Sales Person Collection Target and reduces outstanding balance. Bounced, cancelled, or deposited cheques do not count as collected.
+        </div>
+      `;
+    } else if (method === 'Cash') {
+      return `
+        <div class="form-row">
+          <div class="form-group">
+            <label style="font-weight:700;">Cash Amount (LKR) *</label>
+            <input type="number" step="0.01" id="fOutCashAmt" value="${bal > 0 ? bal : ''}" placeholder="0.00" style="font-weight:800; font-size:15px; color:#166534; height:38px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight:700;">Payment Date *</label>
+            <input type="date" id="fOutCashDate" value="${today}" style="height:38px;">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Receipt No</label>
+            <input id="fOutReceiptNo" placeholder="e.g. REC-1024" style="height:38px;">
+          </div>
+          <div class="form-group">
+            <label>Notes / Remarks</label>
+            <input id="fOutNotes" placeholder="e.g. Cash received at office" style="height:38px;">
+          </div>
+        </div>
+        <div style="font-size:12px; color:#15803d; background:#dcfce7; border:1px solid #86efac; padding:8px 10px; border-radius:6px; margin-top:6px;">
+          ✓ <b>Rule:</b> Cash payments immediately reduce outstanding balance and add to the Sales Person Collection Target.
+        </div>
+      `;
+    } else if (method === 'Token') {
+      return `
+        <div class="form-row">
+          <div class="form-group">
+            <label style="font-weight:700; color:#6b21a8;">Token / Discount Deduction Amount (LKR) *</label>
+            <input type="number" step="0.01" id="fOutTokenAmt" placeholder="0.00" style="font-weight:800; font-size:15px; color:#6b21a8; height:38px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight:700;">Deduction Date *</label>
+            <input type="date" id="fOutTokenDate" value="${today}" style="height:38px;">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Notes / Reason for Token *</label>
+          <input id="fOutNotes" placeholder="e.g. Approved price token concession by management" style="height:38px;">
+        </div>
+        <div style="font-size:12px; color:#7e22ce; background:#f3e8ff; border:1px solid #d8b4fe; padding:8px 10px; border-radius:6px; margin-top:6px;">
+          ℹ️ <b>Rule:</b> Token deduction reduces invoice outstanding balance and company Net Sales, but <b>DOES NOT</b> add to Sales Person Collection Target.
+        </div>
+      `;
+    } else if (method === 'Good Return') {
+      let linesHtml = '';
+      if (_outReturnLines && _outReturnLines.length > 0) {
+        linesHtml = `
+          <div style="margin-top:10px; overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:12.5px; background:#fff; border:1px solid #fed7aa; border-radius:6px;">
+              <thead>
+                <tr style="background:#ffedd5; color:#9a3412;">
+                  <th style="padding:6px 8px; text-align:left;">Product Code / Name</th>
+                  <th style="padding:6px 8px; text-align:center; width:90px;">Invoiced Qty</th>
+                  <th style="padding:6px 8px; text-align:center; width:110px;">Return Qty *</th>
+                  <th style="padding:6px 8px; text-align:right; width:110px;">Unit Price</th>
+                  <th style="padding:6px 8px; text-align:right; width:130px;">Return Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${_outReturnLines.map((ln, idx) => `
+                  <tr style="border-bottom:1px solid #fed7aa;">
+                    <td style="padding:6px 8px;"><b>${esc(ln.ItemCode ? ln.ItemCode + ' - ' : '')}${esc(ln.ItemName)}</b></td>
+                    <td style="padding:6px 8px; text-align:center;">${ln.InvoicedQty}</td>
+                    <td style="padding:6px 8px; text-align:center;">
+                      <input type="number" min="0" max="${ln.InvoicedQty}" step="any" value="${ln.ReturnQty || 0}" oninput="updateOutReturnLine(${idx}, this.value)" style="width:80px; text-align:center; font-weight:700; height:32px; border:1px solid #fb923c; border-radius:4px;">
+                    </td>
+                    <td style="padding:6px 8px; text-align:right;">${fmtMoney(ln.UnitPrice)}</td>
+                    <td style="padding:6px 8px; text-align:right; font-weight:700; color:#c2410c;" id="outRetLineTotal_${idx}">${fmtMoney(ln.LineTotal || 0)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      } else {
+        linesHtml = `
+          <div class="form-row" style="margin-top:10px;">
+            <div class="form-group" style="flex:2;">
+              <label style="color:#9a3412; font-weight:700;">Returned Product Description *</label>
+              <input id="fOutReturnDesc" placeholder="e.g. INT & EXT Stains - Mahogony" style="height:38px;">
+            </div>
+            <div class="form-group" style="flex:1;">
+              <label style="color:#9a3412; font-weight:700;">Return Amount (LKR) *</label>
+              <input type="number" step="0.01" id="fOutReturnAmtManual" placeholder="0.00" style="height:38px; font-weight:700;">
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div style="font-weight:700; color:#9a3412; margin-bottom:4px;">Select Returned Items from Invoice:</div>
+        ${linesHtml}
+
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#fff7ed; border:1.5px solid #fdba74; border-radius:6px; padding:10px 14px; margin-top:12px;">
+          <div style="font-weight:700; color:#9a3412; font-size:14px;">Total Return Value:</div>
+          <div style="font-weight:800; color:#c2410c; font-size:16px;" id="outTotalReturnDisplay">LKR 0.00</div>
+        </div>
+
+        <div class="form-row" style="margin-top:10px;">
+          <div class="form-group">
+            <label style="font-weight:700;">Return Date *</label>
+            <input type="date" id="fOutReturnDate" value="${today}" style="height:38px;">
+          </div>
+          <div class="form-group">
+            <label>Return Reason / Notes</label>
+            <input id="fOutNotes" placeholder="e.g. Damaged during customer transit, returned for factory replacement" style="height:38px;">
+          </div>
+        </div>
+
+        <div style="font-size:12px; color:#c2410c; background:#fff7ed; border:1px solid #fdba74; padding:8px 10px; border-radius:6px; margin-top:6px;">
+          🏭 <b>Goods Return Rule:</b> Returned items are dispatched back to the factory. They are <b>NOT</b> added back to warehouse stock. The total return value is deducted from invoice balance and company Net Sales.
+        </div>
+      `;
+    } else if (method === 'Invoice Cancel') {
+      const isDispatched = (inv && inv.DispatchStatus === 'Dispatched');
+      return `
+        <div style="background:#fef2f2; border:1.5px solid #f87171; border-radius:6px; padding:12px 14px; margin-bottom:12px;">
+          <div style="font-weight:800; color:#991b1b; font-size:14px; margin-bottom:4px;">⚠️ Cancel Entire Sales Invoice</div>
+          <div style="font-size:12.5px; color:#7f1d1d;">
+            Cancelling this invoice removes it from active sales and clears its outstanding balance to 0.
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label style="font-weight:700; color:#991b1b;">Cancellation Reason *</label>
+          <input id="fOutCancelReason" placeholder="e.g. Customer cancelled order before payment" style="height:38px; border:1.5px solid #f87171;">
+        </div>
+
+        ${isDispatched ? `
+          <div style="background:#fffbeb; border:1.5px solid #fde68a; border-radius:6px; padding:12px 14px; margin-top:10px;">
+            <div style="font-weight:700; color:#92400e; font-size:13px; margin-bottom:6px;">
+              🚚 Warehouse Stock Restock Confirmation:
+            </div>
+            <div style="font-size:12px; color:#78350f; margin-bottom:8px;">
+              Goods for this invoice were marked as <b>Dispatched</b>. Should the goods be restocked back into the warehouse?
+            </div>
+            <div style="display:flex; gap:16px; align-items:center;">
+              <label style="display:flex; align-items:center; gap:6px; font-weight:600; cursor:pointer;">
+                <input type="radio" name="cancelRestockChoice" value="No" checked style="width:16px; height:16px;">
+                No (Goods sent to factory / scrapped)
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; font-weight:700; color:#047857; cursor:pointer;">
+                <input type="radio" name="cancelRestockChoice" value="Yes" style="width:16px; height:16px;">
+                Yes, Restock items back to Warehouse Stock
+              </label>
+            </div>
+          </div>
+        ` : ''}
+      `;
+    }
+    return '';
+  }
+
+  function updateOutReturnLine(idx, val) {
+    if (!_outReturnLines || !_outReturnLines[idx]) return;
+    const qty = Math.max(0, parseFloat(val) || 0);
+    _outReturnLines[idx].ReturnQty = qty;
+    _outReturnLines[idx].LineTotal = Math.round(qty * _outReturnLines[idx].UnitPrice * 100) / 100;
+    
+    const lineTotalEl = document.getElementById('outRetLineTotal_' + idx);
+    if (lineTotalEl) lineTotalEl.textContent = fmtMoney(_outReturnLines[idx].LineTotal);
+
+    const totalReturn = _outReturnLines.reduce((s, ln) => s + (Number(ln.LineTotal) || 0), 0);
+    const totalEl = document.getElementById('outTotalReturnDisplay');
+    if (totalEl) totalEl.textContent = fmtMoney(totalReturn);
+  }
+
+  async function submitOutstandingPayment(invoiceId) {
     const inv = (state.data.invoices || []).find(i => i.InvoiceId === invoiceId);
     if (!inv) {
       showToast('Error: Invoice not found');
       return;
     }
 
-    const cqNo = document.getElementById('fOutCqNo')?.value.trim() || '';
-    const bank = document.getElementById('fOutBank')?.value.trim() || '';
-    const cqDate = document.getElementById('fOutChqDate')?.value || '';
-    const cqAmt = Number(document.getElementById('fOutCqAmt')?.value || 0);
-    const payAmt = Number(document.getElementById('fOutRealisedAmt')?.value || 0);
-    const realisedDate = document.getElementById('fOutRealisedDate')?.value || state.data.today;
-    const realizedMonth = document.getElementById('fOutRealizedMonth')?.value.trim() || '';
-    const receiptNo = document.getElementById('fOutReceiptNo')?.value.trim() || '';
-    const pStatus = document.getElementById('fOutPaymentStatus')?.value || 'Paid';
-    const tokenAmt = Number(document.getElementById('fOutTokenAmt')?.value || 0);
-    const returnAmt = Number(document.getElementById('fOutReturnAmt')?.value || 0);
-    const returnItemId = document.getElementById('fOutReturnItem')?.value || '';
-    const returnQty = Number(document.getElementById('fOutReturnQty')?.value || 0);
-    const notes = document.getElementById('fOutNotes')?.value.trim() || '';
+    const method = document.getElementById('fOutMethod')?.value || 'Cash';
+    const today = state.data.today || new Date().toISOString().slice(0, 10);
+    const installmentId = 'PAY-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
 
-    // Create installment record
-    const installment = {
-      PaymentId: 'PAY-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+    let installment = {
+      PaymentId: installmentId,
       InvoiceId: inv.InvoiceId,
       InvoiceNo: inv.InvoiceNo,
-      Date: realisedDate,
-      Amount: payAmt,
-      Status: pStatus,
-      ChequeNo: cqNo,
-      ChequeBank: bank,
-      ChequeDate: cqDate,
-      ChequeAmount: cqAmt,
-      RealisedDate: realisedDate,
-      RealizedMonth: realizedMonth,
-      ReceiptNo: receiptNo,
-      TokenAmount: tokenAmt,
-      ReturnAmount: returnAmt,
-      ReturnItemId: returnItemId,
-      ReturnQty: returnQty,
-      Notes: notes,
+      Method: method,
+      Date: today,
       RecordedBy: state.user.Name,
       RecordedAt: new Date().toISOString()
     };
 
+    if (method === 'Cheque') {
+      const cqNo = document.getElementById('fOutChqNo')?.value.trim() || '';
+      const cqAmt = Number(document.getElementById('fOutChqAmt')?.value || 0);
+      const bank = document.getElementById('fOutChqBank')?.value.trim() || '';
+      const cqDate = document.getElementById('fOutChqDate')?.value || today;
+      const receiptNo = document.getElementById('fOutReceiptNo')?.value.trim() || '';
+      const chqStatus = document.getElementById('fOutChqStatus')?.value || 'Deposited';
+      const notes = document.getElementById('fOutNotes')?.value.trim() || '';
+
+      if (!cqNo || cqAmt <= 0) {
+        showToast('Please enter valid Cheque No and Amount.');
+        return;
+      }
+
+      installment.ChequeNo = cqNo;
+      installment.ChequeAmount = cqAmt;
+      installment.Amount = cqAmt;
+      installment.ChequeBank = bank;
+      installment.ChequeDate = cqDate;
+      installment.ReceiptNo = receiptNo;
+      installment.Status = chqStatus;
+      installment.Notes = notes;
+
+      inv.ChequeNo = cqNo;
+      inv.ChequeBank = bank;
+      inv.ChequeDate = cqDate;
+      inv.ChequeAmount = cqAmt;
+      inv.ReceiptNo = receiptNo;
+      inv.PaymentStatus = chqStatus;
+
+      if (chqStatus === 'Realized') {
+        installment.RealisedDate = today;
+        inv.RealisedDate = today;
+        try {
+          const d = new Date(today);
+          inv.RealizedMonth = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        } catch (e) {}
+      }
+    } else if (method === 'Cash') {
+      const cashAmt = Number(document.getElementById('fOutCashAmt')?.value || 0);
+      const cashDate = document.getElementById('fOutCashDate')?.value || today;
+      const receiptNo = document.getElementById('fOutReceiptNo')?.value.trim() || '';
+      const notes = document.getElementById('fOutNotes')?.value.trim() || '';
+
+      if (cashAmt <= 0) {
+        showToast('Please enter valid Cash Amount.');
+        return;
+      }
+
+      installment.Amount = cashAmt;
+      installment.Date = cashDate;
+      installment.ReceiptNo = receiptNo;
+      installment.Status = 'Paid';
+      installment.Notes = notes;
+      installment.RealisedDate = cashDate;
+
+      inv.ReceiptNo = receiptNo;
+      inv.RealisedDate = cashDate;
+      try {
+        const d = new Date(cashDate);
+        inv.RealizedMonth = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      } catch (e) {}
+    } else if (method === 'Token') {
+      const tokenAmt = Number(document.getElementById('fOutTokenAmt')?.value || 0);
+      const tokenDate = document.getElementById('fOutTokenDate')?.value || today;
+      const notes = document.getElementById('fOutNotes')?.value.trim() || '';
+
+      if (tokenAmt <= 0) {
+        showToast('Please enter valid Token Amount.');
+        return;
+      }
+
+      installment.TokenAmount = tokenAmt;
+      installment.Amount = tokenAmt;
+      installment.Date = tokenDate;
+      installment.Status = 'Token';
+      installment.Notes = notes;
+    } else if (method === 'Good Return') {
+      let totalReturn = 0;
+      if (_outReturnLines && _outReturnLines.length > 0) {
+        totalReturn = _outReturnLines.reduce((s, ln) => s + (Number(ln.LineTotal) || 0), 0);
+      } else {
+        totalReturn = Number(document.getElementById('fOutReturnAmtManual')?.value || 0);
+      }
+
+      if (totalReturn <= 0) {
+        showToast('Please specify return quantity or amount.');
+        return;
+      }
+
+      const returnDate = document.getElementById('fOutReturnDate')?.value || today;
+      const notes = document.getElementById('fOutNotes')?.value.trim() || '';
+
+      installment.ReturnAmount = totalReturn;
+      installment.Amount = totalReturn;
+      installment.Date = returnDate;
+      installment.Status = 'Return';
+      installment.Notes = notes;
+      installment.ReturnLines = JSON.stringify(_outReturnLines.filter(ln => ln.ReturnQty > 0));
+
+      // FACTORY DISPATCH: Does NOT add to warehouse stock
+    } else if (method === 'Invoice Cancel') {
+      const cancelReason = document.getElementById('fOutCancelReason')?.value.trim() || 'Cancelled';
+      const restockChoice = document.querySelector('input[name="cancelRestockChoice"]:checked')?.value || 'No';
+
+      installment.Status = 'Cancel';
+      installment.Notes = cancelReason;
+
+      inv.Status = 'Cancelled';
+      inv.PaymentStatus = 'Cancel';
+
+      if (restockChoice === 'Yes') {
+        const invLines = (Array.isArray(inv.Items) && inv.Items.length > 0) ? inv.Items : (state.data.invoiceItems || []).filter(x => x.InvoiceId === inv.InvoiceId);
+        invLines.forEach(ln => {
+          const matched = (state.data.inventory || []).find(it => it.ItemId === ln.ItemId);
+          if (matched && Number(ln.Qty) > 0) {
+            matched.StockQty = (Number(matched.StockQty) || 0) + Number(ln.Qty);
+            matched.UpdatedAt = today;
+            if (window.sbClient) window.sbClient.from('Inventory').upsert(matched).then();
+            gas('saveInventoryItem', matched).catch(e => console.error(e));
+          }
+        });
+      }
+    }
+
     inv.Payments = inv.Payments || [];
     inv.Payments.push(installment);
 
-    // Sum all previous installments + this one
+    // Recalculate totals
     let cumulativePaid = 0;
     let cumulativeToken = 0;
     let cumulativeReturn = 0;
 
     inv.Payments.forEach(p => {
       const st = p.Status;
-      if (st === 'Paid' || st === 'Realised' || (!['Unpaid', 'Cheque Bounce', 'Unrealized', 'Cancel', 'Token', 'Return', 'Cheque Cancel'].includes(st) && p.Amount > 0)) {
+      if (p.Method === 'Cash' || st === 'Paid' || st === 'Realised' || st === 'Realized') {
         cumulativePaid += Number(p.Amount || 0);
       }
       if (p.TokenAmount) cumulativeToken += Number(p.TokenAmount || 0);
       if (p.ReturnAmount) cumulativeReturn += Number(p.ReturnAmount || 0);
     });
 
-    // Update invoice fields
     inv.PaidAmount = cumulativePaid;
     inv.TokenAmount = cumulativeToken;
     inv.ReturnAmount = cumulativeReturn;
-    inv.PaymentStatus = pStatus;
-    if (cqNo) inv.ChequeNo = cqNo;
-    if (bank) inv.ChequeBank = bank;
-    if (cqDate) inv.ChequeDate = cqDate;
-    if (cqAmt) inv.ChequeAmount = cqAmt;
-    if (realisedDate) inv.RealisedDate = realisedDate;
-    if (realizedMonth) inv.RealizedMonth = realizedMonth;
-    if (receiptNo) inv.ReceiptNo = receiptNo;
+    inv.PaymentsJson = JSON.stringify(inv.Payments);
 
-    const tot = Number(inv.Total || 0);
-    const pending = Math.max(0, tot - cumulativePaid - cumulativeToken - cumulativeReturn);
+    const invTot = Number(inv.Total || 0);
+    const pending = Math.max(0, Math.round((invTot - cumulativePaid - cumulativeToken - cumulativeReturn) * 100) / 100);
 
-    if (pStatus === 'Cancel') {
-      inv.Status = 'Cancelled';
-      inv.PaymentStatus = 'Cancel';
-    } else if (pending <= 0) {
-      inv.Status = 'Paid';
-      inv.PaymentStatus = 'Paid';
-    } else {
-      inv.Status = 'Pending';
-      inv.PaymentStatus = (cumulativePaid > 0) ? (pStatus === 'Cheque Bounce' ? 'Cheque Bounce' : (pStatus === 'Unrealized' ? 'Unrealized' : 'Unpaid')) : (pStatus || 'Unpaid');
-    }
-
-    // 1. Stock Return Increment
-    if ((pStatus === 'Return' || returnQty > 0) && returnItemId) {
-      const invItem = (state.data.inventory || []).find(x => x.ItemId === returnItemId);
-      if (invItem && returnQty > 0) {
-        invItem.StockQty = (Number(invItem.StockQty) || 0) + returnQty;
-        invItem.UpdatedAt = state.data.today;
-        
-        // Sync Inventory to Supabase & Sheet
-        if (window.sbClient) {
-          window.sbClient.from('Inventory').upsert(invItem).then();
+    if (inv.Status !== 'Cancelled') {
+      if (pending <= 0) {
+        inv.Status = 'Paid';
+        inv.PaymentStatus = 'Paid';
+      } else {
+        inv.Status = 'Pending';
+        if (method === 'Cheque') {
+          inv.PaymentStatus = installment.Status || 'Deposited';
+        } else if (cumulativePaid > 0) {
+          inv.PaymentStatus = 'Unpaid';
         }
-        gas('saveInventoryItem', invItem).catch(e => console.error(e));
       }
     }
 
-    // 2. Record Income Transaction if Paid/Realised amount > 0
-    if (payAmt > 0 && (pStatus === 'Paid' || pStatus === 'Realised')) {
-      const tx = {
-        TxId: 'TX-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
-        Date: realisedDate,
-        Type: 'Income',
-        Category: 'Sales / Invoice Payment',
-        Description: `Payment installment for ${inv.InvoiceNo} (${inv.CustomerName || 'Customer'})`,
-        Amount: payAmt,
-        RefId: inv.InvoiceId,
-        RecordedBy: state.user.Name
-      };
-      state.data.transactions = state.data.transactions || [];
-      state.data.transactions.push(tx);
-      if (window.sbClient) window.sbClient.from('Transactions').insert(tx).then();
-      gas('saveTransaction', tx).catch(e => console.error(e));
-    }
-
-    // 3. Save to Supabase and LocalStorage
-    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
-
+    // Direct Supabase update (20ms)
     if (window.sbClient) {
       window.sbClient.from('Invoices').upsert({
         InvoiceId: inv.InvoiceId,
@@ -4524,15 +5163,17 @@
         RealizedMonth: inv.RealizedMonth || '',
         ReceiptNo: inv.ReceiptNo || '',
         TokenAmount: inv.TokenAmount || 0,
-        ReturnAmount: inv.ReturnAmount || 0
+        ReturnAmount: inv.ReturnAmount || 0,
+        PaymentsJson: inv.PaymentsJson
       }).then();
     }
 
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+
     closeModal();
     renderOutstandingView();
-    showToast(`✅ Payment installment recorded! Balance remaining: ${fmtMoney(pending)}`);
+    showToast(`✅ Payment entry recorded successfully! Remaining balance: ${fmtMoney(pending)}`);
 
-    // 4. Background sync to Google Apps Script
     gas('updateInvoicePayment', {
       InvoiceId: inv.InvoiceId,
       ChequeNo: inv.ChequeNo || '',
@@ -4547,37 +5188,113 @@
       PaymentStatus: inv.PaymentStatus,
       TokenAmount: inv.TokenAmount || 0,
       ReturnAmount: inv.ReturnAmount || 0,
-      Status: inv.Status
+      Status: inv.Status,
+      PaymentsJson: inv.PaymentsJson
     }).catch(err => console.error('updateInvoicePayment error:', err));
   }
 
-  function removePaymentInstallment(invoiceId, paymentId) {
-    if (!confirm('Are you sure you want to remove this payment installment?')) return;
+  function editPaymentInstallment(invoiceId, paymentId) {
+    verifyPinAndExecute('Edit Payment Record', () => {
+      const inv = (state.data.invoices || []).find(i => i.InvoiceId === invoiceId);
+      if (!inv || !Array.isArray(inv.Payments)) return;
+      const p = inv.Payments.find(x => x.PaymentId === paymentId);
+      if (!p) return;
+
+      openModal(
+        'Edit Payment Installment',
+        `
+          <div class="form-row">
+            <div class="form-group">
+              <label style="font-weight:700;">Amount (LKR) *</label>
+              <input type="number" step="0.01" id="fEditPayAmt" value="${p.Amount || p.TokenAmount || p.ReturnAmount || 0}" style="font-weight:700;">
+            </div>
+            <div class="form-group">
+              <label style="font-weight:700;">Date *</label>
+              <input type="date" id="fEditPayDate" value="${p.Date || ''}">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Status *</label>
+              <select id="fEditPayStatus" style="font-weight:700;">
+                ${['Realized', 'Deposited', 'Paid', 'Cheque Bounce', 'Cheque Cancel', 'Token', 'Return', 'Cancel'].map(st =>
+                  `<option value="${st}" ${(p.Status === st || p.Method === st) ? 'selected' : ''}>${st}</option>`
+                ).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Receipt No</label>
+              <input id="fEditPayReceipt" value="${esc(p.ReceiptNo || '')}">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Cheque No</label>
+              <input id="fEditPayCqNo" value="${esc(p.ChequeNo || '')}">
+            </div>
+            <div class="form-group">
+              <label>Bank Name</label>
+              <input id="fEditPayBank" value="${esc(p.ChequeBank || '')}">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Notes</label>
+            <input id="fEditPayNotes" value="${esc(p.Notes || '')}">
+          </div>
+        `,
+        `
+          <button class="btn btn-secondary" onclick="closeModal(); openOutstandingPaymentModal('${esc(invoiceId)}')">Cancel</button>
+          <button class="btn btn-primary" onclick="submitEditPaymentInstallment('${esc(invoiceId)}', '${esc(paymentId)}')">Save Changes</button>
+        `
+      );
+    });
+  }
+
+  function submitEditPaymentInstallment(invoiceId, paymentId) {
     const inv = (state.data.invoices || []).find(i => i.InvoiceId === invoiceId);
     if (!inv || !Array.isArray(inv.Payments)) return;
+    const p = inv.Payments.find(x => x.PaymentId === paymentId);
+    if (!p) return;
 
-    inv.Payments = inv.Payments.filter(p => p.PaymentId !== paymentId);
+    const newAmt = Number(document.getElementById('fEditPayAmt')?.value || 0);
+    const newDate = document.getElementById('fEditPayDate')?.value || '';
+    const newStatus = document.getElementById('fEditPayStatus')?.value || 'Paid';
+    const newRec = document.getElementById('fEditPayReceipt')?.value.trim() || '';
+    const newCqNo = document.getElementById('fEditPayCqNo')?.value.trim() || '';
+    const newBank = document.getElementById('fEditPayBank')?.value.trim() || '';
+    const newNotes = document.getElementById('fEditPayNotes')?.value.trim() || '';
 
-    // Recalculate cumulative values
+    p.Amount = newAmt;
+    p.Date = newDate;
+    p.Status = newStatus;
+    p.ReceiptNo = newRec;
+    p.ChequeNo = newCqNo;
+    p.ChequeBank = newBank;
+    p.Notes = newNotes;
+    if (p.TokenAmount) p.TokenAmount = newAmt;
+    if (p.ReturnAmount) p.ReturnAmount = newAmt;
+    if (p.ChequeAmount) p.ChequeAmount = newAmt;
+
     let cumulativePaid = 0;
     let cumulativeToken = 0;
     let cumulativeReturn = 0;
 
-    inv.Payments.forEach(p => {
-      const st = p.Status;
-      if (st === 'Paid' || st === 'Realised' || (!['Unpaid', 'Cheque Bounce', 'Unrealized', 'Cancel', 'Token', 'Return', 'Cheque Cancel'].includes(st) && p.Amount > 0)) {
-        cumulativePaid += Number(p.Amount || 0);
+    inv.Payments.forEach(item => {
+      const st = item.Status;
+      if (item.Method === 'Cash' || st === 'Paid' || st === 'Realised' || st === 'Realized') {
+        cumulativePaid += Number(item.Amount || 0);
       }
-      if (p.TokenAmount) cumulativeToken += Number(p.TokenAmount || 0);
-      if (p.ReturnAmount) cumulativeReturn += Number(p.ReturnAmount || 0);
+      if (item.TokenAmount) cumulativeToken += Number(item.TokenAmount || 0);
+      if (item.ReturnAmount) cumulativeReturn += Number(item.ReturnAmount || 0);
     });
 
     inv.PaidAmount = cumulativePaid;
     inv.TokenAmount = cumulativeToken;
     inv.ReturnAmount = cumulativeReturn;
+    inv.PaymentsJson = JSON.stringify(inv.Payments);
 
-    const tot = Number(inv.Total || 0);
-    const pending = Math.max(0, tot - cumulativePaid - cumulativeToken - cumulativeReturn);
+    const invTot = Number(inv.Total || 0);
+    const pending = Math.max(0, Math.round((invTot - cumulativePaid - cumulativeToken - cumulativeReturn) * 100) / 100);
     if (pending <= 0) {
       inv.Status = 'Paid';
       inv.PaymentStatus = 'Paid';
@@ -4587,7 +5304,6 @@
     }
 
     try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
-
     if (window.sbClient) {
       window.sbClient.from('Invoices').upsert({
         InvoiceId: inv.InvoiceId,
@@ -4595,16 +5311,92 @@
         PaymentStatus: inv.PaymentStatus,
         Status: inv.Status,
         TokenAmount: inv.TokenAmount,
-        ReturnAmount: inv.ReturnAmount
+        ReturnAmount: inv.ReturnAmount,
+        PaymentsJson: inv.PaymentsJson
       }).then();
     }
 
     closeModal();
     openOutstandingPaymentModal(invoiceId);
     renderOutstandingView();
-    showToast('Payment installment removed and balances recalculated.');
+    showToast('Payment installment updated.');
+
+    gas('updateInvoicePayment', {
+      InvoiceId: inv.InvoiceId,
+      PaidAmount: inv.PaidAmount,
+      PaymentStatus: inv.PaymentStatus,
+      Status: inv.Status,
+      TokenAmount: inv.TokenAmount,
+      ReturnAmount: inv.ReturnAmount,
+      PaymentsJson: inv.PaymentsJson
+    }).catch(e => console.error(e));
   }
 
+  function removePaymentInstallment(invoiceId, paymentId) {
+    verifyPinAndExecute('Delete Payment Record', () => {
+      const inv = (state.data.invoices || []).find(i => i.InvoiceId === invoiceId);
+      if (!inv || !Array.isArray(inv.Payments)) return;
+
+      inv.Payments = inv.Payments.filter(p => p.PaymentId !== paymentId);
+
+      let cumulativePaid = 0;
+      let cumulativeToken = 0;
+      let cumulativeReturn = 0;
+
+      inv.Payments.forEach(p => {
+        const st = p.Status;
+        if (p.Method === 'Cash' || st === 'Paid' || st === 'Realised' || st === 'Realized') {
+          cumulativePaid += Number(p.Amount || 0);
+        }
+        if (p.TokenAmount) cumulativeToken += Number(p.TokenAmount || 0);
+        if (p.ReturnAmount) cumulativeReturn += Number(p.ReturnAmount || 0);
+      });
+
+      inv.PaidAmount = cumulativePaid;
+      inv.TokenAmount = cumulativeToken;
+      inv.ReturnAmount = cumulativeReturn;
+      inv.PaymentsJson = JSON.stringify(inv.Payments);
+
+      const tot = Number(inv.Total || 0);
+      const pending = Math.max(0, Math.round((tot - cumulativePaid - cumulativeToken - cumulativeReturn) * 100) / 100);
+      if (pending <= 0) {
+        inv.Status = 'Paid';
+        inv.PaymentStatus = 'Paid';
+      } else {
+        inv.Status = 'Pending';
+        inv.PaymentStatus = (cumulativePaid > 0) ? 'Unpaid' : 'Unpaid';
+      }
+
+      try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+
+      if (window.sbClient) {
+        window.sbClient.from('Invoices').upsert({
+          InvoiceId: inv.InvoiceId,
+          PaidAmount: inv.PaidAmount,
+          PaymentStatus: inv.PaymentStatus,
+          Status: inv.Status,
+          TokenAmount: inv.TokenAmount,
+          ReturnAmount: inv.ReturnAmount,
+          PaymentsJson: inv.PaymentsJson
+        }).then();
+      }
+
+      closeModal();
+      openOutstandingPaymentModal(invoiceId);
+      renderOutstandingView();
+      showToast('Payment installment removed and balances recalculated.');
+
+      gas('updateInvoicePayment', {
+        InvoiceId: inv.InvoiceId,
+        PaidAmount: inv.PaidAmount,
+        PaymentStatus: inv.PaymentStatus,
+        Status: inv.Status,
+        TokenAmount: inv.TokenAmount,
+        ReturnAmount: inv.ReturnAmount,
+        PaymentsJson: inv.PaymentsJson
+      }).catch(e => console.error(e));
+    });
+  }
   function exportOutstandingExcel() {
     if (typeof XLSX === 'undefined') {
       showToast('SheetJS library is still loading, please wait a moment...');
@@ -7710,13 +8502,52 @@
   }
 
   /* ==========================================================================
-   * 3. Inventory & Stock
+   * 3. Inventory & Stock (Renamed SKU -> Code, Full Multi-Column Sorting)
    * ======================================================================== */
 
+  let _stockSortField = 'SKU';
+  let _stockSortDir = 'asc';
+
+  function sortStockTable(field) {
+    if (_stockSortField === field) {
+      _stockSortDir = _stockSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      _stockSortField = field;
+      _stockSortDir = 'asc';
+    }
+    renderInventoryView();
+  }
+
+  function onQuickSortStock(val) {
+    if (!val) return;
+    const parts = val.split('_');
+    _stockSortField = parts[0];
+    _stockSortDir = parts[1] || 'asc';
+    renderInventoryView();
+  }
+
   function renderInventoryView() {
-    const items = state.data.inventory || [];
+    let items = [...(state.data.inventory || [])];
     const totalVal = items.reduce((s, it) => s + ((Number(it.UnitPrice) || 0) * (Number(it.StockQty) || 0)), 0);
     const lowCount = items.filter(it => Number(it.StockQty) <= Number(it.ReorderLevel || 5)).length;
+
+    // Sorting
+    items.sort((a, b) => {
+      let va = a[_stockSortField] || '';
+      let vb = b[_stockSortField] || '';
+      if (_stockSortField === 'UnitPrice' || _stockSortField === 'StockQty') {
+        va = Number(va) || 0;
+        vb = Number(vb) || 0;
+      } else if (_stockSortField === 'StockValue') {
+        va = (Number(a.StockQty) || 0) * (Number(a.UnitPrice) || 0);
+        vb = (Number(b.StockQty) || 0) * (Number(b.UnitPrice) || 0);
+      }
+      if (va < vb) return _stockSortDir === 'asc' ? -1 : 1;
+      if (va > vb) return _stockSortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    const sortArrow = (f) => _stockSortField === f ? (_stockSortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
     document.getElementById('mainContent').innerHTML = `
       <div class="kpi-grid">
@@ -7726,9 +8557,22 @@
       </div>
       
       <div class="section-header">
-        <div>
-          <h3 style="font-size:16px; color:var(--text); font-weight:700; margin:0 0 4px 0;">📦 Product List</h3>
-          <input class="search-input" placeholder="Search product list by SKU, name, category..." oninput="filterTable('stockTable', this.value)" style="width:320px;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <input class="search-input" placeholder="Search product list by Code, name, category..." oninput="filterTable('stockTable', this.value)" style="width:280px; margin:0;">
+          <select onchange="onQuickSortStock(this.value)" style="padding:6px 10px; font-size:12.5px; border:1px solid #cbd5e1; border-radius:6px; background:#fff;">
+            <option value="">-- Quick Sort --</option>
+            <option value="SKU_asc" ${_stockSortField==='SKU'&&_stockSortDir==='asc'?'selected':''}>Code (A to Z)</option>
+            <option value="SKU_desc" ${_stockSortField==='SKU'&&_stockSortDir==='desc'?'selected':''}>Code (Z to A)</option>
+            <option value="Name_asc" ${_stockSortField==='Name'&&_stockSortDir==='asc'?'selected':''}>Product Name (A to Z)</option>
+            <option value="Name_desc" ${_stockSortField==='Name'&&_stockSortDir==='desc'?'selected':''}>Product Name (Z to A)</option>
+            <option value="StockQty_desc" ${_stockSortField==='StockQty'&&_stockSortDir==='desc'?'selected':''}>Stock Qty (High to Low)</option>
+            <option value="StockQty_asc" ${_stockSortField==='StockQty'&&_stockSortDir==='asc'?'selected':''}>Stock Qty (Low to High)</option>
+            <option value="StockValue_desc" ${_stockSortField==='StockValue'&&_stockSortDir==='desc'?'selected':''}>Stock Value (High to Low)</option>
+            <option value="UnitPrice_desc" ${_stockSortField==='UnitPrice'&&_stockSortDir==='desc'?'selected':''}>Price (High to Low)</option>
+            <option value="UnitPrice_asc" ${_stockSortField==='UnitPrice'&&_stockSortDir==='asc'?'selected':''}>Price (Low to High)</option>
+            <option value="Category_asc" ${_stockSortField==='Category'&&_stockSortDir==='asc'?'selected':''}>Category (A to Z)</option>
+            <option value="Unit_asc" ${_stockSortField==='Unit'&&_stockSortDir==='asc'?'selected':''}>Unit</option>
+          </select>
         </div>
         <div class="section-actions" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
           <button class="btn btn-success" style="background:#16a34a; border-color:#16a34a; font-weight:700; display:flex; align-items:center; gap:6px;" onclick="openStockInModal()">📥 Stock In (Factory Goods)</button>
@@ -7741,16 +8585,16 @@
         <table id="stockTable">
           <thead>
             <tr>
-              <th>SKU</th>
-              <th>Product Name</th>
-              <th>Category</th>
-              <th>Unit Price</th>
-              <th>Unit</th>
-              <th>Stock Qty</th>
-              <th>Stock Value</th>
-              <th>Status</th>
-              <th>Stock In</th>
-              <th>Actions</th>
+              <th onclick="sortStockTable('SKU')" style="cursor:pointer;">Code${sortArrow('SKU')}</th>
+              <th onclick="sortStockTable('Name')" style="cursor:pointer;">Product Name${sortArrow('Name')}</th>
+              <th onclick="sortStockTable('Category')" style="cursor:pointer;">Category${sortArrow('Category')}</th>
+              <th onclick="sortStockTable('UnitPrice')" style="cursor:pointer; text-align:right;">Unit Price${sortArrow('UnitPrice')}</th>
+              <th onclick="sortStockTable('Unit')" style="cursor:pointer; text-align:center;">Unit${sortArrow('Unit')}</th>
+              <th onclick="sortStockTable('StockQty')" style="cursor:pointer; text-align:center;">Stock Qty${sortArrow('StockQty')}</th>
+              <th onclick="sortStockTable('StockValue')" style="cursor:pointer; text-align:right;">Stock Value${sortArrow('StockValue')}</th>
+              <th onclick="sortStockTable('Status')" style="cursor:pointer; text-align:center;">Status${sortArrow('Status')}</th>
+              <th style="text-align:center;">Stock In</th>
+              <th style="text-align:center;">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -7764,15 +8608,15 @@
                   <td><b>${esc(it.SKU)}</b></td>
                   <td><b>${esc(it.Name)}</b></td>
                   <td>${esc(it.Category || 'General')}</td>
-                  <td><b>${fmtMoney(it.UnitPrice || 0)}</b></td>
-                  <td><span class="badge badge-info" style="font-weight:700;">${esc(it.Unit || 'L')}</span></td>
-                  <td><b style="font-size:14px; color:${qty <= 0 ? 'var(--danger)' : 'var(--text)'};">${qty}</b></td>
-                  <td>${fmtMoney(val)}</td>
-                  <td><span class="badge ${badge}</span></td>
-                  <td>
+                  <td style="text-align:right;"><b>${fmtMoney(it.UnitPrice || 0)}</b></td>
+                  <td style="text-align:center;"><span class="badge badge-info" style="font-weight:700;">${esc(it.Unit || 'L')}</span></td>
+                  <td style="text-align:center;"><b style="font-size:14px; color:${qty <= 0 ? 'var(--danger)' : 'var(--text)'};">${qty}</b></td>
+                  <td style="text-align:right;">${fmtMoney(val)}</td>
+                  <td style="text-align:center;"><span class="badge ${badge}</span></td>
+                  <td style="text-align:center;">
                     <button class="btn btn-sm btn-success" style="background:#16a34a; border-color:#16a34a; font-weight:700; padding:3px 10px;" onclick="openStockInModal('${esc(it.ItemId)}')">📥 In</button>
                   </td>
-                  <td>
+                  <td style="text-align:center;">
                     <button class="btn btn-sm btn-secondary" onclick="openInventoryModal('${esc(it.ItemId)}')">Edit</button>
                     <button class="btn btn-sm btn-danger" onclick="removeInventory('${esc(it.ItemId)}')">Del</button>
                   </td>
@@ -7849,7 +8693,7 @@
       `
         <div class="form-row">
           <div class="form-group">
-            <label style="font-weight:700;">SKU Code * ${!itemId ? '<span style="font-size:11px; color:var(--primary); font-weight:normal;">(Auto-generated)</span>' : ''}</label>
+            <label style="font-weight:700;">Item Code * ${!itemId ? '<span style="font-size:11px; color:var(--primary); font-weight:normal;">(Auto-generated)</span>' : ''}</label>
             <input id="fItSku" value="${esc(it.SKU || autoSku)}" placeholder="e.g. JD-001-84" style="font-weight:700; font-family:monospace;">
           </div>
           <div class="form-group">
@@ -7983,16 +8827,16 @@
         </div>
 
         <div class="form-group">
-          <label style="font-weight:700; font-size:13px; color:#0f172a;">Select Product / SKU *</label>
+          <label style="font-weight:700; font-size:13px; color:#0f172a;">Select Product / Code *</label>
           <select id="fStkInItem" onchange="onStockInProductChange(this.value)" style="width:100%; height:40px; font-weight:700; font-size:13.5px; padding:6px 10px; border:1.5px solid #cbd5e1; border-radius:6px; background:#fff; color:#0f172a;">
-            <option value="">-- Choose Product by SKU / Name --</option>
+            <option value="">-- Choose Product by Code / Name --</option>
             ${invItems.map(item => `
               <option value="${esc(item.ItemId)}" ${item.ItemId === selectedItemId ? 'selected' : ''}>
                 ${esc(item.SKU ? item.SKU + ' - ' : '')}${esc(item.Name)} (${item.StockQty || 0} ${esc(item.Unit || 'L')})
               </option>
             `).join('')}
           </select>
-          <div style="font-size:11px; color:var(--muted); margin-top:4px;">Select the product code (SKU) delivered from the factory.</div>
+          <div style="font-size:11px; color:var(--muted); margin-top:4px;">Select the product code delivered from the factory.</div>
         </div>
 
         <div id="stkInDetailsCard" style="background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:8px; padding:12px 14px; margin-bottom:16px; ${it ? 'display:block;' : 'display:none;'}">
