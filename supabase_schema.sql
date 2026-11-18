@@ -260,9 +260,19 @@ CREATE TABLE IF NOT EXISTS "Employees" (
   "Status" TEXT DEFAULT '',
   "BankName" TEXT DEFAULT '',
   "BankBranch" TEXT DEFAULT '',
-  "BankAccountNo" TEXT DEFAULT ''
+  "BankAccountNo" TEXT DEFAULT '',
+  "Department" TEXT DEFAULT '',
+  "BasicSalary" NUMERIC DEFAULT 0,
+  "SalesTarget" NUMERIC DEFAULT 0,
+  "CollectionTarget" NUMERIC DEFAULT 0,
+  "TargetPeriod" TEXT DEFAULT ''
 );
 ALTER TABLE "Employees" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "Employees" ADD COLUMN IF NOT EXISTS "Department" TEXT DEFAULT '';
+ALTER TABLE "Employees" ADD COLUMN IF NOT EXISTS "BasicSalary" NUMERIC DEFAULT 0;
+ALTER TABLE "Employees" ADD COLUMN IF NOT EXISTS "SalesTarget" NUMERIC DEFAULT 0;
+ALTER TABLE "Employees" ADD COLUMN IF NOT EXISTS "CollectionTarget" NUMERIC DEFAULT 0;
+ALTER TABLE "Employees" ADD COLUMN IF NOT EXISTS "TargetPeriod" TEXT DEFAULT '';
 
 -- Table: "CustomTabs"
 CREATE TABLE IF NOT EXISTS "CustomTabs" (
