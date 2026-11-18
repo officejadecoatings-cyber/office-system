@@ -894,7 +894,7 @@
     }
   };
 
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbxbtdlTd49UX0xd9WCu6gDao16cyHWZZld0bd-mx9LA9kYEc-LyqJc0Knuv1KtxuwfOnA/exec';
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbw5SxusRaa1lrByPmcysKqRUGjTfuKmziJho0SUFCL0BDo1R1W7NbwAX41VNqwHquKU8g/exec';
   const CACHE_KEY_DATA = 'JADE_OFFICE_DATA_CACHE';
   const CACHE_KEY_USER = 'JADE_OFFICE_USER_CACHE';
 
@@ -1024,7 +1024,7 @@
 
   const DEFAULT_SUPABASE_URL = 'https://ftucnvtpmkftjzoobrfq.supabase.co';
   const DEFAULT_SUPABASE_KEY = 'sb_publishable_T4O1XsAawck_ix9z_acpdA_EWcNkJtR';
-  const CURRENT_GAS_URL = 'https://script.google.com/macros/s/AKfycbysvc7x4c0_TFKxpCPI8_p2haPMOSSRwpYYANaE3H2BzFIXD-XD-L8H6vFM-FViRAxTvA/exec';
+  const CURRENT_GAS_URL = 'https://script.google.com/macros/s/AKfycbw5SxusRaa1lrByPmcysKqRUGjTfuKmziJho0SUFCL0BDo1R1W7NbwAX41VNqwHquKU8g/exec';
 
   const OfficeSupabase = {
     client: null,
@@ -1195,13 +1195,18 @@
         inv.InvoiceId = inv.InvoiceId || (mapping.prefix + '-' + Date.now() + '-' + Math.floor(Math.random() * 1000));
         await this.upsert('Invoices', inv);
 
-        if (payload.items && Array.isArray(payload.items) && payload.items.length > 0) {
+        if (payload.items && Array.isArray(payload.items)) {
+          try {
+            await this.delete('InvoiceItems', 'InvoiceId', inv.InvoiceId);
+          } catch (e) {}
           const items = payload.items.map(it => ({
             ...it,
             LineId: it.LineId || ('LINE-' + Date.now() + '-' + Math.floor(Math.random() * 1000)),
             InvoiceId: inv.InvoiceId
           }));
-          await this.upsert('InvoiceItems', items);
+          if (items.length > 0) {
+            await this.upsert('InvoiceItems', items);
+          }
           if (state && state.data) {
             state.data.invoiceItems = (state.data.invoiceItems || []).filter(x => x.InvoiceId !== inv.InvoiceId).concat(items);
           }
@@ -3370,24 +3375,31 @@
       return;
     }
 
-    const info = getCustomerOverdueInfo(custId);
-
-    // Block customer if any unpaid invoice is past the Due Date unless authorized via Login PIN
-    if (info.blocked && status !== 'Draft' && status !== 'Cancelled' && status !== 'Free Issue') {
-      const pin = document.getElementById('fInvOverridePin')?.value.trim() || '';
-      const errEl = document.getElementById('fInvOverridePinError');
-      if (!pin) {
-        if (errEl) errEl.textContent = 'Login PIN is required to issue invoice for an overdue customer.';
-        showToast('Blocked: Customer has unpaid invoices past Due Date. Enter Login PIN to issue!');
-        document.getElementById('fInvOverridePin')?.focus();
-        return;
-      }
-      try {
-        await gas('authenticateUser', state.user.UserId, pin);
-      } catch (e) {
-        if (errEl) errEl.textContent = 'Invalid Login PIN / Password. Invoice blocked.';
-        showToast('Invalid Login PIN! Override blocked.');
-        return;
+    // Customer overdue check (exclude invoice currently being edited)
+    if (custId && status !== 'Draft' && status !== 'Cancelled' && status !== 'Free Issue') {
+      const unpaidOther = (state.data.invoices || []).filter(i =>
+        i.CustomerId === custId &&
+        i.InvoiceId !== invoiceId &&
+        i.Status !== 'Paid' && i.Status !== 'Cancelled' && i.Status !== 'Draft' && i.Status !== 'Free Issue' &&
+        (Number(i.Total || 0) - Number(i.PaidAmount || 0)) > 0 &&
+        daysBetween(i.DueDate || i.Date, state.data.today) > 0
+      );
+      if (unpaidOther.length > 0) {
+        const pin = document.getElementById('fInvOverridePin')?.value.trim() || '';
+        const errEl = document.getElementById('fInvOverridePinError');
+        if (!pin) {
+          if (errEl) errEl.textContent = 'Login PIN is required to issue invoice for an overdue customer.';
+          showToast('Blocked: Customer has unpaid invoices past Due Date. Enter Login PIN to issue!');
+          document.getElementById('fInvOverridePin')?.focus();
+          return;
+        }
+        try {
+          await gas('authenticateUser', state.user.UserId, pin);
+        } catch (e) {
+          if (errEl) errEl.textContent = 'Invalid Login PIN / Password. Invoice blocked.';
+          showToast('Invalid Login PIN! Override blocked.');
+          return;
+        }
       }
     }
 
@@ -3398,34 +3410,44 @@
 
     const dispatchVal = document.getElementById('fInvDispatch')?.value || 'Yes';
     const dispatchedBy = document.getElementById('fInvDispatchedBy')?.value.trim() || '';
+    let dispatchStatus = (dispatchVal === 'No') ? 'Not Dispatched' : 'Dispatched';
+
+    const companyId = document.getElementById('fInvCompany')?.value || (state.data.companyProfiles || [])[0]?.CompanyId || '';
+    let assignedInvNo = document.getElementById('fInvNo')?.value.trim();
+    if (!assignedInvNo) {
+      assignedInvNo = existing ? existing.InvoiceNo : generateNextInvoiceNo(companyId);
+    }
+    const finalInvId = invoiceId || ('INV-' + Date.now() + '-' + Math.floor(Math.random() * 1000));
 
     const payload = {
       invoice: {
-        InvoiceId: invoiceId || '',
-        InvoiceNo: existing ? existing.InvoiceNo : '',
-        CompanyId: document.getElementById('fInvCompany')?.value || '',
+        InvoiceId: finalInvId,
+        InvoiceNo: assignedInvNo,
+        CompanyId: companyId,
         CustomerId: custId,
         CustomerName: custName || (cust ? cust.Name : (custId ? 'Customer' : 'Walk-in Customer')),
         CustomerAddress: document.getElementById('fInvCustAddr')?.value || (cust ? (cust.BillingAddress || cust.DeliveryAddress || '') : ''),
         CustomerPhone: document.getElementById('fInvCustPhone')?.value || (cust ? (cust.Phone || '') : ''),
         QuoteNo: document.getElementById('fInvQuote')?.value || '',
-        SalesPerson: spVal,
+        SalesPerson: (status === 'Free Issue') ? '' : spVal,
         BankDetails: document.getElementById('fInvBank')?.value || '',
-        Date: document.getElementById('fInvDate').value,
-        DueDate: document.getElementById('fInvDue').value,
+        Date: document.getElementById('fInvDate')?.value || state.data.today,
+        DueDate: document.getElementById('fInvDue')?.value || state.data.today,
         Status: status,
         Subtotal: sub,
         Discount: disc,
         TaxAmount: tax,
         Total: total,
         PaidAmount: finalPaid,
-        Notes: document.getElementById('fInvNotes').value,
-        DispatchStatus: (dispatchVal === 'No') ? 'Not Dispatched' : 'Dispatched',
-        DispatchedDate: (dispatchVal === 'No') ? '' : (document.getElementById('fInvDate')?.value || state.data.today),
+        Notes: document.getElementById('fInvNotes')?.value || '',
+        DispatchStatus: dispatchStatus,
+        DispatchedDate: (dispatchStatus === 'Not Dispatched') ? '' : (document.getElementById('fInvDate')?.value || state.data.today),
         DispatchedBy: dispatchedBy,
         CreatedBy: state.user.Name
       },
-      items: _invLines.filter(l => (l.ItemName || '').trim() !== '').map(l => ({
+      items: _invLines.filter(l => (l.ItemName || '').trim() !== '').map((l, idx) => ({
+        LineId: l.LineId || ('LN-' + Date.now() + '-' + idx),
+        InvoiceId: finalInvId,
         ItemId: l.ItemId || '',
         ItemCode: l.ItemCode || '',
         ItemName: l.ItemName || '',
@@ -3436,9 +3458,12 @@
       }))
     };
 
-    // 1. Stock Availability Check & Deduction
-    if (payload.invoice.DispatchStatus === 'Dispatched' && status !== 'Draft' && status !== 'Cancelled') {
-      // Validate available stock for each line item
+    // 1. Stock Availability Check
+    if (dispatchStatus === 'Dispatched' && status !== 'Draft' && status !== 'Cancelled') {
+      const existingItems = invoiceId ? (state.data.invoiceItems || []).filter(li => li.InvoiceId === invoiceId) : [];
+      let insufficientStock = false;
+      let insufficientMsg = '';
+
       for (const li of payload.items) {
         const invItem = state.data.inventory.find(x => 
           (li.ItemId && x.ItemId === li.ItemId) ||
@@ -3446,29 +3471,61 @@
           (li.ItemName && x.Name && String(x.Name).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
         );
         const avail = invItem ? (Number(invItem.StockQty) || 0) : 0;
+        let oldQty = 0;
+        if (existing && existing.DispatchStatus === 'Dispatched') {
+          const oldLi = existingItems.find(x => 
+            (li.ItemId && x.ItemId === li.ItemId) ||
+            (li.ItemCode && x.ItemCode && String(x.ItemCode).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase()) ||
+            (li.ItemName && x.ItemName && String(x.ItemName).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
+          );
+          oldQty = oldLi ? (Number(oldLi.Qty) || 0) : 0;
+        }
+        const effectiveAvail = avail + oldQty;
         const req = Number(li.Qty) || 0;
-        if (req > avail) {
-          alert(`Cannot issue sales invoice: Insufficient warehouse stock!\n\nProduct: ${li.ItemName || li.ItemCode}\nAvailable in Stock: ${avail} ${invItem ? (invItem.Unit || '') : ''}\nRequested on Invoice: ${req}\n\nPlease reduce the quantity or select "Dispatch Status: No" to save without immediate dispatch.`);
-          return;
+        if (req > effectiveAvail) {
+          insufficientStock = true;
+          insufficientMsg = `Insufficient warehouse stock for "${li.ItemName || li.ItemCode}"!\nAvailable: ${avail} ${invItem ? (invItem.Unit || '') : ''}\nRequested on Invoice: ${req}`;
+          break;
         }
       }
 
-      // Deduct quantities from inventory immediately
+      if (insufficientStock) {
+        const proceedNotDispatched = confirm(`${insufficientMsg}\n\nWould you like to save this order as "Not Dispatched" (Pending Dispatch from Factory)?\n\nClick OK to save as Not Dispatched, or Cancel to adjust quantity.`);
+        if (!proceedNotDispatched) return;
+        dispatchStatus = 'Not Dispatched';
+        payload.invoice.DispatchStatus = 'Not Dispatched';
+        payload.invoice.DispatchedDate = '';
+      }
+    }
+
+    // 2. Incremental Stock Deduction for Dispatched Invoices
+    if (dispatchStatus === 'Dispatched' && status !== 'Draft' && status !== 'Cancelled') {
+      const existingItems = invoiceId ? (state.data.invoiceItems || []).filter(li => li.InvoiceId === invoiceId) : [];
       payload.items.forEach(li => {
         const invItem = state.data.inventory.find(x => 
           (li.ItemId && x.ItemId === li.ItemId) ||
           (li.ItemCode && x.SKU && String(x.SKU).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase()) ||
           (li.ItemName && x.Name && String(x.Name).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
         );
-        if (invItem) {
-          invItem.StockQty = Math.max(0, (Number(invItem.StockQty) || 0) - (Number(li.Qty) || 0));
+        let oldQty = 0;
+        if (existing && existing.DispatchStatus === 'Dispatched') {
+          const oldLi = existingItems.find(x => 
+            (li.ItemId && x.ItemId === li.ItemId) ||
+            (li.ItemCode && x.ItemCode && String(x.ItemCode).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase()) ||
+            (li.ItemName && x.ItemName && String(x.ItemName).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
+          );
+          oldQty = oldLi ? (Number(oldLi.Qty) || 0) : 0;
+        }
+        const delta = (Number(li.Qty) || 0) - oldQty;
+        if (invItem && delta !== 0) {
+          invItem.StockQty = Math.max(0, (Number(invItem.StockQty) || 0) - delta);
           invItem.UpdatedAt = state.data.today;
           if (window.sbClient) window.sbClient.from('Inventory').upsert(invItem).then();
         }
       });
     }
 
-    // 2. Increment Next Invoice No in Company Profile & Settings
+    // 3. Increment Next Invoice No in Company Profile & Settings
     const comp = (state.data.companyProfiles || []).find(c => c.CompanyId === payload.invoice.CompanyId) || (state.data.companyProfiles || [])[0];
     const savedInvNum = extractLastNumber(payload.invoice.InvoiceNo);
     if (savedInvNum > 0) {
@@ -3484,43 +3541,35 @@
       }
     }
 
-    // 3. Save to Google Apps Script & Update Local Cache
-    let assignedInvNo = document.getElementById('fInvNo')?.value.trim();
-    if (!assignedInvNo || (!invoiceId && (state.data.invoices || []).some(i => String(i.InvoiceNo || '').trim().toLowerCase() === assignedInvNo.toLowerCase()))) {
-      assignedInvNo = generateNextInvoiceNo(payload.invoice.CompanyId);
+    // 4. Instant Optimistic Update (0ms)
+    if (invoiceId) {
+      const idx = (state.data.invoices || []).findIndex(i => i.InvoiceId === invoiceId);
+      if (idx !== -1) state.data.invoices[idx] = { ...payload.invoice };
+      else (state.data.invoices = state.data.invoices || []).unshift({ ...payload.invoice });
+    } else {
+      (state.data.invoices = state.data.invoices || []).unshift({ ...payload.invoice });
     }
-    payload.invoice.InvoiceNo = assignedInvNo;
+    state.data.invoiceItems = (state.data.invoiceItems || []).filter(li => li.InvoiceId !== finalInvId).concat(payload.items);
 
-    payload.invoice.InvoiceId = invoiceId || '';
-    if (status === 'Free Issue') {
-      payload.invoice.SalesPerson = '';
-      payload.invoice.PaidAmount = 0;
-    }
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
 
     closeModal();
-    showToast(invoiceId ? 'Saving invoice update...' : 'Issuing Sales Invoice...');
+    renderView();
+    showToast(invoiceId ? 'Sales Invoice updated successfully!' : 'Sales Invoice issued successfully!');
 
+    // 5. Asynchronous Server Persistence (Supabase + Google Apps Script)
     try {
       const saved = await gas('saveInvoice', payload);
       if (saved && saved.InvoiceId) {
-        payload.invoice = saved;
-        if (invoiceId) {
-          const idx = state.data.invoices.findIndex(i => i.InvoiceId === invoiceId);
-          if (idx !== -1) state.data.invoices[idx] = saved;
-        } else {
-          state.data.invoices.unshift(saved);
+        const idx = (state.data.invoices || []).findIndex(i => i.InvoiceId === finalInvId || i.InvoiceId === saved.InvoiceId);
+        if (idx !== -1) {
+          state.data.invoices[idx] = { ...state.data.invoices[idx], ...saved };
         }
-        state.data.invoiceItems = state.data.invoiceItems.filter(li => li.InvoiceId !== saved.InvoiceId).concat(
-          payload.items.map(li => ({ ...li, InvoiceId: saved.InvoiceId }))
-        );
+        try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+        renderView();
       }
-      try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
-      renderView();
-      showToast(invoiceId ? 'Sales Invoice updated successfully!' : 'Sales Invoice issued successfully! (Stock deducted)');
-      await refreshData();
     } catch (err) {
       console.error('saveInvoice sync error:', err);
-      showToast('Error saving invoice: ' + (err.message || err));
     }
   }
 
