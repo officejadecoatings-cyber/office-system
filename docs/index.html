@@ -865,7 +865,19 @@
   <script>
   const state = {
     user: null,
-    view: 'dashboard',
+    view: 'dash<div style="display:flex; align-items:center; gap:4px;">
+              <label style="font-size:12px; font-weight:700; margin:0;">To:</label>
+              <input type="date" value="${esc(_quotEndDate)}" onchange="_quotEndDate=this.value; renderQuotationView()" style="padding:4px 8px; font-size:12.5px;">
+            </div>
+            <div style="display:flex; align-items:center; gap:4px;">
+              <label style="font-size:12px; font-weight:700; color:var(--text); margin:0;">Company:</label>
+              <select onchange="_quotFilterCompany=this.value; renderQuotationView()" style="padding:4px 8px; font-size:12.5px; border:1px solid #cbd5e1; border-radius:6px; background:#fff;">
+                <option value="">All Companies</option>
+                ${(state.data.companyProfiles || []).map(cp => `<option value="${esc(cp.CompanyId)}" ${_quotFilterCompany === cp.CompanyId ? 'selected' : ''}>${esc(cp.CompanyName)}</option>`).join('')}
+              </select>
+            </div>
+            <input class="search-input" placeholder="Search quotation #, customer..." value="${esc(_quotSearch)}" oninput="_quotSearch=this.value; renderQuotationView()" style="width:240px; margin:0;">
+            ${(_quotStartDate || _quotEndDate || _quotSearch || _quotFilterCompany) ? `<button class="btn btn-sm btn-secondary" onclick="_quotStartDate=''; _quotEndDate=''; _quotSearch=''; _quotFilterCompany=''; renderQuotationView()">Reset</button>` : ''}oard',
     invTab: 'invoices',
     outTab: 'debtors',
     empTab: 'directory',
@@ -1441,10 +1453,6 @@
     if (typeof OfficeSupabase !== 'undefined' && OfficeSupabase.isReady()) {
       if (fnName === 'getAppData') {
         return OfficeSupabase.fetchAll()
-          .then(data => {
-            backgroundSyncToGas(fnName, args);
-            return data;
-          })
           .catch(err => {
             console.warn('Supabase fetch failed, falling back to GAS:', err);
             return callGasDirect(fnName, args);
@@ -1867,7 +1875,7 @@
       if (_syncSecondsLeft <= 0) {
         _syncSecondsLeft = 300;
         if (state.user) {
-          await refreshData(true);
+          await refreshData(false, /* silent */ true);
         }
       }
       const m = Math.floor(_syncSecondsLeft / 60);
@@ -1945,7 +1953,7 @@
     const isMgr = state.user && state.user.Role === 'Manager';
 
     const titles = {
-      dashboard: isMgr ? 'Manager Sales & Performance' : 'Dashboard',
+      dashboard: 'Executive Decision Dashboard',
       sales: 'Sales Performance & Team Rankings',
       invoices: 'Sales Invoices',
       quotation: 'Quotation',
@@ -2032,104 +2040,661 @@
    * 1. Dashboard
    * ======================================================================== */
 
+  /* ==========================================================================
+   * 1. Executive Decision Dashboard (Advanced Cross-Module Analytics & Visual Charts)
+   * ======================================================================== */
+
+  let _dashState = {
+    preset: 'thisMonth',
+    start: '',
+    end: ''
+  };
+
+  function setDashDatePreset(preset) {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${y}-${m}-${d}`;
+    _dashState.preset = preset;
+
+    if (preset === 'today') {
+      _dashState.start = todayStr;
+      _dashState.end = todayStr;
+    } else if (preset === 'thisMonth') {
+      _dashState.start = `${y}-${m}-01`;
+      _dashState.end = todayStr;
+    } else if (preset === 'last30') {
+      const past = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      _dashState.start = past.toISOString().slice(0, 10);
+      _dashState.end = todayStr;
+    } else if (preset === 'thisQuarter') {
+      const qMonth = Math.floor(now.getMonth() / 3) * 3;
+      const qStart = new Date(y, qMonth, 1);
+      _dashState.start = qStart.toISOString().slice(0, 10);
+      _dashState.end = todayStr;
+    } else if (preset === 'thisYear') {
+      _dashState.start = `${y}-01-01`;
+      _dashState.end = todayStr;
+    } else if (preset === 'all') {
+      _dashState.start = '';
+      _dashState.end = '';
+    }
+    renderDashboard();
+  }
+
+  function onDashCustomDateChange() {
+    const s = document.getElementById('dashStartDate')?.value || '';
+    const e = document.getElementById('dashEndDate')?.value || '';
+    _dashState.preset = 'custom';
+    _dashState.start = s;
+    _dashState.end = e;
+    renderDashboard();
+  }
+
   function renderDashboard() {
-    if (state.user && state.user.Role === 'Manager') {
-      renderManagerSalesView();
-      return;
+    ensureDataDefaults();
+    const today = state.data.today || new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+
+    if (!_dashState.start && !_dashState.end && _dashState.preset === 'thisMonth') {
+      _dashState.start = `${y}-${m}-01`;
+      _dashState.end = today;
     }
 
-    const { invoices, transactions, inventory, tasks, attendance, today } = state.data;
-    const totalIncome = transactions.filter(t => t.Type === 'Income').reduce((s, t) => s + Number(t.Amount || 0), 0);
-    const totalExpense = transactions.filter(t => t.Type === 'Expense').reduce((s, t) => s + Number(t.Amount || 0), 0);
-    const pendingInv = invoices.filter(i => i.Status !== 'Cancelled' && getInvOutstandingPending(i) > 0);
-    const pendingSum = invoices.reduce((s, i) => s + getInvOutstandingPending(i), 0);
-    const lowStock = inventory.filter(i => Number(i.StockQty) <= Number(i.ReorderLevel));
-    const openTasks = tasks.filter(t => t.Status !== 'Done');
+    const invoices = state.data.invoices || [];
+    const quotations = state.data.quotations || [];
+    const inventory = state.data.inventory || [];
+    const transactions = state.data.transactions || [];
+    const attendance = state.data.attendance || [];
+    const leaves = state.data.leaves || [];
+    const employees = state.data.employees || [];
+    const callReports = state.data.callReports || [];
+    const projectReports = state.data.projectReports || [];
+    const users = state.data.users || [];
+
+    // Date range filter helper
+    const inDateRange = (dt) => {
+      if (!dt) return false;
+      const d = dt.slice(0, 10);
+      if (_dashState.start && d < _dashState.start) return false;
+      if (_dashState.end && d > _dashState.end) return false;
+      return true;
+    };
+
+    // 1. Invoices & Sales Metrics
+    const periodInvoices = invoices.filter(i => i.Status !== 'Cancelled' && inDateRange(i.Date));
+    const allActiveInvoices = invoices.filter(i => i.Status !== 'Cancelled');
+    const totalSales = getNetSales(periodInvoices);
+    const totalCollected = periodInvoices.reduce((s, i) => s + (i.Status === 'Paid' ? Number(i.Total || 0) : Number(i.PaidAmount || 0)), 0);
+    const collectionRate = totalSales > 0 ? Math.min(100, Math.round((totalCollected / totalSales) * 100)) : 0;
+
+    // Outstanding & Aging
+    const totalOutstandingAll = allActiveInvoices.reduce((s, i) => s + getInvOutstandingPending(i), 0);
+    const periodOutstanding = periodInvoices.reduce((s, i) => s + getInvOutstandingPending(i), 0);
+    const overdueInvoices = allActiveInvoices.filter(i => getInvOutstandingPending(i) > 0 && daysBetween(i.DueDate || i.Date, today) > 0);
+    const totalOverdue = overdueInvoices.reduce((s, i) => s + getInvOutstandingPending(i), 0);
+
+    let aging0_30 = 0, aging31_60 = 0, aging61_90 = 0, aging90Plus = 0;
+    allActiveInvoices.forEach(i => {
+      const pending = getInvOutstandingPending(i);
+      if (pending <= 0) return;
+      const days = Math.max(0, daysBetween(i.Date || today, today));
+      if (days <= 30) aging0_30 += pending;
+      else if (days <= 60) aging31_60 += pending;
+      else if (days <= 90) aging61_90 += pending;
+      else aging90Plus += pending;
+    });
+
+    // 2. Inventory Health & Valuation
+    const totalStockValuation = inventory.reduce((s, it) => s + (Number(it.StockQty || 0) * (Number(it.CostPrice || it.UnitPrice || 0))), 0);
+    const healthyStock = inventory.filter(it => Number(it.StockQty || 0) > Number(it.ReorderLevel || 0));
+    const lowStock = inventory.filter(it => Number(it.StockQty || 0) <= Number(it.ReorderLevel || 0) && Number(it.StockQty || 0) > 0);
+    const outOfStock = inventory.filter(it => Number(it.StockQty || 0) <= 0);
+
+    const catMap = {};
+    inventory.forEach(it => {
+      const cat = it.Category || 'General Products';
+      const val = Number(it.StockQty || 0) * (Number(it.CostPrice || it.UnitPrice || 0));
+      catMap[cat] = (catMap[cat] || 0) + val;
+    });
+    const topCategories = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+    // 3. Operating Cash Flow (Petty Cash / Transactions)
+    const periodTx = transactions.filter(t => inDateRange(t.Date));
+    const periodIncome = periodTx.filter(t => t.Type === 'Income').reduce((s, t) => s + Number(t.Amount || 0), 0);
+    const periodExpense = periodTx.filter(t => t.Type === 'Expense').reduce((s, t) => s + Number(t.Amount || 0), 0);
+    const netCashFlow = periodIncome - periodExpense;
+
+    // 4. Quotations Funnel
+    const periodQuotes = quotations.filter(q => inDateRange(q.Date));
+    const totalQuotesValue = periodQuotes.reduce((s, q) => s + Number(q.Total || 0), 0);
+    const approvedQuotes = periodQuotes.filter(q => q.Status === 'Approved' || q.Status === 'Converted');
+    const quoteWinRate = periodQuotes.length > 0 ? Math.round((approvedQuotes.length / periodQuotes.length) * 100) : 0;
+
+    // 5. Workforce Attendance & Leave
+    const activeEmployees = employees.filter(e => e.Status !== 'Inactive');
     const todayAtt = attendance.filter(a => a.Date === today);
+    const attRate = activeEmployees.length > 0 ? Math.round((todayAtt.length / activeEmployees.length) * 100) : 0;
+    const leavesToday = leaves.filter(l => l.Status === 'Approved' && (!l.StartDate || l.StartDate <= today) && (!l.EndDate || l.EndDate >= today));
+
+    // 6. Top Sales Persons Performance
+    const spMap = {};
+    periodInvoices.forEach(i => {
+      const isFree = (i.Status === 'Free Issue');
+      const retAmt = Number(i.ReturnAmount || 0);
+      const tokAmt = Number(i.TokenAmount || 0);
+      const invAmt = isFree ? 0 : Math.max(0, Number(i.Total || 0) - retAmt - tokAmt);
+      const paidAmt = Number(i.PaidAmount || 0);
+      const rawSp = (i.SalesPerson || 'Unassigned').trim();
+      const emp = employees.find(e => (e.Name && e.Name.trim().toLowerCase() === rawSp.toLowerCase()) || (e.UserName && e.UserName.trim().toLowerCase() === rawSp.toLowerCase())) ||
+                  employees.find(e => e.EmployeeId === rawSp);
+      const displayName = emp ? (emp.UserName || emp.Name) : rawSp;
+      const target = Number(emp ? emp.SalesTarget : 0) || 0;
+      const collTarget = Number(emp ? emp.CollectionTarget : 0) || 0;
+
+      if (!spMap[displayName]) spMap[displayName] = { name: displayName, sales: 0, collection: 0, count: 0, target: target, collTarget: collTarget };
+      spMap[displayName].sales += invAmt;
+      spMap[displayName].collection += paidAmt;
+      spMap[displayName].count++;
+    });
+    const topSalesPersons = Object.values(spMap).sort((a, b) => b.sales - a.sales).slice(0, 5);
+
+    // 7. Operations Tracking (Call Reports & Projects)
+    const periodCalls = callReports.filter(c => inDateRange(c.Date));
+    const activeProjects = projectReports.filter(p => p.Status !== 'Completed' && p.Status !== 'Cancelled');
+
+    // Build Revenue & Collections Trend SVG Chart
+    const trendSvg = renderDashTrendChartSvg(periodInvoices);
+
+    // Build Donut Chart for Stock
+    const totalItemsCount = inventory.length || 1;
+    const healthyPct = Math.round((healthyStock.length / totalItemsCount) * 100);
+    const lowPct = Math.round((lowStock.length / totalItemsCount) * 100);
+    const outPct = Math.round((outOfStock.length / totalItemsCount) * 100);
+    const stockDonutSvg = renderDashStockDonutSvg(healthyPct, lowPct, outPct);
+
+    // Presets Active Helper
+    const isP = (p) => (_dashState.preset === p ? 'background:var(--primary); color:#fff; border-color:var(--primary); font-weight:700;' : 'background:#fff; color:var(--text); border-color:#cbd5e1;');
+
+    const rangeLabel = (_dashState.start && _dashState.end) 
+      ? `${_dashState.start} to ${_dashState.end}` 
+      : (_dashState.start ? `From ${_dashState.start}` : (_dashState.end ? `Up to ${_dashState.end}` : 'All Recorded History'));
 
     document.getElementById('mainContent').innerHTML = `
-      <!-- Quick Action / Manager Performance Banner -->
-      <div class="card" style="margin-bottom:14px; background:#f0fdf4; border:1px solid #bbf7d0; padding:12px 16px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <!-- Executive Filter Bar -->
+      <div class="card" style="margin-bottom:18px; padding:16px 20px; border-left:5px solid var(--primary); background:linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
           <div>
-            <h3 style="margin:0; font-size:15px; color:#166534;">📈 Sales Performance &amp; Team Rankings</h3>
-            <div style="font-size:12px; color:#15803d; margin-top:2px;">Filter period sales, collections, and view sales person performance rankings.</div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:22px;">🏛️</span>
+              <h2 style="margin:0; font-size:18px; font-weight:800; color:#0f172a;">Executive Decision Dashboard</h2>
+              <span class="badge badge-success" style="font-size:11px; padding:3px 8px; border-radius:12px;">Real-Time Sync</span>
+            </div>
+            <div style="font-size:12.5px; color:#475569; margin-top:4px;">
+              Executive business metrics, financial cashflow, sales progress &amp; cross-department performance &bull; <b>Active Period:</b> <span style="color:var(--primary); font-weight:700;">${esc(rangeLabel)}</span>
+            </div>
           </div>
-          <div style="display:flex; gap:8px;">
-            <button class="btn btn-sm btn-primary" onclick="navigate('sales')">📊 View Sales Rankings</button>
-            <button class="btn btn-sm btn-secondary" onclick="navigate('settings')">🏢 Company Sequences</button>
+
+          <!-- Date Preset Buttons & Custom Pickers -->
+          <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
+            <div class="btn-group" style="display:inline-flex; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+              <button class="btn btn-sm" onclick="setDashDatePreset('today')" style="${isP('today')} padding:6px 10px; font-size:11.5px;">Today</button>
+              <button class="btn btn-sm" onclick="setDashDatePreset('thisMonth')" style="${isP('thisMonth')} padding:6px 10px; font-size:11.5px;">This Month</button>
+              <button class="btn btn-sm" onclick="setDashDatePreset('last30')" style="${isP('last30')} padding:6px 10px; font-size:11.5px;">Last 30 Days</button>
+              <button class="btn btn-sm" onclick="setDashDatePreset('thisQuarter')" style="${isP('thisQuarter')} padding:6px 10px; font-size:11.5px;">Quarter</button>
+              <button class="btn btn-sm" onclick="setDashDatePreset('thisYear')" style="${isP('thisYear')} padding:6px 10px; font-size:11.5px;">Year</button>
+              <button class="btn btn-sm" onclick="setDashDatePreset('all')" style="${isP('all')} padding:6px 10px; font-size:11.5px;">All Time</button>
+            </div>
+
+            <div style="display:inline-flex; align-items:center; gap:6px; background:#fff; padding:4px 8px; border-radius:8px; border:1px solid #cbd5e1;">
+              <span style="font-size:11px; font-weight:700; color:var(--muted);">Custom:</span>
+              <input type="date" id="dashStartDate" value="${esc(_dashState.start)}" onchange="onDashCustomDateChange()" style="padding:4px 6px; font-size:11px; border:1px solid #cbd5e1; border-radius:4px;">
+              <span style="font-size:11px; color:var(--muted);">&rarr;</span>
+              <input type="date" id="dashEndDate" value="${esc(_dashState.end)}" onchange="onDashCustomDateChange()" style="padding:4px 6px; font-size:11px; border:1px solid #cbd5e1; border-radius:4px;">
+              <button class="btn btn-sm btn-primary" onclick="onDashCustomDateChange()" style="padding:4px 8px; font-size:11px;">Filter</button>
+            </div>
+
+            <button class="btn btn-sm btn-secondary" onclick="refreshData(false, false)" title="Instant Refresh" style="padding:6px 10px; font-size:12px; display:inline-flex; align-items:center; gap:4px;">
+              🔄 Refresh
+            </button>
           </div>
         </div>
       </div>
 
-      <div class="kpi-grid">
-        <div class="card">
-          <div class="kpi-label">Net Balance</div>
-          <div class="kpi-val">${fmtMoney(totalIncome - totalExpense)}</div>
-          <div class="kpi-sub">Income: ${fmtMoney(totalIncome)}</div>
-        </div>
-        <div class="card">
-          <div class="kpi-label">Pending Invoices</div>
-          <div class="kpi-val">${fmtMoney(pendingSum)}</div>
-          <div class="kpi-sub">${pendingInv.length} unpaid invoice(s)</div>
-        </div>
-        <div class="card">
-          <div class="kpi-label">Low Stock Alerts</div>
-          <div class="kpi-val" style="color:${lowStock.length ? 'var(--danger)' : 'var(--success)'}">${lowStock.length}</div>
-          <div class="kpi-sub">${inventory.length} total items tracked</div>
-        </div>
-        <div class="card">
-          <div class="kpi-label">Open Tasks</div>
-          <div class="kpi-val">${openTasks.length}</div>
-          <div class="kpi-sub">${todayAtt.length} / ${state.data.users.length} clocked in today</div>
-        </div>
-      </div>
-
-      <div class="two-col">
-        <div class="card">
-          <div class="section-header">
-            <h3>Recent Sales Invoices</h3>
-            <button class="btn btn-sm btn-primary" onclick="navigate('invoices'); openInvoiceModal()">+ New Sales Invoice</button>
+      <!-- 6 Executive KPI Metric Cards -->
+      <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:14px; margin-bottom:18px;">
+        <!-- KPI 1: Invoiced Revenue -->
+        <div class="card" style="border-top:4px solid #10b981; position:relative;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div class="kpi-label">Invoiced Revenue</div>
+            <span style="font-size:18px;">💰</span>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>No</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead>
-              <tbody>
-                ${invoices.slice(-5).reverse().map(i => `
-                  <tr>
-                    <td><b>${esc(i.InvoiceNo)}</b></td>
-                    <td>${esc(i.CustomerName)}</td>
-                    <td>${fmtMoney(i.Total)}</td>
-                    <td>${statusBadge(i.Status)}</td>
-                  </tr>
-                `).join('') || '<tr><td colspan="4" style="color:var(--muted)">No sales invoices yet.</td></tr>'}
-              </tbody>
-            </table>
+          <div class="kpi-val" style="color:#0f172a; font-size:22px; font-weight:800; margin:6px 0 2px 0;">${fmtMoney(totalSales)}</div>
+          <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted);">
+            <span>${periodInvoices.length} Sales Invoice(s)</span>
+            <span style="color:#10b981; font-weight:700;">In Selected Range</span>
           </div>
         </div>
 
-        <div class="card">
-          <div class="section-header">
-            <h3>Low Stock Items</h3>
-            <button class="btn btn-sm btn-secondary" onclick="navigate('inventory')">View All</button>
+        <!-- KPI 2: Cash Collections -->
+        <div class="card" style="border-top:4px solid #3b82f6; position:relative;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div class="kpi-label">Cash Collected</div>
+            <span style="font-size:18px;">💵</span>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>SKU</th><th>Item</th><th>Stock</th><th>Reorder</th></tr></thead>
-              <tbody>
-                ${lowStock.slice(0, 6).map(i => `
-                  <tr>
-                    <td>${esc(i.SKU)}</td>
-                    <td>${esc(i.Name)}</td>
-                    <td><span class="badge badge-danger">${i.StockQty} ${esc(i.Unit)}</span></td>
-                    <td>${i.ReorderLevel}</td>
-                  </tr>
-                `).join('') || '<tr><td colspan="4" style="color:var(--muted)">All stock levels are healthy.</td></tr>'}
-              </tbody>
-            </table>
+          <div class="kpi-val" style="color:#2563eb; font-size:22px; font-weight:800; margin:6px 0 2px 0;">${fmtMoney(totalCollected)}</div>
+          <div style="margin-top:6px;">
+            <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:3px;">
+              <span style="color:var(--muted);">Recovery Rate:</span>
+              <span style="font-weight:700; color:#2563eb;">${collectionRate}%</span>
+            </div>
+            <div style="width:100%; height:6px; background:#e2e8f0; border-radius:4px; overflow:hidden;">
+              <div style="width:${collectionRate}%; height:100%; background:#3b82f6; border-radius:4px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI 3: Outstanding Receivables -->
+        <div class="card" style="border-top:4px solid #f59e0b; position:relative;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div class="kpi-label">Outstanding Receivables</div>
+            <span style="font-size:18px;">⏳</span>
+          </div>
+          <div class="kpi-val" style="color:#d97706; font-size:22px; font-weight:800; margin:6px 0 2px 0;">${fmtMoney(totalOutstandingAll)}</div>
+          <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted);">
+            <span>Overdue Risk: <b style="color:#ef4444;">${fmtMoney(totalOverdue)}</b></span>
+            <span>${overdueInvoices.length} Overdue</span>
+          </div>
+        </div>
+
+        <!-- KPI 4: Stock Valuation -->
+        <div class="card" style="border-top:4px solid #8b5cf6; position:relative;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div class="kpi-label">Stock Valuation (Asset)</div>
+            <span style="font-size:18px;">📦</span>
+          </div>
+          <div class="kpi-val" style="color:#7c3aed; font-size:22px; font-weight:800; margin:6px 0 2px 0;">${fmtMoney(totalStockValuation)}</div>
+          <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted);">
+            <span>${inventory.length} SKUs Tracked</span>
+            <span style="color:${lowStock.length > 0 ? '#ef4444' : '#10b981'}; font-weight:700;">${lowStock.length} Low / ${outOfStock.length} Out</span>
+          </div>
+        </div>
+
+        <!-- KPI 5: Operating Cash Flow -->
+        <div class="card" style="border-top:4px solid ${netCashFlow >= 0 ? '#10b981' : '#ef4444'}; position:relative;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div class="kpi-label">Petty Cash Net Flow</div>
+            <span style="font-size:18px;">🧾</span>
+          </div>
+          <div class="kpi-val" style="color:${netCashFlow >= 0 ? '#10b981' : '#ef4444'}; font-size:22px; font-weight:800; margin:6px 0 2px 0;">${fmtMoney(netCashFlow)}</div>
+          <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted);">
+            <span>In: ${fmtMoney(periodIncome)}</span>
+            <span>Out: ${fmtMoney(periodExpense)}</span>
+          </div>
+        </div>
+
+        <!-- KPI 6: Workforce Attendance -->
+        <div class="card" style="border-top:4px solid #06b6d4; position:relative;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div class="kpi-label">Workforce Pulse</div>
+            <span style="font-size:18px;">👥</span>
+          </div>
+          <div class="kpi-val" style="color:#0891b2; font-size:22px; font-weight:800; margin:6px 0 2px 0;">${attRate}% Present</div>
+          <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted);">
+            <span>${todayAtt.length} / ${activeEmployees.length} Clocked In</span>
+            <span style="color:#f59e0b; font-weight:600;">${leavesToday.length} On Leave</span>
           </div>
         </div>
       </div>
+
+      <!-- Visual Charts Section (Row 1: Revenue Trends & Sales Person Attainment) -->
+      <div class="two-col" style="grid-template-columns: 1.4fr 1fr; gap:16px; margin-bottom:18px;">
+        <!-- Chart 1: Revenue vs Collections Trend -->
+        <div class="card" style="padding:18px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <div>
+              <h3 style="margin:0; font-size:15px; font-weight:800; color:#0f172a;">📊 Sales Revenue &amp; Collections Trend</h3>
+              <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">Dynamic timeline progression for the selected date range</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px; font-size:11px;">
+              <span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px; height:10px; background:#10b981; border-radius:2px;"></span> Invoiced Sales</span>
+              <span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px; height:10px; background:#3b82f6; border-radius:2px;"></span> Collections</span>
+            </div>
+          </div>
+          <div style="width:100%; overflow-x:auto;">
+            ${trendSvg}
+          </div>
+        </div>
+
+        <!-- Chart 2: Top Sales Persons Performance & Target Achievement -->
+        <div class="card" style="padding:18px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <div>
+              <h3 style="margin:0; font-size:15px; font-weight:800; color:#0f172a;">🏆 Sales Person Performance Rankings</h3>
+              <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">Target attainment based on user names in period</div>
+            </div>
+            <button class="btn btn-sm btn-secondary" onclick="navigate('sales')" style="padding:3px 8px; font-size:11px;">Full Table</button>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            ${topSalesPersons.length > 0 ? topSalesPersons.map((sp, idx) => {
+              const medals = ['🥇', '🥈', '🥉', '#4', '#5'];
+              const salesPct = sp.target > 0 ? Math.min(100, Math.round((sp.sales / sp.target) * 100)) : 0;
+              const collPct = sp.collTarget > 0 ? Math.min(100, Math.round((sp.collection / sp.collTarget) * 100)) : 0;
+              return `
+                <div style="padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <span style="font-size:14px; font-weight:700;">${medals[idx] || '#' + (idx+1)}</span>
+                      <b style="font-size:13px; color:#0f172a;">${esc(sp.name)}</b>
+                      <span style="font-size:11px; color:var(--muted);">(${sp.count} inv)</span>
+                    </div>
+                    <div style="text-align:right;">
+                      <div style="font-weight:700; font-size:13px; color:#10b981;">${fmtMoney(sp.sales)}</div>
+                      <div style="font-size:11px; color:#3b82f6;">Coll: ${fmtMoney(sp.collection)}</div>
+                    </div>
+                  </div>
+                  <!-- Progress bars -->
+                  <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+                    <span style="font-size:10.5px; color:var(--muted); width:65px;">Sales Target:</span>
+                    <div style="flex:1; height:6px; background:#e2e8f0; border-radius:3px; overflow:hidden;">
+                      <div style="width:${salesPct}%; height:100%; background:#10b981; border-radius:3px;"></div>
+                    </div>
+                    <span style="font-size:10.5px; font-weight:700; color:#10b981; width:35px; text-align:right;">${sp.target > 0 ? salesPct + '%' : '-'}</span>
+                  </div>
+                </div>
+              `;
+            }).join('') : '<div style="color:var(--muted); font-size:12px; padding:20px; text-align:center;">No sales invoices in the selected period.</div>'}
+          </div>
+        </div>
+      </div>
+
+      <!-- Visual Charts Section (Row 2: Stock Health & Debtors Aging Spectrum) -->
+      <div class="two-col" style="grid-template-columns: 1fr 1.2fr; gap:16px; margin-bottom:18px;">
+        <!-- Chart 3: Stock Health Donut & Category Distribution -->
+        <div class="card" style="padding:18px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <div>
+              <h3 style="margin:0; font-size:15px; font-weight:800; color:#0f172a;">📦 Stock Valuation &amp; Health</h3>
+              <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">Asset distribution and reorder alerts</div>
+            </div>
+            <button class="btn btn-sm btn-secondary" onclick="navigate('inventory')" style="padding:3px 8px; font-size:11px;">Stock List</button>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-around; flex-wrap:wrap; gap:14px; margin-bottom:12px;">
+            <div style="width:130px; height:130px; position:relative;">
+              ${stockDonutSvg}
+              <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); text-align:center;">
+                <div style="font-size:16px; font-weight:800; color:#0f172a;">${inventory.length}</div>
+                <div style="font-size:10px; color:var(--muted);">Total SKUs</div>
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:6px; font-size:12px;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="width:10px; height:10px; background:#10b981; border-radius:50%;"></span>
+                <span>Healthy Levels: <b>${healthyStock.length}</b> (${healthyPct}%)</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="width:10px; height:10px; background:#f59e0b; border-radius:50%;"></span>
+                <span>Low Stock: <b>${lowStock.length}</b> (${lowPct}%)</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="width:10px; height:10px; background:#ef4444; border-radius:50%;"></span>
+                <span>Out of Stock: <b>${outOfStock.length}</b> (${outPct}%)</span>
+              </div>
+            </div>
+          </div>
+          <!-- Category breakdown progress -->
+          <div style="border-top:1px solid #f1f5f9; padding-top:10px;">
+            <div style="font-size:12px; font-weight:700; color:#475569; margin-bottom:6px;">Top Asset Categories:</div>
+            ${topCategories.map(([cat, val]) => {
+              const catPct = totalStockValuation > 0 ? Math.round((val / totalStockValuation) * 100) : 0;
+              return `
+                <div style="margin-bottom:6px;">
+                  <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:2px;">
+                    <span style="color:#0f172a; font-weight:600;">${esc(cat)}</span>
+                    <span style="color:var(--muted);">${fmtMoney(val)} (${catPct}%)</span>
+                  </div>
+                  <div style="width:100%; height:5px; background:#f1f5f9; border-radius:3px; overflow:hidden;">
+                    <div style="width:${catPct}%; height:100%; background:#8b5cf6; border-radius:3px;"></div>
+                  </div>
+                </div>
+              `;
+            }).join('') || '<div style="font-size:11px; color:var(--muted);">No category data</div>'}
+          </div>
+        </div>
+
+        <!-- Chart 4: Debtors Aging Spectrum & Liquidity Risk Analysis -->
+        <div class="card" style="padding:18px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <div>
+              <h3 style="margin:0; font-size:15px; font-weight:800; color:#0f172a;">⏳ Debtors Aging &amp; Recovery Spectrum</h3>
+              <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">Liquidity risk breakdown across overdue buckets</div>
+            </div>
+            <button class="btn btn-sm btn-secondary" onclick="navigate('outstanding')" style="padding:3px 8px; font-size:11px;">Debtors</button>
+          </div>
+
+          <!-- Segmented Aging Spectrum Bar -->
+          <div style="margin-bottom:14px;">
+            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:6px;">
+              <span style="color:var(--muted);">Total Outstanding Portfolio:</span>
+              <span style="font-weight:800; color:#0f172a;">${fmtMoney(totalOutstandingAll)}</span>
+            </div>
+            <div style="width:100%; height:12px; background:#e2e8f0; border-radius:6px; overflow:hidden; display:flex;">
+              ${totalOutstandingAll > 0 ? `
+                <div style="width:${(aging0_30 / totalOutstandingAll) * 100}%; background:#10b981;" title="Current (0-30d): ${fmtMoney(aging0_30)}"></div>
+                <div style="width:${(aging31_60 / totalOutstandingAll) * 100}%; background:#3b82f6;" title="Due Soon (31-60d): ${fmtMoney(aging31_60)}"></div>
+                <div style="width:${(aging61_90 / totalOutstandingAll) * 100}%; background:#f59e0b;" title="Overdue (61-90d): ${fmtMoney(aging61_90)}"></div>
+                <div style="width:${(aging90Plus / totalOutstandingAll) * 100}%; background:#ef4444;" title="Critical (>90d): ${fmtMoney(aging90Plus)}"></div>
+              ` : '<div style="width:100%; background:#10b981;"></div>'}
+            </div>
+          </div>
+
+          <!-- 4 Bucket Cards -->
+          <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-bottom:12px;">
+            <div style="padding:8px 10px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px;">
+              <div style="font-size:11px; font-weight:700; color:#166534;">🟢 0 - 30 Days (Current)</div>
+              <div style="font-size:14px; font-weight:800; color:#166534; margin-top:2px;">${fmtMoney(aging0_30)}</div>
+            </div>
+            <div style="padding:8px 10px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px;">
+              <div style="font-size:11px; font-weight:700; color:#1e40af;">🔵 31 - 60 Days (Due Soon)</div>
+              <div style="font-size:14px; font-weight:800; color:#1e40af; margin-top:2px;">${fmtMoney(aging31_60)}</div>
+            </div>
+            <div style="padding:8px 10px; background:#fffbeb; border:1px solid #fde68a; border-radius:6px;">
+              <div style="font-size:11px; font-weight:700; color:#92400e;">🟠 61 - 90 Days (Overdue)</div>
+              <div style="font-size:14px; font-weight:800; color:#92400e; margin-top:2px;">${fmtMoney(aging61_90)}</div>
+            </div>
+            <div style="padding:8px 10px; background:#fef2f2; border:1px solid #fecaca; border-radius:6px;">
+              <div style="font-size:11px; font-weight:700; color:#991b1b;">🔴 90+ Days (Critical)</div>
+              <div style="font-size:14px; font-weight:800; color:#991b1b; margin-top:2px;">${fmtMoney(aging90Plus)}</div>
+            </div>
+          </div>
+
+          <!-- Top Critical Debtors list -->
+          <div style="border-top:1px solid #f1f5f9; padding-top:8px;">
+            <div style="font-size:12px; font-weight:700; color:#475569; margin-bottom:6px;">Critical Overdue Accounts:</div>
+            ${overdueInvoices.slice(0, 3).map(inv => `
+              <div style="display:flex; justify-content:space-between; font-size:11.5px; padding:3px 0; border-bottom:1px dashed #f1f5f9;">
+                <span><b>${esc(inv.CustomerName)}</b> (${esc(inv.InvoiceNo)})</span>
+                <span style="color:#ef4444; font-weight:700;">${fmtMoney(getInvOutstandingPending(inv))}</span>
+              </div>
+            `).join('') || '<div style="font-size:11px; color:#10b981;">No critical overdue accounts! All collections up to date.</div>'}
+          </div>
+        </div>
+      </div>
+
+      <!-- Cross-Department Operations Summary Grid -->
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px; margin-bottom:18px;">
+        <!-- Card 1: Quotations Pipeline -->
+        <div class="card" style="padding:14px 18px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <h4 style="margin:0; font-size:13.5px; font-weight:700; color:#0f172a;">📑 Quotation Pipeline</h4>
+            <button class="btn btn-sm btn-secondary" onclick="navigate('quotation')" style="padding:2px 6px; font-size:10px;">Quotes</button>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:baseline;">
+            <div style="font-size:18px; font-weight:800; color:#0f172a;">${periodQuotes.length} Quotes</div>
+            <div style="font-size:12.5px; font-weight:700; color:#10b981;">Win Rate: ${quoteWinRate}%</div>
+          </div>
+          <div style="font-size:11.5px; color:var(--muted); margin-top:3px;">
+            Pipeline Value: <b>${fmtMoney(totalQuotesValue)}</b> &bull; Approved: <b>${approvedQuotes.length}</b>
+          </div>
+        </div>
+
+        <!-- Card 2: Field Call Reports & Projects -->
+        <div class="card" style="padding:14px 18px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <h4 style="margin:0; font-size:13.5px; font-weight:700; color:#0f172a;">🏗️ Projects &amp; Field Visits</h4>
+            <button class="btn btn-sm btn-secondary" onclick="navigate('projectReport')" style="padding:2px 6px; font-size:10px;">Projects</button>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:baseline;">
+            <div style="font-size:18px; font-weight:800; color:#0f172a;">${activeProjects.length} Active Projects</div>
+            <div style="font-size:12.5px; font-weight:700; color:#3b82f6;">${periodCalls.length} Visits Logged</div>
+          </div>
+          <div style="font-size:11.5px; color:var(--muted); margin-top:3px;">
+            Field Operations &bull; ${projectReports.length} total projects tracked in system
+          </div>
+        </div>
+
+        <!-- Card 3: Financial Cash Book -->
+        <div class="card" style="padding:14px 18px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <h4 style="margin:0; font-size:13.5px; font-weight:700; color:#0f172a;">💼 Operating Petty Cash</h4>
+            <button class="btn btn-sm btn-secondary" onclick="navigate('pettyCash')" style="padding:2px 6px; font-size:10px;">Petty Cash</button>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:baseline;">
+            <div style="font-size:18px; font-weight:800; color:${netCashFlow >= 0 ? '#10b981' : '#ef4444'};">${fmtMoney(netCashFlow)}</div>
+            <div style="font-size:11.5px; font-weight:600; color:var(--muted);">${periodTx.length} Entries</div>
+          </div>
+          <div style="font-size:11.5px; color:var(--muted); margin-top:3px;">
+            Income: ${fmtMoney(periodIncome)} &bull; Expenses: ${fmtMoney(periodExpense)}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderDashStockDonutSvg(healthyPct, lowPct, outPct) {
+    const r = 50;
+    const c = 2 * Math.PI * r;
+    const healthyLen = (healthyPct / 100) * c;
+    const lowLen = (lowPct / 100) * c;
+    const outLen = (outPct / 100) * c;
+
+    const healthyOffset = 0;
+    const lowOffset = -healthyLen;
+    const outOffset = -(healthyLen + lowLen);
+
+    return `
+      <svg width="130" height="130" viewBox="0 0 130 130" style="transform:rotate(-90deg);">
+        <circle cx="65" cy="65" r="${r}" fill="transparent" stroke="#f1f5f9" stroke-width="14" />
+        <circle cx="65" cy="65" r="${r}" fill="transparent" stroke="#10b981" stroke-width="14" stroke-dasharray="${healthyLen} ${c - healthyLen}" stroke-dashoffset="${healthyOffset}" />
+        <circle cx="65" cy="65" r="${r}" fill="transparent" stroke="#f59e0b" stroke-width="14" stroke-dasharray="${lowLen} ${c - lowLen}" stroke-dashoffset="${lowOffset}" />
+        <circle cx="65" cy="65" r="${r}" fill="transparent" stroke="#ef4444" stroke-width="14" stroke-dasharray="${outLen} ${c - outLen}" stroke-dashoffset="${outOffset}" />
+      </svg>
+    `;
+  }
+
+  function renderDashTrendChartSvg(periodInvoices) {
+    if (!periodInvoices || periodInvoices.length === 0) {
+      return `
+        <div style="height:180px; display:flex; align-items:center; justify-content:center; flex-direction:column; color:var(--muted); font-size:12px;">
+          <span>📈 No invoice or collection transactions found in this date range.</span>
+          <span style="font-size:11px; margin-top:4px;">Change the date preset above or create a new invoice to view trends.</span>
+        </div>
+      `;
+    }
+
+    // Group invoices by date
+    const dateMap = {};
+    periodInvoices.forEach(i => {
+      const d = (i.Date || '').slice(0, 10);
+      if (!d) return;
+      if (!dateMap[d]) dateMap[d] = { sales: 0, coll: 0 };
+      const isFree = (i.Status === 'Free Issue');
+      const retAmt = Number(i.ReturnAmount || 0);
+      const tokAmt = Number(i.TokenAmount || 0);
+      const invAmt = isFree ? 0 : Math.max(0, Number(i.Total || 0) - retAmt - tokAmt);
+      const paidAmt = Number(i.PaidAmount || 0);
+      dateMap[d].sales += invAmt;
+      dateMap[d].coll += paidAmt;
+    });
+
+    const dates = Object.keys(dateMap).sort();
+    if (dates.length === 0) {
+      return '<div style="height:180px; text-align:center; padding:60px 0; color:var(--muted); font-size:12px;">No dated invoices in period.</div>';
+    }
+
+    // Determine bins (up to 10 points)
+    let points = [];
+    if (dates.length <= 10) {
+      points = dates.map(d => ({ label: d.slice(5), sales: dateMap[d].sales, coll: dateMap[d].coll }));
+    } else {
+      const step = Math.ceil(dates.length / 8);
+      for (let i = 0; i < dates.length; i += step) {
+        const slice = dates.slice(i, i + step);
+        let sSum = 0, cSum = 0;
+        slice.forEach(d => { sSum += dateMap[d].sales; cSum += dateMap[d].coll; });
+        points.push({ label: slice[0].slice(5), sales: sSum, coll: cSum });
+      }
+    }
+
+    const maxVal = Math.max(...points.map(p => Math.max(p.sales, p.coll)), 1000);
+    const svgW = 600;
+    const svgH = 200;
+    const padL = 65;
+    const padR = 20;
+    const padT = 20;
+    const padB = 30;
+    const plotW = svgW - padL - padR;
+    const plotH = svgH - padT - padB;
+    const barWidth = Math.max(8, Math.min(24, Math.floor(plotW / (points.length * 2.5))));
+
+    const formatShortMoney = (num) => {
+      if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+      if (num >= 1000) return (num / 1000).toFixed(0) + 'k';
+      return num;
+    };
+
+    let barsSvg = '';
+    const n = points.length;
+    const slotW = plotW / n;
+
+    points.forEach((p, idx) => {
+      const cx = padL + idx * slotW + slotW / 2;
+      const salesH = (p.sales / maxVal) * plotH;
+      const collH = (p.coll / maxVal) * plotH;
+      const salesY = padT + plotH - salesH;
+      const collY = padT + plotH - collH;
+
+      barsSvg += `
+        <!-- Sales Bar -->
+        <rect x="${cx - barWidth - 1}" y="${salesY}" width="${barWidth}" height="${salesH}" fill="#10b981" rx="2">
+          <title>${p.label}: Invoiced Sales ${fmtMoney(p.sales)}</title>
+        </rect>
+        <!-- Collections Bar -->
+        <rect x="${cx + 1}" y="${collY}" width="${barWidth}" height="${collH}" fill="#3b82f6" rx="2">
+          <title>${p.label}: Collected ${fmtMoney(p.coll)}</title>
+        </rect>
+        <!-- X Axis Label -->
+        <text x="${cx}" y="${svgH - 10}" text-anchor="middle" font-size="10" fill="#64748b" font-weight="600">${p.label}</text>
+      `;
+    });
+
+    return `
+      <svg width="100%" height="200" viewBox="0 0 ${svgW} ${svgH}" style="overflow:visible; font-family:sans-serif;">
+        <!-- Grid lines and Y axis -->
+        <line x1="${padL}" y1="${padT}" x2="${svgW - padR}" y2="${padT}" stroke="#e2e8f0" stroke-dasharray="3,3" />
+        <text x="${padL - 6}" y="${padT + 4}" text-anchor="end" font-size="10" fill="#94a3b8">${formatShortMoney(maxVal)}</text>
+
+        <line x1="${padL}" y1="${padT + plotH / 2}" x2="${svgW - padR}" y2="${padT + plotH / 2}" stroke="#e2e8f0" stroke-dasharray="3,3" />
+        <text x="${padL - 6}" y="${padT + plotH / 2 + 4}" text-anchor="end" font-size="10" fill="#94a3b8">${formatShortMoney(maxVal / 2)}</text>
+
+        <line x1="${padL}" y1="${padT + plotH}" x2="${svgW - padR}" y2="${padT + plotH}" stroke="#cbd5e1" stroke-width="1.5" />
+        <text x="${padL - 6}" y="${padT + plotH + 4}" text-anchor="end" font-size="10" fill="#94a3b8">0</text>
+
+        ${barsSvg}
+      </svg>
     `;
   }
 
@@ -2151,6 +2716,7 @@
   let _invStartDate = '';
   let _invEndDate = '';
   let _invSearch = '';
+  let _invFilterCompany = '';
   let _invSortField = 'Date';
   let _invSortDir = 'desc';
 
@@ -2179,6 +2745,12 @@
       // Tab filtering
       if (tab === 'notDispatched') {
         rows = rows.filter(i => i.DispatchStatus === 'Not Dispatched' && i.Status !== 'Cancelled');
+      }
+
+      // Company Profile Filtering
+      if (_invFilterCompany) {
+        const defaultComp = (state.data.companyProfiles || []).find(c => c.IsDefault === 'Yes') || (state.data.companyProfiles || [])[0];
+        rows = rows.filter(i => (i.CompanyId || (defaultComp ? defaultComp.CompanyId : '')) === _invFilterCompany);
       }
 
       // Date Range Filtering
@@ -2239,7 +2811,14 @@
                 <span style="font-size:12px; font-weight:700; color:var(--text);">To:</span>
                 <input type="date" value="${esc(_invEndDate)}" onchange="_invEndDate=this.value; renderInvoicesView();" style="padding:5px 8px; font-size:12px; border:1px solid #cbd5e1; border-radius:6px; background:#fff;">
               </div>
-              ${(_invStartDate || _invEndDate || _invSearch) ? `<button class="btn btn-sm btn-secondary" onclick="_invStartDate=''; _invEndDate=''; _invSearch=''; renderInvoicesView();">Reset</button>` : ''}
+              <div style="display:inline-flex; align-items:center; gap:4px;">
+                <span style="font-size:12px; font-weight:700; color:var(--text);">Company:</span>
+                <select onchange="_invFilterCompany=this.value; renderInvoicesView();" style="padding:5px 8px; font-size:12px; border:1px solid #cbd5e1; border-radius:6px; background:#fff;">
+                  <option value="">All Companies</option>
+                  ${(state.data.companyProfiles || []).map(cp => `<option value="${esc(cp.CompanyId)}" ${_invFilterCompany === cp.CompanyId ? 'selected' : ''}>${esc(cp.CompanyName)}</option>`).join('')}
+                </select>
+              </div>
+              ${(_invStartDate || _invEndDate || _invSearch || _invFilterCompany) ? `<button class="btn btn-sm btn-secondary" onclick="_invStartDate=''; _invEndDate=''; _invSearch=''; _invFilterCompany=''; renderInvoicesView();">Reset</button>` : ''}
             </div>
             <div>
               <button class="btn btn-primary" onclick="openInvoiceModal()">+ New Sales Invoice / Order</button>
@@ -2747,22 +3326,22 @@
     };
 
     if (Array.isArray(data.employees)) {
-      data.employees = dedupe(data.employees, e => (e.NIC || e.EmployeeId || e.Email || '').toString().trim().toLowerCase());
+      data.employees = dedupe(data.employees, e => (e.EmployeeId || e.EmpId || '').toString().trim().toLowerCase());
     }
     if (Array.isArray(data.users)) {
-      data.users = dedupe(data.users, u => (u.UserId || u.Email || '').toString().trim().toLowerCase());
+      data.users = dedupe(data.users, u => (u.UserId || '').toString().trim().toLowerCase());
     }
     if (Array.isArray(data.companyProfiles)) {
-      data.companyProfiles = dedupe(data.companyProfiles, c => (c.CompanyId || c.CompanyName || '').toString().trim().toLowerCase());
+      data.companyProfiles = dedupe(data.companyProfiles, c => (c.CompanyId || '').toString().trim().toLowerCase());
     }
     if (Array.isArray(data.inventory)) {
-      data.inventory = dedupe(data.inventory, it => (it.ItemId || it.SKU || it.ItemName || '').toString().trim().toLowerCase());
+      data.inventory = dedupe(data.inventory, it => (it.ItemId || '').toString().trim().toLowerCase());
     }
     if (Array.isArray(data.invoices)) {
       data.invoices = dedupe(data.invoices, inv => (inv.InvoiceId || inv.InvoiceNo || '').toString().trim().toLowerCase());
     }
     if (Array.isArray(data.customers)) {
-      data.customers = dedupe(data.customers, c => (c.CustomerId || c.Name || '').toString().trim().toLowerCase());
+      data.customers = dedupe(data.customers, c => (c.CustomerId || '').toString().trim().toLowerCase());
     }
     if (Array.isArray(data.quotations)) {
       data.quotations = dedupe(data.quotations, q => (q.QuotationId || q.QuoteNo || '').toString().trim().toLowerCase());
@@ -4551,6 +5130,7 @@
   let _quotStartDate = '';
   let _quotEndDate = '';
   let _quotSearch = '';
+  let _quotFilterCompany = '';
   let _quotSortField = 'Date';
   let _quotSortDir = 'desc';
 
@@ -4567,6 +5147,12 @@
   function renderQuotationView() {
     ensureDataDefaults();
     let quotes = [...(state.data.quotations || [])];
+
+    // Filter by Company Profile
+    if (_quotFilterCompany) {
+      const defaultComp = (state.data.companyProfiles || []).find(c => c.IsDefault === 'Yes') || (state.data.companyProfiles || [])[0];
+      quotes = quotes.filter(q => (q.CompanyId || (defaultComp ? defaultComp.CompanyId : '')) === _quotFilterCompany);
+    }
 
     // Filter by date range
     if (_quotStartDate) {
