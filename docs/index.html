@@ -865,19 +865,7 @@
   <script>
   const state = {
     user: null,
-    view: 'dash<div style="display:flex; align-items:center; gap:4px;">
-              <label style="font-size:12px; font-weight:700; margin:0;">To:</label>
-              <input type="date" value="${esc(_quotEndDate)}" onchange="_quotEndDate=this.value; renderQuotationView()" style="padding:4px 8px; font-size:12.5px;">
-            </div>
-            <div style="display:flex; align-items:center; gap:4px;">
-              <label style="font-size:12px; font-weight:700; color:var(--text); margin:0;">Company:</label>
-              <select onchange="_quotFilterCompany=this.value; renderQuotationView()" style="padding:4px 8px; font-size:12.5px; border:1px solid #cbd5e1; border-radius:6px; background:#fff;">
-                <option value="">All Companies</option>
-                ${(state.data.companyProfiles || []).map(cp => `<option value="${esc(cp.CompanyId)}" ${_quotFilterCompany === cp.CompanyId ? 'selected' : ''}>${esc(cp.CompanyName)}</option>`).join('')}
-              </select>
-            </div>
-            <input class="search-input" placeholder="Search quotation #, customer..." value="${esc(_quotSearch)}" oninput="_quotSearch=this.value; renderQuotationView()" style="width:240px; margin:0;">
-            ${(_quotStartDate || _quotEndDate || _quotSearch || _quotFilterCompany) ? `<button class="btn btn-sm btn-secondary" onclick="_quotStartDate=''; _quotEndDate=''; _quotSearch=''; _quotFilterCompany=''; renderQuotationView()">Reset</button>` : ''}oard',
+    view: 'dashboard',
     invTab: 'invoices',
     outTab: 'debtors',
     empTab: 'directory',
@@ -5199,8 +5187,15 @@
               <label style="font-size:12px; font-weight:700; margin:0;">To:</label>
               <input type="date" value="${esc(_quotEndDate)}" onchange="_quotEndDate=this.value; renderQuotationView()" style="padding:4px 8px; font-size:12.5px;">
             </div>
+            <div style="display:flex; align-items:center; gap:4px;">
+              <label style="font-size:12px; font-weight:700; color:var(--text); margin:0;">Company:</label>
+              <select onchange="_quotFilterCompany=this.value; renderQuotationView()" style="padding:4px 8px; font-size:12.5px; border:1px solid #cbd5e1; border-radius:6px; background:#fff;">
+                <option value="">All Companies</option>
+                ${(state.data.companyProfiles || []).map(cp => `<option value="${esc(cp.CompanyId)}" ${_quotFilterCompany === cp.CompanyId ? 'selected' : ''}>${esc(cp.CompanyName)}</option>`).join('')}
+              </select>
+            </div>
             <input class="search-input" placeholder="Search quotation #, customer..." value="${esc(_quotSearch)}" oninput="_quotSearch=this.value; renderQuotationView()" style="width:240px; margin:0;">
-            ${(_quotStartDate || _quotEndDate || _quotSearch) ? `<button class="btn btn-sm btn-secondary" onclick="_quotStartDate=''; _quotEndDate=''; _quotSearch=''; renderQuotationView()">Reset</button>` : ''}
+            ${(_quotStartDate || _quotEndDate || _quotSearch || _quotFilterCompany) ? `<button class="btn btn-sm btn-secondary" onclick="_quotStartDate=''; _quotEndDate=''; _quotSearch=''; _quotFilterCompany=''; renderQuotationView()">Reset</button>` : ''}
           </div>
           <button class="btn btn-primary" onclick="openQuotationModal()">+ New Quotation</button>
         </div>
