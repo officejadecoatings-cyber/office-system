@@ -669,14 +669,24 @@ function adjustInventoryStock_(items, multiplier) {
   const inventory = readSheetObjects_('Inventory');
   items.forEach(li => {
     let invItem = null;
-    if (li.ItemId) {
-      invItem = inventory.find(x => x.ItemId === li.ItemId);
+    const lnDesc = String(li.ItemName || li.Description || '').trim().toLowerCase();
+    const lnCode = String(li.ItemCode || li.SKU || '').trim().toLowerCase();
+    const lnId = String(li.ItemId || '').trim();
+
+    if (lnId) {
+      invItem = inventory.find(x => String(x.ItemId).trim() === lnId);
     }
-    if (!invItem && li.ItemCode) {
-      invItem = inventory.find(x => x.SKU && String(x.SKU).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase());
+    if (!invItem && lnDesc && lnCode) {
+      invItem = inventory.find(x => 
+        String(x.Name || '').trim().toLowerCase() === lnDesc &&
+        String(x.SKU || '').trim().toLowerCase() === lnCode
+      );
     }
-    if (!invItem && li.ItemName) {
-      invItem = inventory.find(x => x.Name && String(x.Name).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase());
+    if (!invItem && lnDesc) {
+      invItem = inventory.find(x => String(x.Name || '').trim().toLowerCase() === lnDesc);
+    }
+    if (!invItem && lnCode) {
+      invItem = inventory.find(x => String(x.SKU || '').trim().toLowerCase() === lnCode);
     }
     if (invItem) {
       const newQty = Math.max(0, (Number(invItem.StockQty) || 0) + (multiplier * (Number(li.Qty) || 0)));

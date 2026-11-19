@@ -992,6 +992,8 @@
     deleteInventoryItem: { table: 'Inventory', key: 'ItemId', prop: 'inventory' },
     saveInvoice: { table: 'Invoices', key: 'InvoiceId', prefix: 'INV', prop: 'invoices', isInvoice: true },
     deleteInvoice: { table: 'Invoices', key: 'InvoiceId', prop: 'invoices', isInvoice: true },
+    updateInvoicePayment: { table: 'Invoices', key: 'InvoiceId', prop: 'invoices', isInvoicePayment: true },
+    dispatchInvoice: { table: 'Invoices', key: 'InvoiceId', prop: 'invoices', isDispatchInvoice: true },
     saveQuotation: { table: 'Quotations', key: 'QuotationId', prefix: 'QT', prop: 'quotations' },
     deleteQuotation: { table: 'Quotations', key: 'QuotationId', prop: 'quotations' },
     saveCreditor: { table: 'Creditors', key: 'CreditorId', prefix: 'CRED', prop: 'creditors' },
@@ -1028,7 +1030,7 @@
 
   const DEFAULT_SUPABASE_URL = 'https://ftucnvtpmkftjzoobrfq.supabase.co';
   const DEFAULT_SUPABASE_KEY = 'sb_publishable_T4O1XsAawck_ix9z_acpdA_EWcNkJtR';
-  const CURRENT_GAS_URL = 'https://script.google.com/macros/s/AKfycbw5SxusRaa1lrByPmcysKqRUGjTfuKmziJho0SUFCL0BDo1R1W7NbwAX41VNqwHquKU8g/exec';
+  const CURRENT_GAS_URL = 'https://script.google.com/macros/s/AKfycbym86HAuBy-AGqZ1sFlXZ3bDj_G54ehkEdVQF_-bPVZcYXAmwNyLwXmiFNqWEXdCo2naQ/exec';
 
   const OfficeSupabase = {
     client: null,
@@ -1130,7 +1132,7 @@
     async upsert(tableName, recordOrArray) {
       if (!this.isReady() || !recordOrArray) return;
       const items = Array.isArray(recordOrArray) ? recordOrArray : [recordOrArray];
-      const cleaned = items.map(record => {
+      let cleaned = items.map(record => {
         const clean = {};
         Object.keys(record).forEach(k => {
           if (record[k] !== undefined && typeof record[k] !== 'function') {
@@ -1139,12 +1141,34 @@
         });
         return clean;
       });
-      const { data, error } = await this.client.from(tableName).upsert(cleaned);
-      if (error) {
-        console.error('Supabase upsert error on ' + tableName + ':', error);
-        throw new Error(error.message || 'Supabase upsert failed');
+
+      // Robust self-healing upsert: strip unmapped columns automatically if table schema does not have them yet
+      let res = await this.client.from(tableName).upsert(cleaned);
+      let retryCount = 0;
+      while (res.error && retryCount < 8) {
+        const err = res.error;
+        const msg = err.message || '';
+        const match = msg.match(/Could not find the '([^']+)' column/i);
+        if (match && match[1]) {
+          const missingCol = match[1];
+          console.warn(`Supabase table "${tableName}" does not have column "${missingCol}". Stripping and retrying upsert...`);
+          cleaned = cleaned.map(row => {
+            const copy = { ...row };
+            delete copy[missingCol];
+            return copy;
+          });
+          res = await this.client.from(tableName).upsert(cleaned);
+          retryCount++;
+        } else {
+          break;
+        }
       }
-      return data;
+
+      if (res.error) {
+        console.error('Supabase upsert error on ' + tableName + ':', res.error);
+        throw new Error(res.error.message || 'Supabase upsert failed');
+      }
+      return res.data;
     },
 
     async delete(tableName, keyField, keyValue) {
@@ -1224,6 +1248,58 @@
           try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
         }
         return inv;
+      }
+
+      if (mapping.isInvoicePayment || fnName === 'updateInvoicePayment') {
+        const invId = payload ? payload.InvoiceId : null;
+        if (!invId) return false;
+        const updates = {
+          InvoiceId: invId,
+          ChequeNo: payload.ChequeNo || '',
+          ChequeBank: payload.ChequeBank || '',
+          ChequeDate: payload.ChequeDate || '',
+          ChequeAmount: Number(payload.ChequeAmount) || 0,
+          PaidAmount: Number(payload.RealisedAmount) || Number(payload.PaidAmount) || 0,
+          RealisedDate: payload.RealisedDate || '',
+          RealizedMonth: payload.RealizedMonth || '',
+          ReceiptNo: payload.ReceiptNo || '',
+          PaymentStatus: payload.PaymentStatus || 'Unpaid'
+        };
+        if (payload.TokenAmount !== undefined) updates.TokenAmount = Number(payload.TokenAmount) || 0;
+        if (payload.ReturnAmount !== undefined) updates.ReturnAmount = Number(payload.ReturnAmount) || 0;
+        if (payload.Status) updates.Status = payload.Status;
+        if (payload.Total !== undefined) updates.Total = Number(payload.Total) || 0;
+        if (payload.PaymentsJson) {
+          updates.PaymentsJson = typeof payload.PaymentsJson === 'string' ? payload.PaymentsJson : JSON.stringify(payload.PaymentsJson);
+        }
+        await this.upsert('Invoices', updates);
+        if (state && state.data && state.data.invoices) {
+          const inv = state.data.invoices.find(x => x.InvoiceId === invId);
+          if (inv) Object.assign(inv, updates);
+          try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+        }
+        return updates;
+      }
+
+      if (mapping.isDispatchInvoice || fnName === 'dispatchInvoice') {
+        const invId = args[0];
+        const dDate = args[1];
+        const dBy = args[2];
+        const dNotes = args[3];
+        const updates = {
+          InvoiceId: invId,
+          DispatchStatus: 'Dispatched',
+          DispatchedDate: dDate || (state && state.data ? state.data.today : ''),
+          DispatchedBy: dBy || '',
+          Notes: dNotes || ''
+        };
+        await this.upsert('Invoices', updates);
+        if (state && state.data && state.data.invoices) {
+          const inv = state.data.invoices.find(x => x.InvoiceId === invId);
+          if (inv) Object.assign(inv, updates);
+          try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+        }
+        return updates;
       }
 
       // Standard entity save
@@ -2715,6 +2791,9 @@
     if (!state.data.settings.NextQuoteNo) state.data.settings.NextQuoteNo = '754';
     if (!state.data.settings.QuotePrefix) state.data.settings.QuotePrefix = 'QT-';
     if (!state.data.settings.NextPettyCashNo) state.data.settings.NextPettyCashNo = '1';
+    if (!state.data.settings.AnnualLeaveQuota) state.data.settings.AnnualLeaveQuota = '14';
+    if (!state.data.settings.CasualLeaveQuota) state.data.settings.CasualLeaveQuota = '7';
+    if (!state.data.settings.SickLeaveQuota) state.data.settings.SickLeaveQuota = '7';
 
     // Ensure Rashini Fernando user and employee records
     if (state.data.users && Array.isArray(state.data.users)) {
@@ -3468,18 +3547,14 @@
       let insufficientMsg = '';
 
       for (const li of payload.items) {
-        const invItem = state.data.inventory.find(x => 
-          (li.ItemId && x.ItemId === li.ItemId) ||
-          (li.ItemCode && x.SKU && String(x.SKU).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase()) ||
-          (li.ItemName && x.Name && String(x.Name).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
-        );
+        const invItem = findMatchedInventoryItem(li);
         const avail = invItem ? (Number(invItem.StockQty) || 0) : 0;
         let oldQty = 0;
         if (existing && existing.DispatchStatus === 'Dispatched') {
           const oldLi = existingItems.find(x => 
             (li.ItemId && x.ItemId === li.ItemId) ||
-            (li.ItemCode && x.ItemCode && String(x.ItemCode).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase()) ||
-            (li.ItemName && x.ItemName && String(x.ItemName).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
+            (li.ItemName && x.ItemName && String(x.ItemName).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase()) ||
+            (li.ItemCode && x.ItemCode && String(x.ItemCode).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase())
           );
           oldQty = oldLi ? (Number(oldLi.Qty) || 0) : 0;
         }
@@ -3505,17 +3580,13 @@
     if (dispatchStatus === 'Dispatched' && status !== 'Draft' && status !== 'Cancelled') {
       const existingItems = invoiceId ? (state.data.invoiceItems || []).filter(li => li.InvoiceId === invoiceId) : [];
       payload.items.forEach(li => {
-        const invItem = state.data.inventory.find(x => 
-          (li.ItemId && x.ItemId === li.ItemId) ||
-          (li.ItemCode && x.SKU && String(x.SKU).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase()) ||
-          (li.ItemName && x.Name && String(x.Name).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
-        );
+        const invItem = findMatchedInventoryItem(li);
         let oldQty = 0;
         if (existing && existing.DispatchStatus === 'Dispatched') {
           const oldLi = existingItems.find(x => 
             (li.ItemId && x.ItemId === li.ItemId) ||
-            (li.ItemCode && x.ItemCode && String(x.ItemCode).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase()) ||
-            (li.ItemName && x.ItemName && String(x.ItemName).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
+            (li.ItemName && x.ItemName && String(x.ItemName).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase()) ||
+            (li.ItemCode && x.ItemCode && String(x.ItemCode).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase())
           );
           oldQty = oldLi ? (Number(oldLi.Qty) || 0) : 0;
         }
@@ -4757,6 +4828,139 @@
     if (menu) menu.classList.add('hidden');
   }
 
+  function findMatchedInventoryItem(ln) {
+    if (!ln) return null;
+    const items = state.data.inventory || [];
+    const lnDesc = String(ln.Description || ln.ItemName || ln.Name || '').trim().toLowerCase();
+    const lnCode = String(ln.ItemCode || ln.SKU || '').trim().toLowerCase();
+    const lnId = String(ln.ItemId || '').trim();
+
+    // 1. Exact Name AND SKU match (best for variant products sharing same SKU like JD-020 500ml/1L/4L/20L)
+    if (lnDesc && lnCode) {
+      const byBoth = items.find(it => {
+        const itName = String(it.Name || '').trim().toLowerCase();
+        const itSku = String(it.SKU || '').trim().toLowerCase();
+        return (itName === lnDesc && itSku === lnCode);
+      });
+      if (byBoth) return byBoth;
+    }
+
+    // 2. Exact Name match
+    if (lnDesc) {
+      const byName = items.find(it => String(it.Name || '').trim().toLowerCase() === lnDesc);
+      if (byName) return byName;
+    }
+
+    // 3. Name Substring / Contains match (e.g. pack sizes in name)
+    if (lnDesc && lnDesc.length > 2) {
+      const byNameSub = items.find(it => {
+        const itName = String(it.Name || '').trim().toLowerCase();
+        return itName.includes(lnDesc) || lnDesc.includes(itName);
+      });
+      if (byNameSub) return byNameSub;
+    }
+
+    // 4. Exact ItemId match
+    if (lnId) {
+      const byId = items.find(it => String(it.ItemId).trim() === lnId);
+      if (byId) return byId;
+    }
+
+    // 5. SKU match fallback
+    if (lnCode) {
+      const bySku = items.find(it => String(it.SKU || '').trim().toLowerCase() === lnCode);
+      if (bySku) return bySku;
+    }
+
+    return null;
+  }
+
+  function updateQuotLineStockBadge(idx) {
+    const badgeEl = document.getElementById('quotStockBadge_' + idx);
+    if (!badgeEl || !_quotLines[idx]) return;
+    const ln = _quotLines[idx];
+    const matched = findMatchedInventoryItem(ln);
+    if (matched) {
+      const avail = Number(matched.StockQty) || 0;
+      const req = Number(ln.Qty) || 0;
+      if (req > avail) {
+        badgeEl.innerHTML = `<div style="font-size:10.5px; font-weight:700; color:#dc2626; margin-top:3px; background:#fee2e2; border:1px solid #fca5a5; padding:1px 4px; border-radius:4px; white-space:nowrap;">⚠️ In Stock: ${avail}</div>`;
+      } else {
+        badgeEl.innerHTML = `<div style="font-size:10.5px; font-weight:600; color:#059669; margin-top:3px; white-space:nowrap;">✓ Stock: ${avail}</div>`;
+      }
+    } else {
+      badgeEl.innerHTML = '';
+    }
+  }
+
+  function onQuotQtyInput(idx, val) {
+    if (!_quotLines[idx]) return;
+    const q = Number(val) || 0;
+    _quotLines[idx].Qty = q;
+    const sub = q * (Number(_quotLines[idx].UnitPrice) || 0);
+    const disc = sub * ((Number(_quotLines[idx].Discount) || 0) / 100);
+    const lineTotal = Math.round((sub - disc) * 100) / 100;
+    _quotLines[idx].Amount = lineTotal;
+    const amtEl = document.getElementById('quotLineAmt_' + idx);
+    if (amtEl) amtEl.value = Number(lineTotal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    updateQuotTotals();
+    updateQuotLineStockBadge(idx);
+  }
+
+  function onQuotUnitPriceInput(idx, val) {
+    if (!_quotLines[idx]) return;
+    _quotLines[idx].UnitPrice = Number(val) || 0;
+    const q = Number(_quotLines[idx].Qty) || 0;
+    const sub = q * _quotLines[idx].UnitPrice;
+    const disc = sub * ((Number(_quotLines[idx].Discount) || 0) / 100);
+    const lineTotal = Math.round((sub - disc) * 100) / 100;
+    _quotLines[idx].Amount = lineTotal;
+    const amtEl = document.getElementById('quotLineAmt_' + idx);
+    if (amtEl) amtEl.value = Number(lineTotal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    updateQuotTotals();
+  }
+
+  function onQuotDiscountInput(idx, val) {
+    if (!_quotLines[idx]) return;
+    _quotLines[idx].Discount = Number(val) || 0;
+    const q = Number(_quotLines[idx].Qty) || 0;
+    const sub = q * (Number(_quotLines[idx].UnitPrice) || 0);
+    const disc = sub * (_quotLines[idx].Discount / 100);
+    const lineTotal = Math.round((sub - disc) * 100) / 100;
+    _quotLines[idx].Amount = lineTotal;
+    const amtEl = document.getElementById('quotLineAmt_' + idx);
+    if (amtEl) amtEl.value = Number(lineTotal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    updateQuotTotals();
+  }
+
+  function onQuotDescInput(idx, val) {
+    if (!_quotLines[idx]) return;
+    _quotLines[idx].Description = val;
+    const matched = findMatchedInventoryItem(_quotLines[idx]);
+    if (matched) {
+      _quotLines[idx].ItemId = matched.ItemId;
+      if (!_quotLines[idx].ItemCode && matched.SKU) _quotLines[idx].ItemCode = matched.SKU;
+      if (!_quotLines[idx].UnitPrice && matched.UnitPrice) {
+        _quotLines[idx].UnitPrice = Number(matched.UnitPrice) || 0;
+        const upEl = document.getElementById('quotLineUnitPrice_' + idx);
+        if (upEl) upEl.value = _quotLines[idx].UnitPrice;
+        const sub = (Number(_quotLines[idx].Qty) || 1) * _quotLines[idx].UnitPrice;
+        const disc = sub * ((Number(_quotLines[idx].Discount) || 0) / 100);
+        const lineTotal = Math.round((sub - disc) * 100) / 100;
+        _quotLines[idx].Amount = lineTotal;
+        const amtEl = document.getElementById('quotLineAmt_' + idx);
+        if (amtEl) amtEl.value = Number(lineTotal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        updateQuotTotals();
+      }
+    }
+    updateQuotLineStockBadge(idx);
+  }
+
+  function onQuotTaxChange(idx, val) {
+    if (!_quotLines[idx]) return;
+    _quotLines[idx].Tax = val;
+  }
+
   function renderQuotLines() {
     const container = document.getElementById('quotLinesContainer');
     if (!container) return;
@@ -4776,11 +4980,7 @@
       const lineTotal = Math.round((lineSub - lineDisc) * 100) / 100;
       ln.Amount = lineTotal;
 
-      const matchedItem = (state.data.inventory || []).find(it => 
-        (ln.ItemId && it.ItemId === ln.ItemId) ||
-        (ln.ItemCode && it.SKU && String(it.SKU).trim().toLowerCase() === String(ln.ItemCode).trim().toLowerCase()) ||
-        (ln.Description && it.Name && String(it.Name).trim().toLowerCase() === String(ln.Description).trim().toLowerCase())
-      );
+      const matchedItem = findMatchedInventoryItem(ln);
       let stockAlertHtml = '';
       if (matchedItem) {
         const avail = Number(matchedItem.StockQty) || 0;
@@ -4801,32 +5001,54 @@
             <div style="position:relative; display:flex; align-items:center;">
               <input list="quotItemGlobalDataList" placeholder="🔍 Type or select Code / Item..."
                      value="${esc(displayVal)}"
+                     id="quotItemCombo_${idx}"
                      onchange="onQuotItemSelect(${idx}, this.value)"
                      style="width:100%; height:38px; padding:6px 26px 6px 10px; font-size:13px; font-weight:600; border:1.5px solid #cbd5e1; border-radius:6px; background:#fff; color:#0f172a; box-sizing:border-box;">
               <span style="position:absolute; right:8px; pointer-events:none; color:#64748b; font-size:11px;">▼</span>
             </div>
           </td>
           <td style="padding:8px 8px; min-width:240px;">
-            <input placeholder="Product description" value="${esc(ln.Description || '')}" oninput="_quotLines[${idx}].Description=this.value" style="width:100%; height:38px; padding:6px 10px; font-size:13px; border:1.5px solid #cbd5e1; border-radius:6px; color:#0f172a; box-sizing:border-box;">
+            <input placeholder="Product description"
+                   value="${esc(ln.Description || '')}"
+                   id="quotLineDesc_${idx}"
+                   oninput="onQuotDescInput(${idx}, this.value)"
+                   style="width:100%; height:38px; padding:6px 10px; font-size:13px; border:1.5px solid #cbd5e1; border-radius:6px; color:#0f172a; box-sizing:border-box;">
           </td>
           <td style="padding:8px 6px; width:110px; min-width:100px; text-align:center;">
-            <input type="number" min="1" step="any" value="${ln.Qty || 1}" oninput="_quotLines[${idx}].Qty=Number(this.value); updateQuotTotals(); renderQuotLines();" style="width:100%; height:38px; line-height:36px; text-align:center; padding:4px 6px; font-size:14px; font-weight:700; color:#0f172a; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:6px; box-sizing:border-box;">
-            ${stockAlertHtml}
+            <input type="number" min="1" step="any"
+                   value="${ln.Qty || 1}"
+                   id="quotLineQty_${idx}"
+                   oninput="onQuotQtyInput(${idx}, this.value)"
+                   style="width:100%; height:38px; line-height:36px; text-align:center; padding:4px 6px; font-size:14px; font-weight:700; color:#0f172a; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:6px; box-sizing:border-box;">
+            <div id="quotStockBadge_${idx}">${stockAlertHtml}</div>
           </td>
           <td style="padding:8px 8px; width:160px; min-width:150px; text-align:right;">
-            <input type="number" step="0.01" value="${ln.UnitPrice || 0}" oninput="_quotLines[${idx}].UnitPrice=Number(this.value); updateQuotTotals()" style="width:100%; height:38px; line-height:36px; text-align:right; padding:4px 10px; font-size:14px; font-weight:600; color:#0f172a; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:6px; box-sizing:border-box;">
+            <input type="number" step="0.01"
+                   value="${ln.UnitPrice || 0}"
+                   id="quotLineUnitPrice_${idx}"
+                   oninput="onQuotUnitPriceInput(${idx}, this.value)"
+                   style="width:100%; height:38px; line-height:36px; text-align:right; padding:4px 10px; font-size:14px; font-weight:600; color:#0f172a; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:6px; box-sizing:border-box;">
           </td>
           <td style="padding:8px 8px; width:110px; min-width:100px; text-align:center;">
             <div style="display:flex; align-items:center; gap:4px; justify-content:center;">
-              <input type="number" step="0.1" min="0" placeholder="0" value="${ln.Discount || 0}" oninput="_quotLines[${idx}].Discount=Number(this.value); updateQuotTotals()" style="width:70px; height:38px; line-height:36px; text-align:center; padding:4px 6px; font-size:13px; font-weight:600; border:1.5px solid #cbd5e1; border-radius:6px; box-sizing:border-box;">
+              <input type="number" step="0.1" min="0" placeholder="0"
+                     value="${ln.Discount || 0}"
+                     id="quotLineDisc_${idx}"
+                     oninput="onQuotDiscountInput(${idx}, this.value)"
+                     style="width:70px; height:38px; line-height:36px; text-align:center; padding:4px 6px; font-size:13px; font-weight:600; border:1.5px solid #cbd5e1; border-radius:6px; box-sizing:border-box;">
               <span style="font-size:13px; font-weight:700; color:#64748b;">%</span>
             </div>
           </td>
           <td style="padding:8px 8px; width:170px; min-width:160px; text-align:right;">
-            <input readonly value="${Number(lineTotal).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}" id="quotLineAmt_${idx}" style="width:100%; height:38px; line-height:36px; text-align:right; font-weight:700; padding:4px 12px; font-size:14px; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:6px; color:#0f172a; box-sizing:border-box;">
+            <input readonly
+                   value="${Number(lineTotal).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}"
+                   id="quotLineAmt_${idx}"
+                   style="width:100%; height:38px; line-height:36px; text-align:right; font-weight:700; padding:4px 12px; font-size:14px; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:6px; color:#0f172a; box-sizing:border-box;">
           </td>
           <td style="padding:8px 8px; width:115px; min-width:105px; text-align:center;">
-            <select onchange="_quotLines[${idx}].Tax=this.value" style="width:100%; height:38px; padding:4px 8px; font-size:13px; border:1.5px solid #cbd5e1; border-radius:6px; color:#475569; background:#fff; box-sizing:border-box;">
+            <select onchange="onQuotTaxChange(${idx}, this.value)"
+                    id="quotLineTax_${idx}"
+                    style="width:100%; height:38px; padding:4px 8px; font-size:13px; border:1.5px solid #cbd5e1; border-radius:6px; color:#475569; background:#fff; box-sizing:border-box;">
               <option ${ln.Tax === 'No tax' ? 'selected' : ''}>No tax</option>
               <option ${ln.Tax === '0%' ? 'selected' : ''}>0%</option>
             </select>
@@ -4844,13 +5066,28 @@
   function onQuotItemSelect(idx, val) {
     if (!_quotLines[idx]) return;
     const v = String(val || '').trim().toLowerCase();
-    const item = (state.data.inventory || []).find(it => {
+    const items = state.data.inventory || [];
+
+    // 1. Exact full text match: "JD-020 - Water Based Universal Cleaner - 20L"
+    let item = items.find(it => {
       const full = `${it.SKU ? it.SKU + ' - ' : ''}${it.Name}`.toLowerCase();
-      return full === v ||
-             (it.SKU && it.SKU.toLowerCase() === v) ||
-             (it.Name && it.Name.toLowerCase() === v) ||
-             (it.ItemId && it.ItemId.toLowerCase() === v);
+      return full === v;
     });
+
+    // 2. Exact Name match
+    if (!item) {
+      item = items.find(it => String(it.Name || '').trim().toLowerCase() === v);
+    }
+
+    // 3. Exact ItemId match
+    if (!item) {
+      item = items.find(it => String(it.ItemId || '').trim().toLowerCase() === v);
+    }
+
+    // 4. Exact SKU match
+    if (!item) {
+      item = items.find(it => String(it.SKU || '').trim().toLowerCase() === v);
+    }
 
     if (item) {
       _quotLines[idx].ItemId = item.ItemId;
@@ -4861,6 +5098,12 @@
     } else {
       _quotLines[idx].Description = val;
       _quotLines[idx].ItemDisplay = val;
+      const matched = findMatchedInventoryItem(_quotLines[idx]);
+      if (matched) {
+        _quotLines[idx].ItemId = matched.ItemId;
+        _quotLines[idx].ItemCode = matched.SKU || '';
+        _quotLines[idx].UnitPrice = Number(matched.UnitPrice) || 0;
+      }
     }
     renderQuotLines();
     updateQuotTotals();
@@ -10224,14 +10467,17 @@
                 <th>EPF/ETF No</th>
                 <th>Gender</th>
                 <th>Phone</th>
-                <th>Emergency Contact</th>
+                <th>Leaves Balance</th>
                 <th>Join Date</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              ${emps.map(e => `
+              ${emps.map(e => {
+                const curYear = new Date(state.data.today || Date.now()).getFullYear();
+                const bal = getEmployeeLeaveBalances(e.EmpId || e.Name, curYear);
+                return `
                 <tr>
                   <td>
                     <div style="display:flex; align-items:center; gap:8px;">
@@ -10250,8 +10496,9 @@
                   <td>${esc(e.Gender || '-')}</td>
                   <td>${esc(e.Phone || '-')}</td>
                   <td>
-                    ${e.EmergencyContactName ? `<b>${esc(e.EmergencyContactName)}</b>` : '-'}
-                    ${e.EmergencyContactPhone ? `<div style="font-size:11px; color:var(--muted);">${esc(e.EmergencyContactPhone)}</div>` : ''}
+                    <span class="badge ${bal.TotalRemaining > 0 ? 'badge-success' : 'badge-danger'}" title="Annual: ${bal.AnnualRemaining}/${bal.AnnualQuota}, Casual: ${bal.CasualRemaining}/${bal.CasualQuota}, Sick: ${bal.SickRemaining}/${bal.SickQuota}">
+                      ${bal.TotalRemaining} / ${bal.TotalQuota} left
+                    </span>
                   </td>
                   <td>${esc(e.JoinDate || '-')}</td>
                   <td>${statusBadge(e.Status || 'Active')}</td>
@@ -10260,7 +10507,7 @@
                     <button class="btn btn-sm btn-danger" onclick="removeEmployee('${esc(e.EmpId)}')">Del</button>
                   </td>
                 </tr>
-              `).join('') || '<tr><td colspan="11" style="color:var(--muted)">No employees added yet. Click "+ Add Employee" to create one.</td></tr>'}
+              `;}).join('') || '<tr><td colspan="11" style="color:var(--muted)">No employees added yet. Click "+ Add Employee" to create one.</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -10464,10 +10711,89 @@
     } else {
       const leaveList = [...(state.data.leaves || [])].reverse();
       const isAdmin = state.user && (state.user.Role === 'Admin' || state.user.Role === 'Manager');
+      const currentYear = new Date(state.data.today || Date.now()).getFullYear();
+      const policy = getLeavePolicy();
+      const activeEmpsList = emps.filter(e => e.Status !== 'Inactive');
+
       body = `
+        <!-- Annual Leave Entitlement & Balance Card -->
+        <div class="card" style="margin-bottom:14px; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:8px; padding:14px 18px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+            <div>
+              <div style="font-weight:700; font-size:15px; color:var(--text); display:flex; align-items:center; gap:8px;">
+                🏖️ Annual Leave Entitlement &amp; Remaining Balances (${currentYear})
+                <span class="badge" style="background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; font-size:11px;">Policy: ${policy.Annual} Annual / ${policy.Casual} Casual / ${policy.Sick} Sick</span>
+              </div>
+              <div style="font-size:12px; color:var(--muted); margin-top:2px;">
+                Leave entitlements are refreshed annually. Leaves taken during ${currentYear} automatically deduct from each employee's remaining quota.
+              </div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-sm btn-primary" onclick="openLeaveModal()">+ Apply Leave</button>
+            </div>
+          </div>
+
+          <div class="table-wrap" style="border:1px solid #e2e8f0; border-radius:6px; background:#fff;">
+            <table>
+              <thead>
+                <tr style="background:#f1f5f9; font-size:12px;">
+                  <th>Employee</th>
+                  <th style="text-align:center;">Annual Leaves (Quota: ${policy.Annual})</th>
+                  <th style="text-align:center;">Casual Leaves (Quota: ${policy.Casual})</th>
+                  <th style="text-align:center;">Sick / Medical (Quota: ${policy.Sick})</th>
+                  <th style="text-align:center;">Total Remaining</th>
+                  <th style="text-align:center;">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${activeEmpsList.map(e => {
+                  const bal = getEmployeeLeaveBalances(e.EmpId || e.Name, currentYear);
+                  return `
+                    <tr>
+                      <td>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                          <img src="${e.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(e.Name || 'User') + '&background=0f766e&color=fff')}" style="width:26px; height:26px; border-radius:50%; object-fit:cover;">
+                          <div>
+                            <b>${esc(e.Name)}</b>
+                            <div style="font-size:11px; color:var(--muted);">${esc(e.Designation || e.Position || 'Staff')}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style="text-align:center;">
+                        <span class="badge ${bal.AnnualRemaining > 0 ? 'badge-success' : 'badge-danger'}" style="font-size:12px; padding:3px 8px;">
+                          ${bal.AnnualRemaining} / ${bal.AnnualQuota} left
+                        </span>
+                        <div style="font-size:10px; color:var(--muted); margin-top:2px;">${bal.AnnualUsed} taken</div>
+                      </td>
+                      <td style="text-align:center;">
+                        <span class="badge ${bal.CasualRemaining > 0 ? 'badge-info' : 'badge-danger'}" style="font-size:12px; padding:3px 8px;">
+                          ${bal.CasualRemaining} / ${bal.CasualQuota} left
+                        </span>
+                        <div style="font-size:10px; color:var(--muted); margin-top:2px;">${bal.CasualUsed} taken</div>
+                      </td>
+                      <td style="text-align:center;">
+                        <span class="badge ${bal.SickRemaining > 0 ? 'badge-warning' : 'badge-danger'}" style="font-size:12px; padding:3px 8px;">
+                          ${bal.SickRemaining} / ${bal.SickQuota} left
+                        </span>
+                        <div style="font-size:10px; color:var(--muted); margin-top:2px;">${bal.SickUsed} taken</div>
+                      </td>
+                      <td style="text-align:center; font-weight:800; font-size:13.5px; color:#0f766e;">
+                        ${bal.TotalRemaining} <span style="font-size:11px; font-weight:600; color:var(--muted);">/ ${bal.TotalQuota} days</span>
+                      </td>
+                      <td style="text-align:center;">
+                        <button class="btn btn-sm btn-secondary" onclick="openLeaveModalForEmp('${esc(e.EmpId)}')">+ Apply</button>
+                      </td>
+                    </tr>
+                  `;
+                }).join('') || '<tr><td colspan="6" style="text-align:center; color:var(--muted);">No active employees registered.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <div class="section-header">
           <div>
-            <h3 style="margin:0; font-size:15px; color:var(--text);">Employee Leave Requests &amp; Taken List</h3>
+            <h3 style="margin:0; font-size:15px; color:var(--text);">Employee Leave Application Records</h3>
             <div style="font-size:12px; color:var(--muted);">Review official leaves taken, approval history, reasons, and submit new leave requests.</div>
           </div>
           <div class="section-actions">
@@ -11094,7 +11420,64 @@
     renderEmployeesView();
   }
 
-    function autoCalcLeaveDays() {
+  function getLeavePolicy() {
+    ensureDataDefaults();
+    const s = state.data.settings || {};
+    return {
+      Annual: Math.max(0, parseFloat(s.AnnualLeaveQuota != null ? s.AnnualLeaveQuota : 14) || 14),
+      Casual: Math.max(0, parseFloat(s.CasualLeaveQuota != null ? s.CasualLeaveQuota : 7) || 7),
+      Sick: Math.max(0, parseFloat(s.SickLeaveQuota != null ? s.SickLeaveQuota : (s.MedicalLeaveQuota != null ? s.MedicalLeaveQuota : 7)) || 7)
+    };
+  }
+
+  function getEmployeeLeaveBalances(empIdOrName, year = null) {
+    ensureDataDefaults();
+    const currentYear = year || new Date(state.data.today || Date.now()).getFullYear();
+    const policy = getLeavePolicy();
+    const leaves = state.data.leaves || [];
+
+    const empLeaves = leaves.filter(l => {
+      const matchEmp = (l.UserId && String(l.UserId) === String(empIdOrName)) || (l.UserName && String(l.UserName).trim().toLowerCase() === String(empIdOrName).trim().toLowerCase());
+      if (!matchEmp) return false;
+      if (l.Status === 'Rejected') return false;
+      const lYear = l.StartDate ? new Date(l.StartDate + 'T00:00:00').getFullYear() : currentYear;
+      return lYear === currentYear;
+    });
+
+    let annualUsed = 0, casualUsed = 0, sickUsed = 0;
+    empLeaves.forEach(l => {
+      const days = parseFloat(l.Days) || 0;
+      const t = String(l.Type || '').toLowerCase();
+      if (t.includes('annual')) annualUsed += days;
+      else if (t.includes('casual')) casualUsed += days;
+      else if (t.includes('sick') || t.includes('med')) sickUsed += days;
+    });
+
+    const annualQuota = policy.Annual;
+    const casualQuota = policy.Casual;
+    const sickQuota = policy.Sick;
+
+    return {
+      Year: currentYear,
+      AnnualQuota: annualQuota,
+      AnnualUsed: annualUsed,
+      AnnualRemaining: Math.max(0, annualQuota - annualUsed),
+
+      CasualQuota: casualQuota,
+      CasualUsed: casualUsed,
+      CasualRemaining: Math.max(0, casualQuota - casualUsed),
+
+      SickQuota: sickQuota,
+      SickUsed: sickUsed,
+      SickRemaining: Math.max(0, sickQuota - sickUsed),
+
+      TotalQuota: annualQuota + casualQuota + sickQuota,
+      TotalUsed: annualUsed + casualUsed + sickUsed,
+      TotalRemaining: Math.max(0, (annualQuota + casualQuota + sickQuota) - (annualUsed + casualUsed + sickUsed))
+    };
+  }
+
+  function autoCalcLeaveDays() {
     const sStr = document.getElementById('fLvStart')?.value;
     const eStr = document.getElementById('fLvEnd')?.value;
     const daysEl = document.getElementById('fLvDays');
@@ -11105,13 +11488,57 @@
     const diffTime = dEnd.getTime() - dStart.getTime();
     const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
     daysEl.value = Math.max(0.5, diffDays > 0 ? diffDays : 1);
+    updateLeaveModalBalanceDisplay();
   }
 
-  function openLeaveModal(leaveId = null) {
+  function updateLeaveModalBalanceDisplay() {
+    const selEmp = document.getElementById('fLvEmp');
+    const selType = document.getElementById('fLvType');
+    const daysEl = document.getElementById('fLvDays');
+    const infoEl = document.getElementById('leaveModalBalanceInfo');
+    if (!selEmp || !selType || !infoEl) return;
+    const empId = selEmp.value;
+    const t = selType.value;
+    const reqDays = parseFloat(daysEl?.value) || 1;
+    const currentYear = new Date(state.data.today || Date.now()).getFullYear();
+    const bal = getEmployeeLeaveBalances(empId, currentYear);
+
+    let quota = bal.AnnualQuota, rem = bal.AnnualRemaining;
+    if (t === 'Casual') { quota = bal.CasualQuota; rem = bal.CasualRemaining; }
+    else if (t === 'Sick') { quota = bal.SickQuota; rem = bal.SickRemaining; }
+    else if (t === 'Duty Leave') { quota = '-'; rem = 'Standard'; }
+
+    const isExceeded = (t !== 'Duty Leave' && reqDays > rem);
+    const empText = selEmp.options[selEmp.selectedIndex]?.text.split('(')[0].trim() || 'Employee';
+
+    infoEl.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+        <div style="font-size:12.5px; font-weight:700; color:#1e3a8a;">
+          📅 ${currentYear} Leave Policy for <u>${esc(empText)}</u>:
+        </div>
+        <div style="font-size:12px; display:flex; gap:6px;">
+          <span class="badge ${bal.AnnualRemaining > 0 ? 'badge-success' : 'badge-danger'}">Annual: ${bal.AnnualRemaining}/${bal.AnnualQuota}</span>
+          <span class="badge ${bal.CasualRemaining > 0 ? 'badge-info' : 'badge-danger'}">Casual: ${bal.CasualRemaining}/${bal.CasualQuota}</span>
+          <span class="badge ${bal.SickRemaining > 0 ? 'badge-warning' : 'badge-danger'}">Sick: ${bal.SickRemaining}/${bal.SickQuota}</span>
+        </div>
+      </div>
+      <div style="margin-top:6px; font-size:12px; color:${isExceeded ? '#dc2626' : '#15803d'}; font-weight:700;">
+        ${isExceeded 
+          ? `⚠️ Warning: Requested ${reqDays} day(s) exceeds remaining ${t} quota of ${rem} day(s)!` 
+          : `✓ Available ${t} balance: ${rem} day(s) remaining for year ${currentYear}.`}
+      </div>
+    `;
+  }
+
+  function openLeaveModalForEmp(empId) {
+    openLeaveModal(null, empId);
+  }
+
+  function openLeaveModal(leaveId = null, preSelectedEmpId = null) {
     const isEdit = !!leaveId;
     const l = isEdit ? (state.data.leaves || []).find(x => x.LeaveId === leaveId) : null;
     const activeEmps = (state.data.employees || []).filter(e => e.Status !== 'Inactive');
-    const selectedEmpId = l ? l.UserId : state.user.UserId;
+    const selectedEmpId = preSelectedEmpId || (l ? l.UserId : state.user.UserId);
     const empOptions = activeEmps.length
       ? activeEmps.map(e => `<option value="${esc(e.EmpId)}" data-name="${esc(e.Name)}" ${e.EmpId === selectedEmpId || e.Name === (l ? l.UserName : '') ? 'selected' : ''}>${esc(e.Name)} (${esc(e.Position || e.Designation || 'Staff')})</option>`).join('')
       : `<option value="${esc(state.user.UserId)}" data-name="${esc(state.user.Name)}">${esc(state.user.Name)}</option>`;
@@ -11123,9 +11550,11 @@
     openModal(
       isEdit ? 'Edit Leave Request' : 'Request Leave',
       `
+        <div id="leaveModalBalanceInfo" style="background:#eff6ff; border:1.5px solid #bfdbfe; border-radius:6px; padding:10px 14px; margin-bottom:12px;"></div>
+
         <div class="form-group">
-          <label>Employee Name *</label>
-          <select id="fLvEmp">
+          <label style="font-weight:700;">Employee Name *</label>
+          <select id="fLvEmp" onchange="updateLeaveModalBalanceDisplay()">
             ${empOptions}
           </select>
         </div>
@@ -11140,10 +11569,13 @@
           </div>
         </div>
         <div class="form-row">
-          <div class="form-group"><label style="font-weight:700;">Leave Type</label><select id="fLvType">${typeOpts}</select></div>
+          <div class="form-group">
+            <label style="font-weight:700;">Leave Type</label>
+            <select id="fLvType" onchange="updateLeaveModalBalanceDisplay()">${typeOpts}</select>
+          </div>
           <div class="form-group">
             <label style="font-weight:700;">Days (Auto-calculated) *</label>
-            <input type="number" min="0.5" step="0.5" id="fLvDays" value="${l ? l.Days : 1}" style="font-weight:700; color:var(--primary); font-size:14px;">
+            <input type="number" min="0.5" step="0.5" id="fLvDays" value="${l ? l.Days : 1}" oninput="updateLeaveModalBalanceDisplay()" style="font-weight:700; color:var(--primary); font-size:14px;">
             <div style="font-size:11px; color:var(--muted); margin-top:2px;">Automatically calculated from Start &amp; End dates.</div>
           </div>
         </div>
@@ -11162,6 +11594,8 @@
       `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
        <button class="btn btn-primary" onclick="submitLeave('${esc(leaveId || '')}')">${isEdit ? 'Save Changes' : 'Submit Request'}</button>`
     );
+
+    setTimeout(() => { updateLeaveModalBalanceDisplay(); }, 50);
   }
 
   async function submitLeave(leaveId) {
@@ -11189,21 +11623,34 @@
     const existingLeave = isEdit ? (state.data.leaves || []).find(x => x.LeaveId === leaveId) : null;
     const statusVal = isEdit && document.getElementById('fLvStatus') ? document.getElementById('fLvStatus').value : (existingLeave?.Status || 'Pending');
 
-    await gas('saveLeaveRequest', {
-      LeaveId: leaveId || '',
+    const finalLeaveId = leaveId || ('LV-' + Date.now() + '-' + Math.floor(Math.random() * 1000));
+    const payload = {
+      LeaveId: finalLeaveId,
       UserId: empId,
       UserName: empName,
       Type: document.getElementById('fLvType').value,
-      Days: document.getElementById('fLvDays').value,
+      Days: Number(document.getElementById('fLvDays').value) || 1,
       StartDate: document.getElementById('fLvStart').value,
       EndDate: document.getElementById('fLvEnd').value,
       Reason: document.getElementById('fLvReason').value,
       Status: statusVal,
       ApprovedBy: (statusVal === 'Approved' || statusVal === 'Rejected') ? (existingLeave?.ApprovedBy || state.user.Name) : ''
-    });
+    };
+
+    if (leaveId) {
+      const idx = (state.data.leaves || []).findIndex(x => x.LeaveId === leaveId);
+      if (idx !== -1) state.data.leaves[idx] = payload;
+      else (state.data.leaves = state.data.leaves || []).unshift(payload);
+    } else {
+      (state.data.leaves = state.data.leaves || []).unshift(payload);
+    }
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+
     closeModal();
+    renderEmployeesView();
     showToast(isEdit ? 'Leave request updated!' : 'Leave request submitted!');
-    await refreshData();
+
+    gas('saveLeaveRequest', payload).catch(err => console.error(err));
   }
 
   async function removeLeave(leaveId) {
@@ -11554,6 +12001,30 @@
               <div class="form-group" style="margin-bottom:0;">
                 <label style="font-size:12px; font-weight:600;">Next Petty Cash Voucher #</label>
                 <input id="sNextPcNo" placeholder="e.g. 1" value="${esc(nextPcVal)}">
+              </div>
+            </div>
+
+            <!-- Employee Annual Leave Entitlement Policy -->
+            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin:14px 0 16px 0;">
+              <div style="font-weight:700; font-size:13.5px; color:var(--primary); margin-bottom:4px;">
+                🏖️ Employee Annual Leave Entitlement Policy (Days per Year)
+              </div>
+              <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px;">
+                Company-wide default leave quota. At the start of each calendar year (Jan 1), employee balances reset to these quotas and deduct as leaves are taken.
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label style="font-size:12px; font-weight:600;">Annual Leaves (Days)</label>
+                  <input type="number" min="0" step="1" id="sAnnualLeaveQuota" value="${esc(s.AnnualLeaveQuota || '14')}" style="font-weight:700;">
+                </div>
+                <div class="form-group">
+                  <label style="font-size:12px; font-weight:600;">Casual Leaves (Days)</label>
+                  <input type="number" min="0" step="1" id="sCasualLeaveQuota" value="${esc(s.CasualLeaveQuota || '7')}" style="font-weight:700;">
+                </div>
+                <div class="form-group">
+                  <label style="font-size:12px; font-weight:600;">Sick / Medical Leaves (Days)</label>
+                  <input type="number" min="0" step="1" id="sSickLeaveQuota" value="${esc(s.SickLeaveQuota || s.MedicalLeaveQuota || '7')}" style="font-weight:700;">
+                </div>
               </div>
             </div>
 
@@ -12122,7 +12593,10 @@
       InvoicePrefix: invPref,
       NextQuoteNo: nextQuot,
       QuotePrefix: quotPref,
-      NextPettyCashNo: nextPc
+      NextPettyCashNo: nextPc,
+      AnnualLeaveQuota: document.getElementById('sAnnualLeaveQuota') ? document.getElementById('sAnnualLeaveQuota').value.trim() : (state.data.settings.AnnualLeaveQuota || '14'),
+      CasualLeaveQuota: document.getElementById('sCasualLeaveQuota') ? document.getElementById('sCasualLeaveQuota').value.trim() : (state.data.settings.CasualLeaveQuota || '7'),
+      SickLeaveQuota: document.getElementById('sSickLeaveQuota') ? document.getElementById('sSickLeaveQuota').value.trim() : (state.data.settings.SickLeaveQuota || '7')
     };
 
     // Optimistic update
