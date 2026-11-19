@@ -163,6 +163,7 @@
     saveSettings: { table: 'Settings', key: 'Key', isSettings: true },
     saveCallReport: { table: 'CallReports', key: 'CallId', prefix: 'CALL', prop: 'callReports' },
     deleteCallReport: { table: 'CallReports', key: 'CallId', prop: 'callReports' },
+    clearReportEntries: { isClearReportEntries: true },
     saveProjectReport: { table: 'ProjectReports', key: 'ProjId', prefix: 'PRJ', prop: 'projectReports' },
     deleteProjectReport: { table: 'ProjectReports', key: 'ProjId', prop: 'projectReports' }
   };
@@ -323,6 +324,28 @@
     async handleAction(fnName, args) {
       const mapping = ACTION_TABLE_MAP[fnName];
       if (!mapping) return null;
+
+      if (mapping.isClearReportEntries) {
+        const sheetName = args[0] || 'CallReports';
+        const tbl = sheetName === 'ProjectReports' ? 'ProjectReports' : 'CallReports';
+        const keyField = sheetName === 'ProjectReports' ? 'ProjId' : 'CallId';
+        const prop = sheetName === 'ProjectReports' ? 'projectReports' : 'callReports';
+        if (this.isReady()) {
+          try {
+            await this.client.from(tbl).delete().neq(keyField, '___NEVER_MATCH___');
+          } catch (e) {
+            console.warn('Supabase clear error:', e);
+          }
+        }
+        if (state && state.data && Array.isArray(state.data[prop])) {
+          state.data[prop].forEach(r => {
+            if (r && r[keyField]) markRecordAsDeleted(r[keyField]);
+          });
+          state.data[prop] = [];
+          try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+        }
+        return true;
+      }
 
       const isDelete = fnName.startsWith('delete') || fnName.startsWith('remove');
       const payload = args[0];
@@ -1045,27 +1068,32 @@
         return;
       }
 
-      // Both have items: merge by primary key so no user item is ever lost or dropped!
-      const map = new Map();
-      curList.forEach(item => {
-        if (!item) return;
-        const id = item[idKey] || (idKey === 'EmpId' ? item.EmployeeId : null) || (idKey === 'InvoiceId' ? item.InvoiceNo : null) || (idKey === 'QuotationId' ? item.QuoteNo : null) || (idKey === 'PcId' ? item.VoucherNo : null);
-        if (id && !isRecordDeleted(id)) {
-          map.set(String(id).trim().toLowerCase(), item);
-        }
-      });
-
+      // Both have items: server list is authoritative, but keep any local unsynced pending creations
+      const incMap = new Map();
       incList.forEach(item => {
         if (!item) return;
         const id = item[idKey] || (idKey === 'EmpId' ? item.EmployeeId : null) || (idKey === 'InvoiceId' ? item.InvoiceNo : null) || (idKey === 'QuotationId' ? item.QuoteNo : null) || (idKey === 'PcId' ? item.VoucherNo : null);
         if (id && !isRecordDeleted(id)) {
-          const cleanId = String(id).trim().toLowerCase();
-          const existing = map.get(cleanId);
-          map.set(cleanId, existing ? { ...existing, ...item } : item);
+          incMap.set(String(id).trim().toLowerCase(), item);
         }
       });
 
-      merged[prop] = Array.from(map.values());
+      // Retain only local items that are genuinely pending sync
+      const pendingLocal = [];
+      curList.forEach(item => {
+        if (!item) return;
+        const id = item[idKey] || (idKey === 'EmpId' ? item.EmployeeId : null) || (idKey === 'InvoiceId' ? item.InvoiceNo : null) || (idKey === 'QuotationId' ? item.QuoteNo : null) || (idKey === 'PcId' ? item.VoucherNo : null);
+        if (id && !isRecordDeleted(id)) {
+          const cleanId = String(id).trim().toLowerCase();
+          if (item._pendingSync || item._isLocalOnly) {
+            if (!incMap.has(cleanId)) {
+              pendingLocal.push(item);
+            }
+          }
+        }
+      });
+
+      merged[prop] = [...Array.from(incMap.values()), ...pendingLocal];
     });
 
     return merged;
@@ -7639,8 +7667,9 @@
 
   async function removeCallReport(id) {
     verifyPinAndExecute('delete this Call Report entry', async () => {
+      markRecordAsDeleted(id);
       if (state.data.callReports) {
-        state.data.callReports = state.data.callReports.filter(r => r.CallId !== id);
+        state.data.callReports = state.data.callReports.filter(r => String(r.CallId).trim().toLowerCase() !== String(id).trim().toLowerCase());
       }
       try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
       renderCallReportsView();
@@ -7657,6 +7686,12 @@
   async function clearAllCallReports() {
     verifyPinAndExecute('delete ALL Call Report entries', async () => {
       showToast('Clearing all call reports...');
+      (state.data.callReports || []).forEach(r => {
+        if (r && r.CallId) markRecordAsDeleted(r.CallId);
+      });
+      state.data.callReports = [];
+      try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+      renderCallReportsView();
       await gas('clearReportEntries', 'CallReports');
       showToast('All call reports cleared.');
       await refreshData();
