@@ -1410,7 +1410,7 @@
                   <td><b>${esc(i.InvoiceNo)}</b></td>
                   <td>${esc(i.Date)}</td>
                   <td>${esc(i.CustomerName)}</td>
-                  <td><b>${esc(i.SalesPerson || '-')}</b></td>
+                  <td><b>${esc(getEmployeeDisplayName(i.SalesPerson) || '-')}</b></td>
                   <td style="text-align:right;"><b>${fmtMoney(i.Total)}</b></td>
                   <td style="text-align:right;">
                     ${i.Status === 'Paid' ? `<span style="color:var(--success); font-weight:700;">${fmtMoney(i.Total)}</span>` : `${fmtMoney(i.PaidAmount || 0)}${bal > 0 ? `<div style="font-size:11px; color:var(--danger); font-weight:700;">Bal: ${fmtMoney(bal)}</div>` : ''}`}
@@ -1594,7 +1594,7 @@
     let totalCollection = 0;
     let freeIssueCount = 0;
 
-    // Grouping by Sales Person
+    // Grouping by Sales Person (Requirement: Display by User Name, fallback to given Name)
     const spMap = {};
 
     periodInvoices.forEach(i => {
@@ -1608,36 +1608,52 @@
       totalSales += invAmt;
       totalCollection += paidAmt;
 
-      const spName = (i.SalesPerson || 'Unassigned / Direct').trim();
-      if (!spMap[spName]) {
-        const matchedEmp = employees.find(e => (e.Name || '').toLowerCase().trim() === spName.toLowerCase()) || {};
-        spMap[spName] = {
-          name: spName,
-          designation: matchedEmp.Designation || matchedEmp.Position || (spName === 'Unassigned / Direct' ? 'Direct Sale' : 'Sales Officer'),
-          department: matchedEmp.Department || 'Sales & Marketing',
+      const rawSp = (i.SalesPerson || 'Unassigned / Direct').trim();
+      const matchedEmp = employees.find(e =>
+        (e.Name || '').toLowerCase().trim() === rawSp.toLowerCase() ||
+        (e.UserName || '').toLowerCase().trim() === rawSp.toLowerCase() ||
+        (e.EmpId || '').toLowerCase().trim() === rawSp.toLowerCase()
+      ) || null;
+
+      const spDisplayName = matchedEmp ? getEmployeeDisplayName(matchedEmp) : (rawSp === 'Unassigned / Direct' ? 'Unassigned / Direct' : getEmployeeDisplayName(rawSp));
+      const spKey = matchedEmp ? (matchedEmp.EmpId || spDisplayName) : spDisplayName;
+
+      if (!spMap[spKey]) {
+        spMap[spKey] = {
+          key: spKey,
+          name: spDisplayName,
+          emp: matchedEmp,
+          fullName: matchedEmp ? (matchedEmp.Name || '') : (rawSp !== spDisplayName ? rawSp : ''),
+          designation: matchedEmp ? (matchedEmp.Designation || matchedEmp.Position || 'Sales Officer') : (rawSp === 'Unassigned / Direct' ? 'Direct Sale' : 'Sales Officer'),
+          department: matchedEmp ? (matchedEmp.Department || 'Sales & Marketing') : 'Sales & Marketing',
           sales: 0,
           collected: 0,
           invoiceCount: 0,
-          avatar: matchedEmp.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(spName) + '&background=0284c7&color=fff')
+          avatar: (matchedEmp && matchedEmp.Avatar) || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(spDisplayName) + '&background=0284c7&color=fff')
         };
       }
-      spMap[spName].sales += invAmt;
-      spMap[spName].collected += paidAmt;
-      spMap[spName].invoiceCount += 1;
+      spMap[spKey].sales += invAmt;
+      spMap[spKey].collected += paidAmt;
+      spMap[spKey].invoiceCount += 1;
     });
 
-    // Also include active Sales Officers from Employees list even if 0 sales
+    // Also include active Sales Officers from Employees list even if 0 sales (using User Name / display name)
     employees.filter(e => e.Position === 'Sales Officer' || (e.Designation || '').toLowerCase().includes('sales')).forEach(e => {
-      const spName = e.Name.trim();
-      if (!spMap[spName]) {
-        spMap[spName] = {
-          name: spName,
+      if (e.Status === 'Inactive') return;
+      const spDisplayName = getEmployeeDisplayName(e);
+      const spKey = e.EmpId || spDisplayName;
+      if (!spMap[spKey]) {
+        spMap[spKey] = {
+          key: spKey,
+          name: spDisplayName,
+          emp: e,
+          fullName: e.Name || '',
           designation: e.Designation || e.Position || 'Sales Officer',
           department: e.Department || 'Sales',
           sales: 0,
           collected: 0,
           invoiceCount: 0,
-          avatar: e.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(spName) + '&background=0284c7&color=fff')
+          avatar: e.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(spDisplayName) + '&background=0284c7&color=fff')
         };
       }
     });
@@ -1645,7 +1661,7 @@
     let spList = Object.values(spMap);
     if (_mgrSalesState.search) {
       const q = _mgrSalesState.search.toLowerCase().trim();
-      spList = spList.filter(s => s.name.toLowerCase().includes(q) || s.designation.toLowerCase().includes(q));
+      spList = spList.filter(s => s.name.toLowerCase().includes(q) || s.designation.toLowerCase().includes(q) || (s.fullName && s.fullName.toLowerCase().includes(q)));
     }
 
     // Sort descending by sales amount, then collection amount
@@ -1761,7 +1777,12 @@
                 else if (rank === 3) rankBadge = '<span style="display:inline-block; font-size:13px; font-weight:800; background:#ffedd5; color:#9a3412; padding:3px 10px; border-radius:12px; border:1px solid #fdba74;">🥉 Rank 3</span>';
                 else rankBadge = `<span style="display:inline-block; font-size:12.5px; font-weight:700; color:#64748b; padding:2px 8px;">#${rank}</span>`;
 
-                const matchedEmp = (state.data.employees || []).find(e => (e.Name || '').toLowerCase().trim() === sp.name.toLowerCase()) || {};
+                const matchedEmp = sp.emp || (state.data.employees || []).find(e =>
+                  (e.EmpId && e.EmpId === sp.key) ||
+                  (e.UserName && e.UserName.toLowerCase().trim() === sp.name.toLowerCase()) ||
+                  (e.Name && e.Name.toLowerCase().trim() === sp.name.toLowerCase()) ||
+                  (sp.fullName && e.Name && e.Name.toLowerCase().trim() === sp.fullName.toLowerCase())
+                ) || {};
                 const sTarget = Number(matchedEmp.SalesTarget || 0);
                 const cTarget = Number(matchedEmp.CollectionTarget || 0);
                 const sAchRate = sTarget > 0 ? ((sp.sales / sTarget) * 100).toFixed(1) : null;
@@ -2007,11 +2028,19 @@
   function getEmployeeDisplayName(e) {
     if (!e) return '';
     if (typeof e === 'string') {
-      const found = (state.data.employees || []).find(x => x.EmpId === e || x.Name === e || x.UserName === e);
-      if (found) return (found.UserName && found.UserName.trim()) ? found.UserName.trim() : (found.Name || e);
-      return e;
+      const trimmed = e.trim();
+      const lower = trimmed.toLowerCase();
+      const found = (state.data.employees || []).find(x =>
+        (x.EmpId && String(x.EmpId).toLowerCase().trim() === lower) ||
+        (x.Name && String(x.Name).toLowerCase().trim() === lower) ||
+        (x.UserName && String(x.UserName).toLowerCase().trim() === lower)
+      );
+      if (found) {
+        return (found.UserName && found.UserName.trim()) ? found.UserName.trim() : (found.Name || trimmed);
+      }
+      return trimmed;
     }
-    return (e.UserName && e.UserName.trim()) ? e.UserName.trim() : (e.Name || '');
+    return (e.UserName && String(e.UserName).trim()) ? String(e.UserName).trim() : (e.Name || '');
   }
 
   let _invLines = [];
@@ -6140,6 +6169,10 @@
 
   function getCallVal(r, col) {
     const k = col.key;
+    if (k === 'SP' || k === 'ManagerName') {
+      const v = (r[k] !== undefined && r[k] !== null && String(r[k]).trim() !== '') ? r[k] : (r['Manager Name'] || r['S.P'] || r.sp || '');
+      return getEmployeeDisplayName(v) || v;
+    }
     if (r[k] !== undefined && r[k] !== null && String(r[k]).trim() !== '') return r[k];
     if (r[col.label] !== undefined && r[col.label] !== null && String(r[col.label]).trim() !== '') return r[col.label];
     // Aliases
