@@ -7215,17 +7215,17 @@
             ${areaList.map(a => `<option value="${esc(a)}" ${_projectReportFilter.area === a ? 'selected' : ''}>${esc(a)}</option>`).join('')}
           </select>
           <select style="width:200px; margin:0; padding:6px 8px;" onchange="_projectReportFilter.customer=this.value; renderProjectReportsView()">
-            <option value="">-- All Customers --</option>
+            <option value="">-- All Project Customers --</option>
             ${customerList.map(c => `<option value="${esc(c)}" ${_projectReportFilter.customer === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
           </select>
-          <input type="text" placeholder="Search Customer, Contact, Address, Area, Comment..." style="flex:1; min-width:200px; margin:0; padding:6px 8px;" value="${esc(_projectReportFilter.search)}" oninput="filterTable('projectReportTable', this.value)">
+          <input type="text" placeholder="Search Project Customer, Contact, Address, Area, Comment..." style="flex:1; min-width:200px; margin:0; padding:6px 8px;" value="${esc(_projectReportFilter.search)}" oninput="filterTable('projectReportTable', this.value)">
           ${(_projectReportFilter.startDate || _projectReportFilter.endDate || _projectReportFilter.area || _projectReportFilter.customer || _projectReportFilter.search) ? `<button class="btn btn-sm btn-secondary" style="margin:0;" onclick="_projectReportFilter.startDate=''; _projectReportFilter.endDate=''; _projectReportFilter.area=''; _projectReportFilter.customer=''; _projectReportFilter.search=''; renderProjectReportsView()">Reset</button>` : ''}
         </div>
       </div>
 
       <div class="kpi-grid no-print" style="margin-bottom:16px;">
         <div class="card"><div class="kpi-label">Total Reports</div><div class="kpi-val">${filtered.length}</div></div>
-        <div class="card"><div class="kpi-label">Unique Customers</div><div class="kpi-val" style="color:var(--primary);">${new Set(filtered.map(r => r.Customer).filter(Boolean)).size}</div></div>
+        <div class="card"><div class="kpi-label">Unique Project Customers</div><div class="kpi-val" style="color:var(--primary);">${new Set(filtered.map(r => r.Customer).filter(Boolean)).size}</div></div>
         <div class="card"><div class="kpi-label">Areas Covered</div><div class="kpi-val" style="color:#0284c7;">${new Set(filtered.map(r => r.Area).filter(Boolean)).size}</div></div>
       </div>
 
@@ -7234,13 +7234,13 @@
           <thead>
             <tr>
               <th colspan="8" class="print-title" style="padding:10px; font-size:14px; text-align:center;">
-                PROJECT REPORT - CUSTOMER VISITS &amp; SITES
+                PROJECT REPORT - PROJECT CUSTOMER VISITS &amp; SITES
               </th>
             </tr>
             <tr>
               <th style="width:60px; text-align:center;">No.</th>
               <th style="width:110px;">Date</th>
-              <th style="width:220px;">Customer</th>
+              <th style="width:220px;">Project Customer</th>
               <th style="width:140px;">Contact Number</th>
               <th style="min-width:180px;">Address</th>
               <th style="width:140px;">Area</th>
@@ -7312,11 +7312,8 @@
       </div>
       <div class="form-row">
         <div class="form-group" style="flex:2;">
-          <label>Customer *</label>
-          <input id="proj_customer" value="${esc(custVal)}" placeholder="Type customer or hardware name..." list="proj_cust_list" required>
-          <datalist id="proj_cust_list">
-            ${(state.data.customers || []).map(c => `<option value="${esc(c.Name)}"></option>`).join('')}
-          </datalist>
+          <label>Project Customer *</label>
+          <input id="proj_customer" value="${esc(custVal)}" placeholder="Type project customer name..." required>
         </div>
         <div class="form-group" style="flex:1;">
           <label>Contact Number</label>
@@ -7355,7 +7352,7 @@
     const comment = document.getElementById('proj_comment')?.value.trim();
 
     if (!customer) {
-      showToast('Please enter Customer name.');
+      showToast('Please enter Project Customer name.');
       return;
     }
     if (!date) {
@@ -7373,33 +7370,53 @@
       Comment: comment
     };
 
-    await gas('saveReportEntry', 'ProjectReports', {
+    const payload = {
       ProjId: id || undefined,
       DataJson: JSON.stringify(obj),
-      CreatedBy: state.user.Name
-    });
+      CreatedBy: (state.user && state.user.Name) || 'Admin User'
+    };
 
-    closeModal();
-    showToast('Project Report saved successfully!');
-    await refreshData();
-    renderProjectReportsView();
+    try {
+      await gas('saveProjectReport', payload);
+      closeModal();
+      showToast('Project Report saved successfully!');
+      renderProjectReportsView();
+    } catch (e) {
+      console.error('Error saving project report:', e);
+      showToast('Error saving project report: ' + (e.message || e));
+    }
   }
 
   async function deleteProjectReport(id) {
     verifyPinAndExecute('delete this Project Report entry', async () => {
-      await gas('deleteReportEntry', 'ProjectReports', id);
-      showToast('Project Report entry deleted.');
-      await refreshData();
+      if (state.data.projectReports) {
+        state.data.projectReports = state.data.projectReports.filter(r => String(r.ProjId) !== String(id));
+      }
+      try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
       renderProjectReportsView();
+      try {
+        await gas('deleteProjectReport', id);
+        showToast('Project Report entry deleted.');
+      } catch (e) {
+        console.error('Error deleting project report:', e);
+        showToast('Error deleting project report: ' + (e.message || e));
+      }
     });
   }
 
   async function clearAllProjectReports() {
     verifyPinAndExecute('delete ALL Project Report entries', async () => {
       showToast('Clearing all project reports...');
+      state.data.projectReports = [];
+      try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+      renderProjectReportsView();
+      try {
+        if (typeof OfficeSupabase !== 'undefined' && OfficeSupabase.isReady && OfficeSupabase.isReady()) {
+          await OfficeSupabase.client.from('ProjectReports').delete().neq('ProjId', '___NONE___');
+        }
+      } catch (e) {}
       await gas('clearReportEntries', 'ProjectReports');
       showToast('All project reports cleared.');
-      await refreshData();
       renderProjectReportsView();
     });
   }
@@ -7551,7 +7568,7 @@
       try { d = JSON.parse(r.DataJson || '{}'); } catch (e) {}
       return {
         'No': d.No !== undefined ? d.No : (idx + 1),
-        'Customer': d.Customer || '',
+        'Project Customer': d.Customer || '',
         'Contact Number': d.ContactNumber || d['Contact Number'] || '',
         'Address': d.Address || '',
         'Area': d.Area || '',
@@ -7563,7 +7580,7 @@
     const wb = XLSX.utils.book_new();
 
     const wsReports = XLSX.utils.json_to_sheet(reportRows, {
-      header: ['No', 'Customer', 'Contact Number', 'Address', 'Area', 'Comment', 'Date']
+      header: ['No', 'Project Customer', 'Contact Number', 'Address', 'Area', 'Comment', 'Date']
     });
     XLSX.utils.book_append_sheet(wb, wsReports, 'Sheet1');
 

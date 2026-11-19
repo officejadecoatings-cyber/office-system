@@ -66,7 +66,7 @@ function doPost(e) {
       saveInvoice, deleteInvoice, updateInvoicePayment, dispatchInvoice,
       saveCreditor, deleteCreditor,
       savePettyCash, deletePettyCash,
-      saveReportEntry, deleteReportEntry, importReportEntries, clearReportEntries, saveCallReport, deleteCallReport,
+      saveReportEntry, deleteReportEntry, importReportEntries, clearReportEntries, saveCallReport, deleteCallReport, saveProjectReport, deleteProjectReport,
       savePainterQuotation, deletePainterQuotation,
       savePainterBillBalance, deletePainterBillBalance, importPainterBillBalances,
       savePainterParticipant, deletePainterParticipant,
@@ -825,6 +825,14 @@ function saveCallReport(entry) {
 
 function deleteCallReport(id) {
   return deleteReportEntry('CallReports', id);
+}
+
+function saveProjectReport(entry) {
+  return saveReportEntry('ProjectReports', entry);
+}
+
+function deleteProjectReport(id) {
+  return deleteReportEntry('ProjectReports', id);
 }
 
 function saveReportEntry(sheetName, entry) {
