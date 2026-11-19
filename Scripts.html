@@ -943,10 +943,35 @@
     updateRestrictedTabsVisibility();
   }
 
-  const _recentlyDeletedIds = new Map(); // id -> timestamp
+  const DELETED_IDS_STORAGE_KEY = 'office_deleted_ids_v2';
+  let _recentlyDeletedIds = new Map();
+
+  function loadDeletedIds() {
+    try {
+      const raw = localStorage.getItem(DELETED_IDS_STORAGE_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          const now = Date.now();
+          _recentlyDeletedIds = new Map(arr.filter(x => x && x.id && (now - x.time < 7 * 24 * 60 * 60 * 1000)).map(x => [x.id, x.time]));
+        }
+      }
+    } catch (e) {}
+  }
+  loadDeletedIds();
+
+  function saveDeletedIds() {
+    try {
+      const arr = Array.from(_recentlyDeletedIds.entries()).map(([id, time]) => ({ id, time }));
+      localStorage.setItem(DELETED_IDS_STORAGE_KEY, JSON.stringify(arr));
+    } catch (e) {}
+  }
 
   function markRecordAsDeleted(id) {
-    if (id) _recentlyDeletedIds.set(String(id).trim().toLowerCase(), Date.now());
+    if (!id) return;
+    const cleanId = String(id).trim().toLowerCase();
+    _recentlyDeletedIds.set(cleanId, Date.now());
+    saveDeletedIds();
   }
 
   function isRecordDeleted(id) {
@@ -954,8 +979,9 @@
     const cleanId = String(id).trim().toLowerCase();
     const time = _recentlyDeletedIds.get(cleanId);
     if (!time) return false;
-    if (Date.now() - time > 15 * 60 * 1000) {
+    if (Date.now() - time > 7 * 24 * 60 * 60 * 1000) {
       _recentlyDeletedIds.delete(cleanId);
+      saveDeletedIds();
       return false;
     }
     return true;
@@ -2556,24 +2582,78 @@
 
     if (Array.isArray(data.employees)) {
       data.employees = dedupe(data.employees, e => (e.EmployeeId || e.EmpId || '').toString().trim().toLowerCase());
+      data.employees = data.employees.filter(e => !isRecordDeleted(e.EmployeeId) && !isRecordDeleted(e.EmpId));
     }
     if (Array.isArray(data.users)) {
       data.users = dedupe(data.users, u => (u.UserId || '').toString().trim().toLowerCase());
+      data.users = data.users.filter(u => !isRecordDeleted(u.UserId));
     }
     if (Array.isArray(data.companyProfiles)) {
       data.companyProfiles = dedupe(data.companyProfiles, c => (c.CompanyId || '').toString().trim().toLowerCase());
+      data.companyProfiles = data.companyProfiles.filter(c => !isRecordDeleted(c.CompanyId));
     }
     if (Array.isArray(data.inventory)) {
       data.inventory = dedupe(data.inventory, it => (it.ItemId || '').toString().trim().toLowerCase());
+      data.inventory = data.inventory.filter(it => !isRecordDeleted(it.ItemId));
     }
     if (Array.isArray(data.invoices)) {
       data.invoices = dedupe(data.invoices, inv => (inv.InvoiceId || inv.InvoiceNo || '').toString().trim().toLowerCase());
+      data.invoices = data.invoices.filter(i => !isRecordDeleted(i.InvoiceId) && !isRecordDeleted(i.InvoiceNo));
     }
     if (Array.isArray(data.customers)) {
       data.customers = dedupe(data.customers, c => (c.CustomerId || '').toString().trim().toLowerCase());
+      data.customers = data.customers.filter(c => !isRecordDeleted(c.CustomerId));
     }
     if (Array.isArray(data.quotations)) {
       data.quotations = dedupe(data.quotations, q => (q.QuotationId || q.QuoteNo || '').toString().trim().toLowerCase());
+      data.quotations = data.quotations.filter(q => !isRecordDeleted(q.QuotationId) && !isRecordDeleted(q.QuoteNo));
+    }
+    if (Array.isArray(data.callReports)) {
+      data.callReports = dedupe(data.callReports, r => (r.CallId || '').toString().trim().toLowerCase());
+      data.callReports = data.callReports.filter(r => !isRecordDeleted(r.CallId));
+    }
+    if (Array.isArray(data.projectReports)) {
+      data.projectReports = dedupe(data.projectReports, r => (r.ProjId || '').toString().trim().toLowerCase());
+      data.projectReports = data.projectReports.filter(r => !isRecordDeleted(r.ProjId));
+      // Re-index project reports sequentially so every entry has a strictly unique primary number 1, 2, 3, 4...
+      const seenNos = new Set();
+      let curMax = 0;
+      data.projectReports.forEach(r => {
+        let d = {};
+        try { d = JSON.parse(r.DataJson || '{}'); } catch (e) {}
+        let no = parseInt(d.No, 10);
+        if (isNaN(no) || no <= 0 || seenNos.has(no)) {
+          curMax++;
+          d.No = curMax;
+        } else {
+          seenNos.add(no);
+          if (no > curMax) curMax = no;
+        }
+        r.DataJson = JSON.stringify(d);
+      });
+    }
+    if (Array.isArray(data.pettyCash)) {
+      data.pettyCash = dedupe(data.pettyCash, p => (p.PcId || p.VoucherNo || '').toString().trim().toLowerCase());
+      data.pettyCash = data.pettyCash.filter(p => !isRecordDeleted(p.PcId) && !isRecordDeleted(p.VoucherNo));
+    }
+    if (Array.isArray(data.transactions)) {
+      data.transactions = dedupe(data.transactions, t => (t.TxId || '').toString().trim().toLowerCase());
+      data.transactions = data.transactions.filter(t => !isRecordDeleted(t.TxId));
+    }
+    if (Array.isArray(data.leaves)) {
+      data.leaves = dedupe(data.leaves, l => (l.LeaveId || '').toString().trim().toLowerCase());
+      data.leaves = data.leaves.filter(l => !isRecordDeleted(l.LeaveId));
+    }
+    if (Array.isArray(data.attendance)) {
+      data.attendance = dedupe(data.attendance, a => (a.AttId || '').toString().trim().toLowerCase());
+      data.attendance = data.attendance.filter(a => !isRecordDeleted(a.AttId));
+    }
+    if (Array.isArray(data.tasks)) {
+      data.tasks = dedupe(data.tasks, t => (t.TaskId || '').toString().trim().toLowerCase());
+      data.tasks = data.tasks.filter(t => !isRecordDeleted(t.TaskId));
+    }
+    if (Array.isArray(data.invoiceItems)) {
+      data.invoiceItems = dedupe(data.invoiceItems, li => (li.LineId || '').toString().trim().toLowerCase());
     }
     if (Array.isArray(data.painterParticipants)) {
       data.painterParticipants = dedupe(data.painterParticipants, p => (p.ParticipantId || '').toString().trim().toLowerCase());
@@ -8089,8 +8169,9 @@
       Comment: comment
     };
 
+    const finalProjId = id || ('PRJ-' + Date.now() + '-' + Math.floor(Math.random() * 1000));
     const payload = {
-      ProjId: id || undefined,
+      ProjId: finalProjId,
       DataJson: JSON.stringify(obj),
       CreatedBy: (state.user && state.user.Name) || 'Admin User'
     };
@@ -8108,6 +8189,7 @@
 
   async function deleteProjectReport(id) {
     verifyPinAndExecute('delete this Project Report entry', async () => {
+      markRecordAsDeleted(id);
       if (state.data.projectReports) {
         state.data.projectReports = state.data.projectReports.filter(r => String(r.ProjId) !== String(id));
       }
