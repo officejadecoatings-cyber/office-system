@@ -33,7 +33,7 @@
     }
   };
 
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbw5SxusRaa1lrByPmcysKqRUGjTfuKmziJho0SUFCL0BDo1R1W7NbwAX41VNqwHquKU8g/exec';
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbzp7Cx1LsYEgR9vo6tqP-b8tpcL1fJR0pMUnSdmpboFRX_eK0MoLwX3LNNx05zUo3M_6A/exec';
   const CACHE_KEY_DATA = 'JADE_OFFICE_DATA_CACHE';
   const CACHE_KEY_USER = 'JADE_OFFICE_USER_CACHE';
 
@@ -169,7 +169,7 @@
 
   const DEFAULT_SUPABASE_URL = 'https://ftucnvtpmkftjzoobrfq.supabase.co';
   const DEFAULT_SUPABASE_KEY = 'sb_publishable_T4O1XsAawck_ix9z_acpdA_EWcNkJtR';
-  const CURRENT_GAS_URL = 'https://script.google.com/macros/s/AKfycbym86HAuBy-AGqZ1sFlXZ3bDj_G54ehkEdVQF_-bPVZcYXAmwNyLwXmiFNqWEXdCo2naQ/exec';
+  const CURRENT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzp7Cx1LsYEgR9vo6tqP-b8tpcL1fJR0pMUnSdmpboFRX_eK0MoLwX3LNNx05zUo3M_6A/exec';
 
   const OfficeSupabase = {
     client: null,
@@ -4046,11 +4046,17 @@
   function findMatchedInventoryItem(ln) {
     if (!ln) return null;
     const items = state.data.inventory || [];
+    const lnId = String(ln.ItemId || '').trim();
     const lnDesc = String(ln.Description || ln.ItemName || ln.Name || '').trim().toLowerCase();
     const lnCode = String(ln.ItemCode || ln.SKU || '').trim().toLowerCase();
-    const lnId = String(ln.ItemId || '').trim();
 
-    // 1. Exact Name AND SKU match (best for variant products sharing same SKU like JD-020 500ml/1L/4L/20L)
+    // 1. Exact ItemId match FIRST (Direct item binding)
+    if (lnId) {
+      const byId = items.find(it => String(it.ItemId).trim() === lnId);
+      if (byId) return byId;
+    }
+
+    // 2. Exact Name AND SKU match
     if (lnDesc && lnCode) {
       const byBoth = items.find(it => {
         const itName = String(it.Name || '').trim().toLowerCase();
@@ -4060,31 +4066,37 @@
       if (byBoth) return byBoth;
     }
 
-    // 2. Exact Name match
+    // 3. Exact Name match
     if (lnDesc) {
       const byName = items.find(it => String(it.Name || '').trim().toLowerCase() === lnDesc);
       if (byName) return byName;
     }
 
-    // 3. Name Substring / Contains match (e.g. pack sizes in name)
+    // 4. SKU match with disambiguation for multiple variants sharing same code (e.g. JD-020 500ml/1L/4L/20L)
+    if (lnCode) {
+      const bySkuList = items.filter(it => String(it.SKU || '').trim().toLowerCase() === lnCode);
+      if (bySkuList.length === 1) return bySkuList[0];
+      if (bySkuList.length > 1) {
+        if (lnDesc) {
+          const byPack = bySkuList.find(it => {
+            const u = String(it.Unit || '').trim().toLowerCase();
+            const itName = String(it.Name || '').trim().toLowerCase();
+            return (u && (lnDesc.includes(u) || lnDesc.includes(u.replace(/\s+/g, '')))) ||
+                   itName === lnDesc || itName.includes(lnDesc) || lnDesc.includes(itName);
+          });
+          if (byPack) return byPack;
+        }
+        return bySkuList[0];
+      }
+    }
+
+    // 5. Name Substring / Contains match
     if (lnDesc && lnDesc.length > 2) {
       const byNameSub = items.find(it => {
         const itName = String(it.Name || '').trim().toLowerCase();
         return itName.includes(lnDesc) || lnDesc.includes(itName);
       });
       if (byNameSub) return byNameSub;
-    }
-
-    // 4. Exact ItemId match
-    if (lnId) {
-      const byId = items.find(it => String(it.ItemId).trim() === lnId);
-      if (byId) return byId;
-    }
-
-    // 5. SKU match fallback
-    if (lnCode) {
-      const bySku = items.find(it => String(it.SKU || '').trim().toLowerCase() === lnCode);
-      if (bySku) return bySku;
     }
 
     return null;
@@ -4299,9 +4311,19 @@
       item = items.find(it => String(it.ItemId || '').trim().toLowerCase() === v);
     }
 
-    // 4. Exact SKU match
+    // 4. SKU match with disambiguation for multiple variants (e.g. JD-020 500ml/1L/4L/20L)
     if (!item) {
-      item = items.find(it => String(it.SKU || '').trim().toLowerCase() === v);
+      const matchingSku = items.filter(it => String(it.SKU || '').trim().toLowerCase() === v);
+      if (matchingSku.length === 1) {
+        item = matchingSku[0];
+      } else if (matchingSku.length > 1) {
+        const currDesc = String(_quotLines[idx].Description || '').toLowerCase();
+        item = matchingSku.find(it => {
+          const u = String(it.Unit || '').toLowerCase();
+          return (u && (currDesc.includes(u) || currDesc.includes(u.replace(/\s+/g, '')))) ||
+                 currDesc.includes(String(it.Name || '').toLowerCase());
+        }) || matchingSku[0];
+      }
     }
 
     if (item) {
@@ -4309,6 +4331,7 @@
       _quotLines[idx].ItemCode = item.SKU || '';
       _quotLines[idx].Description = item.Name;
       _quotLines[idx].UnitPrice = Number(item.UnitPrice) || 0;
+      _quotLines[idx].StockQty = Number(item.StockQty) || 0;
       _quotLines[idx].ItemDisplay = `${item.SKU ? item.SKU + ' - ' : ''}${item.Name}`;
     } else {
       _quotLines[idx].Description = val;
@@ -4318,6 +4341,7 @@
         _quotLines[idx].ItemId = matched.ItemId;
         _quotLines[idx].ItemCode = matched.SKU || '';
         _quotLines[idx].UnitPrice = Number(matched.UnitPrice) || 0;
+        _quotLines[idx].StockQty = Number(matched.StockQty) || 0;
       }
     }
     renderQuotLines();
