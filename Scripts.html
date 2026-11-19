@@ -9679,6 +9679,7 @@
   let _attSort = '';
   let _leaveStartDate = '';
   let _leaveEndDate = '';
+  let _leaveEmpFilter = '';
 
   function renderEmployeesView() {
     ensureDataDefaults();
@@ -10053,101 +10054,80 @@
       const policy = getLeavePolicy();
       const activeEmpsList = emps.filter(e => e.Status !== 'Inactive');
 
-      // Date range filter for leaves (Default: Today's leaves)
+      // Selected Employee for Quota / Filter
+      const selectedEmp = _leaveEmpFilter ? activeEmpsList.find(e => e.EmpId === _leaveEmpFilter || e.Name === _leaveEmpFilter) : null;
+      const selectedDispName = selectedEmp ? getEmployeeDisplayName(selectedEmp) : '';
+      const selectedBal = selectedEmp ? getEmployeeLeaveBalances(selectedEmp.EmpId || selectedEmp.Name, currentYear) : null;
+
+      // Filter leaves list
       let leaveList = [...(state.data.leaves || [])];
       const hasDateFilter = !!(_leaveStartDate || _leaveEndDate);
       if (hasDateFilter) {
         if (_leaveStartDate) leaveList = leaveList.filter(l => (l.EndDate || l.StartDate) >= _leaveStartDate);
         if (_leaveEndDate) leaveList = leaveList.filter(l => (l.StartDate || l.EndDate) <= _leaveEndDate);
-        leaveList.reverse();
+      } else if (!_leaveEmpFilter) {
+        // Default: only employees on leave TODAY if no specific employee selected
+        leaveList = leaveList.filter(l => today >= l.StartDate && today <= (l.EndDate || l.StartDate));
+      }
+
+      if (_leaveEmpFilter && selectedEmp) {
+        leaveList = leaveList.filter(l => l.UserId === selectedEmp.EmpId || l.UserName === selectedEmp.Name || l.UserName === selectedEmp.UserName);
+      }
+      leaveList.reverse();
+
+      // Subtitle
+      let subTitleText = '';
+      if (_leaveEmpFilter && selectedEmp) {
+        subTitleText = `Showing leaves for ${selectedDispName}` + (hasDateFilter ? ` between ${_leaveStartDate || 'Any'} and ${_leaveEndDate || 'Any'}` : '');
+      } else if (hasDateFilter) {
+        subTitleText = `Showing leaves between ${_leaveStartDate || 'Any'} and ${_leaveEndDate || 'Any'}`;
       } else {
-        // Default: only employees on leave TODAY
-        leaveList = leaveList.filter(l => today >= l.StartDate && today <= (l.EndDate || l.StartDate)).reverse();
+        subTitleText = `Showing employees on leave today (${today})`;
       }
 
       body = `
-        <!-- Leaves Entitlement & Remaining Balances Card -->
-        <div class="card" style="margin-bottom:14px; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:8px; padding:14px 18px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
-            <div>
-              <div style="font-weight:700; font-size:16px; color:var(--text); display:flex; align-items:center; gap:8px;">
-                🏖️ Leaves
+        ${selectedEmp ? `
+          <!-- Selected Employee Leave Quota / Balance Card -->
+          <div class="card" style="margin-bottom:14px; background:#f0fdf4; border:1.5px solid #86efac; border-radius:8px; padding:12px 16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+              <div style="display:flex; align-items:center; gap:12px;">
+                <img src="${selectedEmp.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(selectedDispName || 'User') + '&background=0f766e&color=fff')}" style="width:38px; height:38px; border-radius:50%; object-fit:cover;">
+                <div>
+                  <div style="font-weight:700; font-size:14px; color:#166534;">
+                    ${esc(selectedDispName)} <span style="font-weight:normal; font-size:12px; color:#15803d;">(${esc(selectedEmp.Designation || selectedEmp.Position || 'Staff')})</span>
+                  </div>
+                  <div style="display:flex; gap:8px; margin-top:5px; flex-wrap:wrap; align-items:center; font-size:12px;">
+                    <span class="badge ${selectedBal.AnnualRemaining > 0 ? 'badge-success' : 'badge-danger'}" style="padding:3px 8px;">Annual: ${selectedBal.AnnualRemaining} / ${selectedBal.AnnualQuota} left (${selectedBal.AnnualUsed} taken)</span>
+                    <span class="badge ${selectedBal.CasualRemaining > 0 ? 'badge-info' : 'badge-danger'}" style="padding:3px 8px;">Casual: ${selectedBal.CasualRemaining} / ${selectedBal.CasualQuota} left (${selectedBal.CasualUsed} taken)</span>
+                    <span class="badge ${selectedBal.SickRemaining > 0 ? 'badge-warning' : 'badge-danger'}" style="padding:3px 8px;">Sick: ${selectedBal.SickRemaining} / ${selectedBal.SickQuota} left (${selectedBal.SickUsed} taken)</span>
+                    <span style="font-weight:800; color:#0f766e; margin-left:4px;">Total Remaining: ${selectedBal.TotalRemaining} / ${selectedBal.TotalQuota} days</span>
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button class="btn btn-sm btn-primary" onclick="openLeaveModalForEmp('${esc(selectedEmp.EmpId)}')">+ Apply Leave</button>
+                <button class="btn btn-sm btn-secondary" onclick="_leaveEmpFilter=''; renderEmployeesView()">Clear</button>
               </div>
             </div>
-            <div style="display:flex; gap:8px;">
-              <button class="btn btn-sm btn-primary" onclick="openLeaveModal()">+ Apply Leave</button>
-            </div>
           </div>
-
-          <div class="table-wrap" style="border:1px solid #e2e8f0; border-radius:6px; background:#fff;">
-            <table>
-              <thead>
-                <tr style="background:#f1f5f9; font-size:12px;">
-                  <th>Employee</th>
-                  <th style="text-align:center;">Annual Leaves (Quota: ${policy.Annual})</th>
-                  <th style="text-align:center;">Casual Leaves (Quota: ${policy.Casual})</th>
-                  <th style="text-align:center;">Sick / Medical (Quota: ${policy.Sick})</th>
-                  <th style="text-align:center;">Total Remaining</th>
-                  <th style="text-align:center;">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${activeEmpsList.map(e => {
-                  const bal = getEmployeeLeaveBalances(e.EmpId || e.Name, currentYear);
-                  const dispName = getEmployeeDisplayName(e);
-                  return `
-                    <tr>
-                      <td>
-                        <div style="display:flex; align-items:center; gap:8px;">
-                          <img src="${e.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(dispName || 'User') + '&background=0f766e&color=fff')}" style="width:26px; height:26px; border-radius:50%; object-fit:cover;">
-                          <div>
-                            <b>${esc(dispName)}</b>
-                            <div style="font-size:11px; color:var(--muted);">${esc(e.Designation || e.Position || 'Staff')}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td style="text-align:center;">
-                        <span class="badge ${bal.AnnualRemaining > 0 ? 'badge-success' : 'badge-danger'}" style="font-size:12px; padding:3px 8px;">
-                          ${bal.AnnualRemaining} / ${bal.AnnualQuota} left
-                        </span>
-                        <div style="font-size:10px; color:var(--muted); margin-top:2px;">${bal.AnnualUsed} taken</div>
-                      </td>
-                      <td style="text-align:center;">
-                        <span class="badge ${bal.CasualRemaining > 0 ? 'badge-info' : 'badge-danger'}" style="font-size:12px; padding:3px 8px;">
-                          ${bal.CasualRemaining} / ${bal.CasualQuota} left
-                        </span>
-                        <div style="font-size:10px; color:var(--muted); margin-top:2px;">${bal.CasualUsed} taken</div>
-                      </td>
-                      <td style="text-align:center;">
-                        <span class="badge ${bal.SickRemaining > 0 ? 'badge-warning' : 'badge-danger'}" style="font-size:12px; padding:3px 8px;">
-                          ${bal.SickRemaining} / ${bal.SickQuota} left
-                        </span>
-                        <div style="font-size:10px; color:var(--muted); margin-top:2px;">${bal.SickUsed} taken</div>
-                      </td>
-                      <td style="text-align:center; font-weight:800; font-size:13.5px; color:#0f766e;">
-                        ${bal.TotalRemaining} <span style="font-size:11px; font-weight:600; color:var(--muted);">/ ${bal.TotalQuota} days</span>
-                      </td>
-                      <td style="text-align:center;">
-                        <button class="btn btn-sm btn-secondary" onclick="openLeaveModalForEmp('${esc(e.EmpId)}')">+ Apply</button>
-                      </td>
-                    </tr>
-                  `;
-                }).join('') || '<tr><td colspan="6" style="text-align:center; color:var(--muted);">No active employees registered.</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        ` : ''}
 
         <div class="section-header" style="flex-wrap:wrap; gap:10px;">
           <div>
             <h3 style="margin:0; font-size:15px; color:var(--text);">Leaves Records</h3>
-            <div style="font-size:12px; color:var(--muted);">
-              ${hasDateFilter 
-                ? `Showing leaves between ${_leaveStartDate || 'Any'} and ${_leaveEndDate || 'Any'}`
-                : `Showing employees on leave today (${today})`}
-            </div>
+            <div style="font-size:12px; color:var(--muted);">${esc(subTitleText)}</div>
           </div>
           <div class="section-actions" style="flex-wrap:wrap; gap:8px;">
+            <div style="display:inline-flex; align-items:center; gap:6px;">
+              <label style="font-size:12px; font-weight:600; color:var(--muted); margin:0;">Employee:</label>
+              <select onchange="_leaveEmpFilter=this.value; renderEmployeesView()" style="width:190px; margin:0; padding:5px 8px; font-size:12.5px;">
+                <option value="">All Employees</option>
+                ${activeEmpsList.map(e => {
+                  const dName = getEmployeeDisplayName(e);
+                  return `<option value="${esc(e.EmpId)}" ${_leaveEmpFilter === e.EmpId ? 'selected' : ''}>${esc(dName)}</option>`;
+                }).join('')}
+              </select>
+            </div>
             <div style="display:inline-flex; align-items:center; gap:6px;">
               <label style="font-size:12px; font-weight:600; color:var(--muted); margin:0;">Start Date:</label>
               <input type="date" value="${esc(_leaveStartDate || '')}" onchange="_leaveStartDate=this.value; renderEmployeesView()" style="width:140px; margin:0; padding:5px 8px; font-size:12.5px;">
@@ -10156,8 +10136,8 @@
               <label style="font-size:12px; font-weight:600; color:var(--muted); margin:0;">End Date:</label>
               <input type="date" value="${esc(_leaveEndDate || '')}" onchange="_leaveEndDate=this.value; renderEmployeesView()" style="width:140px; margin:0; padding:5px 8px; font-size:12.5px;">
             </div>
-            ${hasDateFilter ? `
-              <button class="btn btn-sm btn-secondary" onclick="_leaveStartDate=''; _leaveEndDate=''; renderEmployeesView()">Today's Leaves</button>
+            ${(hasDateFilter || _leaveEmpFilter) ? `
+              <button class="btn btn-sm btn-secondary" onclick="_leaveStartDate=''; _leaveEndDate=''; _leaveEmpFilter=''; renderEmployeesView()">Today's Leaves</button>
             ` : ''}
             <button class="btn btn-primary" onclick="openLeaveModal()">+ Request Leave</button>
           </div>
@@ -10185,7 +10165,7 @@
                     <button class="btn btn-sm btn-danger" onclick="removeLeave('${esc(l.LeaveId)}')">Del</button>
                   </td>
                 </tr>
-              `;}).join('') || `<tr><td colspan="7" style="color:var(--muted); text-align:center;">${hasDateFilter ? 'No leave records found for selected period.' : 'No employees are on leave today.'}</td></tr>`}
+              `;}).join('') || `<tr><td colspan="7" style="color:var(--muted); text-align:center;">${(hasDateFilter || _leaveEmpFilter) ? 'No leave records found for selected filter.' : 'No employees are on leave today.'}</td></tr>`}
             </tbody>
           </table>
         </div>
