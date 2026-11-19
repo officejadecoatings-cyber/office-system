@@ -1193,6 +1193,7 @@
 
       if (isDelete) {
         const idVal = args[0] !== undefined ? args[0] : (payload && payload[mapping.key]);
+        markRecordAsDeleted(idVal);
         if (mapping.isInvoice) {
           await Promise.all([
             this.delete('Invoices', 'InvoiceId', idVal),
@@ -1806,6 +1807,108 @@
     updateRestrictedTabsVisibility();
   }
 
+  const _recentlyDeletedIds = new Map(); // id -> timestamp
+
+  function markRecordAsDeleted(id) {
+    if (id) _recentlyDeletedIds.set(String(id).trim().toLowerCase(), Date.now());
+  }
+
+  function isRecordDeleted(id) {
+    if (!id) return false;
+    const cleanId = String(id).trim().toLowerCase();
+    const time = _recentlyDeletedIds.get(cleanId);
+    if (!time) return false;
+    if (Date.now() - time > 15 * 60 * 1000) {
+      _recentlyDeletedIds.delete(cleanId);
+      return false;
+    }
+    return true;
+  }
+
+  function mergeAppDataSafely(currentData, incomingData) {
+    if (!currentData || typeof currentData !== 'object') return incomingData || {};
+    if (!incomingData || typeof incomingData !== 'object') return currentData;
+
+    const merged = { ...currentData, ...incomingData };
+    if (incomingData.settings) {
+      merged.settings = { ...(currentData.settings || {}), ...incomingData.settings };
+    }
+
+    const keyMap = {
+      invoices: 'InvoiceId',
+      invoiceItems: 'LineId',
+      quotations: 'QuotationId',
+      callReports: 'CallId',
+      projectReports: 'ProjId',
+      inventory: 'ItemId',
+      employees: 'EmpId',
+      customers: 'CustomerId',
+      users: 'UserId',
+      companyProfiles: 'CompanyId',
+      pettyCash: 'PcId',
+      transactions: 'TxId',
+      attendance: 'AttId',
+      leaves: 'LeaveId',
+      tasks: 'TaskId',
+      painterQuotations: 'QuoteId',
+      painterBillBalances: 'BillId',
+      painterParticipants: 'ParticipantId',
+      customTabs: 'TabId',
+      customTabRows: 'RowId',
+      savedReports: 'ReportId'
+    };
+
+    Object.keys(keyMap).forEach(prop => {
+      const idKey = keyMap[prop];
+      const curList = Array.isArray(currentData[prop]) ? currentData[prop] : [];
+      const incList = Array.isArray(incomingData[prop]) ? incomingData[prop] : [];
+
+      if (curList.length === 0 && incList.length === 0) {
+        merged[prop] = [];
+        return;
+      }
+      if (curList.length > 0 && incList.length === 0) {
+        // Backend returned empty array for this table, but we have valid local user records! NEVER delete user records without permission!
+        merged[prop] = curList.filter(it => {
+          const id = it[idKey] || (idKey === 'EmpId' ? it.EmployeeId : null) || (idKey === 'InvoiceId' ? it.InvoiceNo : null) || (idKey === 'QuotationId' ? it.QuoteNo : null) || (idKey === 'PcId' ? it.VoucherNo : null);
+          return !isRecordDeleted(id);
+        });
+        return;
+      }
+      if (curList.length === 0 && incList.length > 0) {
+        merged[prop] = incList.filter(it => {
+          const id = it[idKey] || (idKey === 'EmpId' ? it.EmployeeId : null) || (idKey === 'InvoiceId' ? it.InvoiceNo : null) || (idKey === 'QuotationId' ? it.QuoteNo : null) || (idKey === 'PcId' ? it.VoucherNo : null);
+          return !isRecordDeleted(id);
+        });
+        return;
+      }
+
+      // Both have items: merge by primary key so no user item is ever lost or dropped!
+      const map = new Map();
+      curList.forEach(item => {
+        if (!item) return;
+        const id = item[idKey] || (idKey === 'EmpId' ? item.EmployeeId : null) || (idKey === 'InvoiceId' ? item.InvoiceNo : null) || (idKey === 'QuotationId' ? item.QuoteNo : null) || (idKey === 'PcId' ? item.VoucherNo : null);
+        if (id && !isRecordDeleted(id)) {
+          map.set(String(id).trim().toLowerCase(), item);
+        }
+      });
+
+      incList.forEach(item => {
+        if (!item) return;
+        const id = item[idKey] || (idKey === 'EmpId' ? item.EmployeeId : null) || (idKey === 'InvoiceId' ? item.InvoiceNo : null) || (idKey === 'QuotationId' ? item.QuoteNo : null) || (idKey === 'PcId' ? item.VoucherNo : null);
+        if (id && !isRecordDeleted(id)) {
+          const cleanId = String(id).trim().toLowerCase();
+          const existing = map.get(cleanId);
+          map.set(cleanId, existing ? { ...existing, ...item } : item);
+        }
+      });
+
+      merged[prop] = Array.from(map.values());
+    });
+
+    return merged;
+  }
+
   async function refreshData(backupToDrive = false, silent = false) {
     if (backupToDrive) {
       try { await gas('autoSyncDriveBackup'); } catch (e) {}
@@ -1822,9 +1925,11 @@
       if (!data) {
         data = await gas('getAppData');
       }
-      state.data = data;
-      ensureDataDefaults();
-      try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(data)); } catch (e) {}
+      if (data) {
+        state.data = mergeAppDataSafely(state.data, data);
+        ensureDataDefaults();
+        try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+      }
       if (data.settings) {
         document.getElementById('brandName').textContent = data.settings.CompanyName || 'Jade Coatings';
       }
