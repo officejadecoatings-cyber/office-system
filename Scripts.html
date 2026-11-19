@@ -6582,14 +6582,18 @@
       const startPhotoVal = data.StartPhoto || '';
       const endPhotoVal = data.EndPhoto || '';
 
-      const managers = (state.data.employees || []).filter(e => {
+      // Filter employees saved as Sales Officer
+      const salesOfficers = (state.data.employees || []).filter(e => {
         const p = ((e.Position || '') + ' ' + (e.Designation || '')).toLowerCase();
-        return p.includes('manager') && e.Status !== 'Inactive';
+        return (e.Position === 'Sales Officer' || p.includes('sales')) && e.Status !== 'Inactive';
       });
-      const defaultMgrNames = ['Mr. Nishan', 'Mr. Sanjeewa', 'Mr. Nilupul'];
+      const defaultSalesNames = [
+        'Mr. Sunanda', 'Mr. Damith', 'Mr. Nimesh', 'Mr. Yasas',
+        'Mr. Shehan', 'Mr. Manjula', 'Mr. Nipun', 'Mr. Pathum'
+      ];
       const managerNames = Array.from(new Set([
-        ...managers.map(e => e.Name),
-        ...(managers.length === 0 ? defaultMgrNames : []),
+        ...salesOfficers.map(e => getEmployeeDisplayName(e)),
+        ...(salesOfficers.length === 0 ? defaultSalesNames : []),
         ...(mgrVal ? [mgrVal] : [])
       ])).filter(Boolean);
 
@@ -6600,9 +6604,9 @@
             <input id="cr_Date" value="${esc(dateVal)}">
           </div>
           <div class="form-group">
-            <label>Manager Name *</label>
+            <label>Manager Name * (Sales Officers)</label>
             <select id="cr_ManagerName" style="width:100%;">
-              <option value="">-- Select Manager --</option>
+              <option value="">-- Select Sales Officer --</option>
               ${managerNames.map(name => `<option value="${esc(name)}" ${mgrVal === name ? 'selected' : ''}>${esc(name)}</option>`).join('')}
             </select>
           </div>
@@ -6812,7 +6816,9 @@
       CreatedAt: obj.Date || state.data.today || new Date().toISOString().slice(0, 10)
     };
 
-    // Optimistic local update (0ms)
+    closeModal();
+
+    // Optimistic local update (instant)
     if (!state.data.callReports) state.data.callReports = [];
     const idx = state.data.callReports.findIndex(x => x.CallId === finalId);
     if (idx >= 0) {
@@ -6821,24 +6827,30 @@
       state.data.callReports.unshift(payload);
     }
     try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
-
-    // Direct Supabase save (20ms)
-    if (window.sbClient) {
-      window.sbClient.from('CallReports').upsert(payload).then();
-    }
-
-    closeModal();
-    showToast('Call Report saved successfully!');
     renderCallReportsView();
+    showToast('Call Report saved successfully!');
 
-    // Background sync to Google Apps Script
-    gas('saveReportEntry', 'CallReports', payload).catch(e => console.error(e));
+    // Persist to Supabase (~20ms) and background-sync to GAS via gas('saveCallReport', payload)
+    try {
+      await gas('saveCallReport', payload);
+    } catch (e) {
+      console.warn('saveCallReport sync warning:', e);
+    }
   }
 
   async function removeCallReport(id) {
     verifyPinAndExecute('delete this Call Report entry', async () => {
-      await gas('deleteReportEntry', 'CallReports', id);
+      if (state.data.callReports) {
+        state.data.callReports = state.data.callReports.filter(r => r.CallId !== id);
+      }
+      try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+      renderCallReportsView();
       showToast('Deleted entry.');
+      try {
+        await gas('deleteCallReport', id);
+      } catch (e) {
+        console.warn('deleteCallReport error:', e);
+      }
       await refreshData();
     });
   }

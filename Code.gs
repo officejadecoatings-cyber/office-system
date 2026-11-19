@@ -66,7 +66,7 @@ function doPost(e) {
       saveInvoice, deleteInvoice, updateInvoicePayment, dispatchInvoice,
       saveCreditor, deleteCreditor,
       savePettyCash, deletePettyCash,
-      saveReportEntry, deleteReportEntry, importReportEntries, clearReportEntries,
+      saveReportEntry, deleteReportEntry, importReportEntries, clearReportEntries, saveCallReport, deleteCallReport,
       savePainterQuotation, deletePainterQuotation,
       savePainterBillBalance, deletePainterBillBalance, importPainterBillBalances,
       savePainterParticipant, deletePainterParticipant,
@@ -817,6 +817,14 @@ function saveEmployee(emp) {
 
 function deleteEmployee(id) {
   return withLock_(() => deleteRowByKey_('Employees', 'EmpId', id));
+}
+
+function saveCallReport(entry) {
+  return saveReportEntry('CallReports', entry);
+}
+
+function deleteCallReport(id) {
+  return deleteReportEntry('CallReports', id);
 }
 
 function saveReportEntry(sheetName, entry) {
