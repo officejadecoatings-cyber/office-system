@@ -11151,6 +11151,17 @@
           </div>
         </div>
 
+        <div class="form-row">
+          <div class="form-group">
+            <label>EPF / ETF Number</label>
+            <input id="fEmEpf" value="${esc(e.EpfEtfNo || '')}" placeholder="e.g. EPF-102">
+          </div>
+          <div class="form-group">
+            <label>Biometric / Fingerprint Device ID</label>
+            <input id="fEmBiometricId" value="${esc(e.BiometricId || '')}" placeholder="e.g. 101, FP-01">
+          </div>
+        </div>
+
         <div class="form-group">
           <label>Residential Address</label>
           <input id="fEmAddr" value="${esc((e.Address || '').replace(/\[UN:[^\]]+\]/g, '').trim())}" placeholder="Street, City">
@@ -11223,42 +11234,67 @@
   }
 
   async function submitEmployee(id) {
-    const name = document.getElementById('fEmName').value.trim();
+    const name = document.getElementById('fEmName')?.value?.trim() || '';
     if (!name) {
       showToast('Please enter Employee Name.');
       return;
     }
-    const userName = document.getElementById('fEmUserName') ? document.getElementById('fEmUserName').value.trim() : '';
-    let address = document.getElementById('fEmAddr').value.trim().replace(/\[UN:[^\]]+\]/g, '').trim();
+    const userName = document.getElementById('fEmUserName')?.value?.trim() || '';
+    let address = (document.getElementById('fEmAddr')?.value?.trim() || '').replace(/\[UN:[^\]]+\]/g, '').trim();
     if (userName) {
       address = (address ? address + ' ' : '') + '[UN:' + userName + ']';
     }
 
+    const existing = id ? (state.data.employees || []).find(x => x.EmpId === id) : null;
+
     const payload = {
-      EmpId: id,
+      ...(existing || {}),
+      EmpId: id || '',
+      EmpNo: existing?.EmpNo || generateNextEmployeeCode(),
       Name: name,
       UserName: userName,
-      Designation: document.getElementById('fEmDes').value.trim(),
+      Designation: document.getElementById('fEmDes')?.value?.trim() || '',
       Address: address,
-      NIC: document.getElementById('fEmNic').value.trim(),
-      EpfEtfNo: document.getElementById('fEmEpf').value.trim(),
-      DOB: document.getElementById('fEmDob').value,
-      Gender: document.getElementById('fEmGender').value,
-      Position: document.getElementById('fEmPos').value,
-      Email: document.getElementById('fEmEmail').value.trim(),
-      Phone: document.getElementById('fEmPhone').value.trim(),
-      EmergencyContactName: document.getElementById('fEmEmergName').value.trim(),
-      EmergencyContactPhone: document.getElementById('fEmEmergPhone').value.trim(),
-      JoinDate: document.getElementById('fEmJoin').value,
-      Status: document.getElementById('fEmStat').value,
-      BankName: document.getElementById('fEmBank') ? document.getElementById('fEmBank').value : '',
-      BankBranch: document.getElementById('fEmBranch') ? document.getElementById('fEmBranch').value.trim() : '',
-      BankAccountNo: document.getElementById('fEmAcc') ? document.getElementById('fEmAcc').value.trim() : ''
+      NIC: document.getElementById('fEmNic')?.value?.trim() || '',
+      EpfEtfNo: document.getElementById('fEmEpf')?.value?.trim() || existing?.EpfEtfNo || '',
+      BiometricId: document.getElementById('fEmBiometricId')?.value?.trim() || existing?.BiometricId || '',
+      DOB: document.getElementById('fEmDob')?.value || '',
+      Gender: document.getElementById('fEmGender')?.value || 'Male',
+      Position: document.getElementById('fEmPos')?.value || 'Office Staff',
+      Email: document.getElementById('fEmEmail')?.value?.trim() || '',
+      Phone: document.getElementById('fEmPhone')?.value?.trim() || '',
+      EmergencyContactName: document.getElementById('fEmEmergName')?.value?.trim() || '',
+      EmergencyContactPhone: document.getElementById('fEmEmergPhone')?.value?.trim() || '',
+      JoinDate: document.getElementById('fEmJoin')?.value || state.data.today,
+      Status: document.getElementById('fEmStat')?.value || 'Active',
+      BankName: document.getElementById('fEmBank')?.value || '',
+      BankBranch: document.getElementById('fEmBranch')?.value?.trim() || '',
+      BankAccountNo: document.getElementById('fEmAcc')?.value?.trim() || ''
     };
-    await gas('saveEmployee', payload);
+
     closeModal();
+
+    // Optimistic local update
+    if (id && existing) {
+      Object.assign(existing, payload);
+    } else {
+      state.data.employees = state.data.employees || [];
+      state.data.employees.unshift(payload);
+    }
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+    renderEmployeesView();
     showToast('Employee saved successfully!');
-    await refreshData();
+
+    try {
+      const saved = await gas('saveEmployee', payload);
+      if (saved && saved.EmpId && (!id || id !== saved.EmpId)) {
+        payload.EmpId = saved.EmpId;
+        try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+        renderEmployeesView();
+      }
+    } catch (err) {
+      console.error('saveEmployee background sync error:', err);
+    }
   }
 
   /* ==========================================================================

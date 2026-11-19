@@ -22,7 +22,7 @@ const SCHEMA = {
   PainterQuotations: ['QuotationId', 'QuotationNo', 'Date', 'Title', 'QuotationFor', 'Supplier', 'Receivers', 'Place', 'Time', 'TotalAmount', 'AdvanceAmount', 'RemainingAmount', 'ItemsJson', 'Status', 'CreatedBy', 'CreatedAt'],
   PainterBillBalances: ['BalanceId', 'ProgramName', 'Date', 'Description', 'Withdrawal', 'Deposit', 'Balance', 'CreatedBy', 'CreatedAt'],
   PainterParticipants: ['ParticipantId', 'ProgramName', 'Date', 'Name', 'Address', 'NIC', 'Phone', 'CreatedBy', 'CreatedAt'],
-  Employees: ['EmpId', 'Name', 'UserName', 'Designation', 'Address', 'NIC', 'EpfEtfNo', 'DOB', 'Gender', 'Position', 'Email', 'Phone', 'EmergencyContactName', 'EmergencyContactPhone', 'JoinDate', 'Status', 'BankName', 'BankBranch', 'BankAccountNo'],
+  Employees: ['EmpId', 'Name', 'UserName', 'Designation', 'Address', 'NIC', 'EpfEtfNo', 'DOB', 'Gender', 'Position', 'Email', 'Phone', 'EmergencyContactName', 'EmergencyContactPhone', 'JoinDate', 'Status', 'BankName', 'BankBranch', 'BankAccountNo', 'BiometricId'],
   CustomTabs: ['TabId', 'Name', 'Icon', 'ColumnsJson', 'CreatedBy', 'UpdatedAt'],
   CustomTabRows: ['RowId', 'TabId', 'DataJson', 'CreatedBy', 'CreatedAt'],
   Transactions: ['TxId', 'Date', 'Type', 'Category', 'Description', 'Amount', 'RefId', 'RecordedBy'],
