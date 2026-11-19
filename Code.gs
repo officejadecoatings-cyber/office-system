@@ -22,7 +22,7 @@ const SCHEMA = {
   PainterQuotations: ['QuotationId', 'QuotationNo', 'Date', 'Title', 'QuotationFor', 'Supplier', 'Receivers', 'Place', 'Time', 'TotalAmount', 'AdvanceAmount', 'RemainingAmount', 'ItemsJson', 'Status', 'CreatedBy', 'CreatedAt'],
   PainterBillBalances: ['BalanceId', 'ProgramName', 'Date', 'Description', 'Withdrawal', 'Deposit', 'Balance', 'CreatedBy', 'CreatedAt'],
   PainterParticipants: ['ParticipantId', 'ProgramName', 'Date', 'Name', 'Address', 'NIC', 'Phone', 'CreatedBy', 'CreatedAt'],
-  Employees: ['EmpId', 'Name', 'Designation', 'Address', 'NIC', 'EpfEtfNo', 'DOB', 'Gender', 'Position', 'Email', 'Phone', 'EmergencyContactName', 'EmergencyContactPhone', 'JoinDate', 'Status', 'BankName', 'BankBranch', 'BankAccountNo'],
+  Employees: ['EmpId', 'Name', 'UserName', 'Designation', 'Address', 'NIC', 'EpfEtfNo', 'DOB', 'Gender', 'Position', 'Email', 'Phone', 'EmergencyContactName', 'EmergencyContactPhone', 'JoinDate', 'Status', 'BankName', 'BankBranch', 'BankAccountNo'],
   CustomTabs: ['TabId', 'Name', 'Icon', 'ColumnsJson', 'CreatedBy', 'UpdatedAt'],
   CustomTabRows: ['RowId', 'TabId', 'DataJson', 'CreatedBy', 'CreatedAt'],
   Transactions: ['TxId', 'Date', 'Type', 'Category', 'Description', 'Amount', 'RefId', 'RecordedBy'],
@@ -610,9 +610,15 @@ function saveInvoice(payload) {
       }
     }
 
-    // Default DispatchStatus to 'Dispatched' if not set
+    // Default DispatchStatus to 'Dispatched' if not set, respecting [DISPATCH:Not Dispatched] in Notes
     if (!invoice.DispatchStatus) {
-      invoice.DispatchStatus = 'Dispatched';
+      if (invoice.Notes && invoice.Notes.includes('[DISPATCH:Not Dispatched]')) {
+        invoice.DispatchStatus = 'Not Dispatched';
+      } else {
+        invoice.DispatchStatus = 'Dispatched';
+      }
+    } else if (invoice.Notes && invoice.Notes.includes('[DISPATCH:Not Dispatched]')) {
+      invoice.DispatchStatus = 'Not Dispatched';
     }
     if (invoice.DispatchStatus === 'Dispatched' && !invoice.DispatchedDate) {
       invoice.DispatchedDate = invoice.Date || todayStr_();
@@ -735,11 +741,12 @@ function dispatchInvoice(invoiceId, dispatchedDate, dispatchedBy, notes) {
     const items = readSheetObjects_('InvoiceItems').filter(li => String(li.InvoiceId).trim() === String(invoiceId).trim());
     adjustInventoryStock_(items, -1);
 
+    const cleanedNotes = (inv.Notes || '').replace(/\[DISPATCH:Not Dispatched\]/g, '').trim();
     const updates = {
       DispatchStatus: 'Dispatched',
       DispatchedDate: dispatchedDate || todayStr_(),
       DispatchedBy: dispatchedBy || '',
-      Notes: [inv.Notes || '', notes ? 'Dispatch: ' + notes : ''].filter(Boolean).join(' | ')
+      Notes: [cleanedNotes, notes ? 'Dispatch: ' + notes : ''].filter(Boolean).join(' | ')
     };
     updateRowByKey_('Invoices', 'InvoiceId', invoiceId, updates);
     return Object.assign({}, inv, updates);
@@ -803,6 +810,7 @@ function saveEmployee(emp) {
     emp.Status = emp.Status || 'Active';
     emp.Gender = emp.Gender || 'Male';
     emp.Position = emp.Position || 'Office Staff';
+    emp.UserName = emp.UserName || '';
     return upsertRowByKey_('Employees', 'EmpId', emp.EmpId, emp, 'EMP');
   });
 }
@@ -1043,7 +1051,8 @@ function clockOutUser(userId) {
 function saveLeaveRequest(leave) {
   return withLock_(() => {
     leave.Days = Number(leave.Days) || 1;
-    leave.Status = leave.Status || 'Pending';
+    leave.Status = 'Approved';
+    leave.ApprovedBy = leave.ApprovedBy || 'System';
     return upsertRowByKey_('Leaves', 'LeaveId', leave.LeaveId, leave, 'LV');
   });
 }

@@ -425,19 +425,19 @@
         const dDate = args[1];
         const dBy = args[2];
         const dNotes = args[3];
+        const inv = (state && state.data && state.data.invoices) ? state.data.invoices.find(x => x.InvoiceId === invId) : null;
+        let finalNotes = inv ? (inv.Notes || '').replace(/\[DISPATCH:Not Dispatched\]/g, '').trim() : '';
+        if (dNotes) finalNotes = [finalNotes, 'Dispatch: ' + dNotes].filter(Boolean).join(' | ');
         const updates = {
           InvoiceId: invId,
           DispatchStatus: 'Dispatched',
           DispatchedDate: dDate || (state && state.data ? state.data.today : ''),
           DispatchedBy: dBy || '',
-          Notes: dNotes || ''
+          Notes: finalNotes
         };
         await this.upsert('Invoices', updates);
-        if (state && state.data && state.data.invoices) {
-          const inv = state.data.invoices.find(x => x.InvoiceId === invId);
-          if (inv) Object.assign(inv, updates);
-          try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
-        }
+        if (inv) Object.assign(inv, updates);
+        try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
         return updates;
       }
 
@@ -1979,9 +1979,21 @@
       }
     });
 
+    // Unpack employee UserName from Address if present
+    (state.data.employees || []).forEach(e => {
+      if (!e.UserName && e.Address && e.Address.includes('[UN:')) {
+        const m = e.Address.match(/\[UN:([^\]]+)\]/);
+        if (m) e.UserName = m[1];
+      }
+    });
+
     // Ensure invoice dispatch status and payments array
     (state.data.invoices || []).forEach(inv => {
-      if (!inv.DispatchStatus) inv.DispatchStatus = 'Dispatched';
+      if (inv.Notes && inv.Notes.includes('[DISPATCH:Not Dispatched]')) {
+        inv.DispatchStatus = 'Not Dispatched';
+      } else if (!inv.DispatchStatus) {
+        inv.DispatchStatus = 'Dispatched';
+      }
       if (!inv.DispatchedDate && inv.DispatchStatus === 'Dispatched') inv.DispatchedDate = inv.Date || state.data.today;
       if (inv.PaymentsJson && (!inv.Payments || !inv.Payments.length)) {
         try {
@@ -1990,6 +2002,16 @@
       }
       if (!Array.isArray(inv.Payments)) inv.Payments = [];
     });
+  }
+
+  function getEmployeeDisplayName(e) {
+    if (!e) return '';
+    if (typeof e === 'string') {
+      const found = (state.data.employees || []).find(x => x.EmpId === e || x.Name === e || x.UserName === e);
+      if (found) return (found.UserName && found.UserName.trim()) ? found.UserName.trim() : (found.Name || e);
+      return e;
+    }
+    return (e.UserName && e.UserName.trim()) ? e.UserName.trim() : (e.Name || '');
   }
 
   let _invLines = [];
@@ -2116,6 +2138,26 @@
       ? `${existingCust.CustomerCode ? existingCust.CustomerCode + ' ' : ''}${existingCust.Name}`
       : (inv.CustomerName || '');
 
+    const isNotDispatched = inv.DispatchStatus === 'Not Dispatched' || (inv.Notes && inv.Notes.includes('[DISPATCH:Not Dispatched]'));
+    const deliveryOfficers = (state.data.employees || []).filter(e =>
+      e.Status !== 'Inactive' && (e.Position === 'Delivery Officer' || (e.Designation || '').toLowerCase().includes('delivery'))
+    );
+    let delivOptions = deliveryOfficers.map(d => {
+      const dName = getEmployeeDisplayName(d);
+      const isSel = (inv.DispatchedBy === dName || inv.DispatchedBy === d.Name) ? 'selected' : '';
+      return `<option value="${esc(dName)}" ${isSel}>${esc(dName)} (${esc(d.Designation || d.Position || 'Delivery Officer')})</option>`;
+    }).join('');
+    if (inv.DispatchedBy && !deliveryOfficers.some(d => d.Name === inv.DispatchedBy || d.UserName === inv.DispatchedBy)) {
+      delivOptions = `<option value="${esc(inv.DispatchedBy)}" selected>${esc(inv.DispatchedBy)}</option>` + delivOptions;
+    }
+    if (!delivOptions) {
+      delivOptions = `<option value="">-- No Delivery Officers Registered --</option>` +
+        (state.data.employees || []).filter(e => e.Status !== 'Inactive').map(e => {
+          const dName = getEmployeeDisplayName(e);
+          return `<option value="${esc(dName)}">${esc(dName)} (${esc(e.Position || 'Staff')})</option>`;
+        }).join('');
+    }
+
     openModal(
       invoiceId ? 'Edit Sales Invoice ' + inv.InvoiceNo : 'New Sales Invoice',
       `
@@ -2196,14 +2238,17 @@
         <div class="form-row">
           <div class="form-group">
             <label style="font-weight:700; color:#0f766e;">Dispatch Status *</label>
-            <select id="fInvDispatch" style="font-weight:700;">
-              <option value="Yes" ${inv.DispatchStatus !== 'Not Dispatched' ? 'selected' : ''}>Yes (Dispatch Immediately - Deduct Warehouse Stock)</option>
-              <option value="No" ${inv.DispatchStatus === 'Not Dispatched' ? 'selected' : ''}>No (Not Dispatched - Hold in Warehouse)</option>
+            <select id="fInvDispatch" style="font-weight:700;" onchange="toggleInvDispatch(this.value)">
+              <option value="Yes" ${!isNotDispatched ? 'selected' : ''}>Yes (Dispatch Immediately - Deduct Warehouse Stock)</option>
+              <option value="No" ${isNotDispatched ? 'selected' : ''}>No (Not Dispatched - Hold in Warehouse)</option>
             </select>
           </div>
-          <div class="form-group">
-            <label>Dispatched By (Optional)</label>
-            <input id="fInvDispatchedBy" placeholder="Person name / Staff..." value="${esc(inv.DispatchedBy || '')}">
+          <div class="form-group" id="fInvDispatchedByGroup" style="display:${isNotDispatched ? 'none' : ''};">
+            <label style="font-weight:700;">Dispatched By (Delivery Officer) *</label>
+            <select id="fInvDispatchedBy" style="font-weight:600; font-size:13px;">
+              <option value="">-- Select Delivery Officer --</option>
+              ${delivOptions}
+            </select>
           </div>
         </div>
 
@@ -2256,7 +2301,7 @@
         </div>
 
         <div style="text-align:right; font-size:15px; margin-top:6px;" id="invTotalsPreview"></div>
-        <div class="form-group" style="margin-top:10px;"><label>Terms &amp; Notes</label><textarea id="fInvNotes" rows="2">${esc(inv.Notes || '')}</textarea></div>
+        <div class="form-group" style="margin-top:10px;"><label>Terms &amp; Notes</label><textarea id="fInvNotes" rows="2">${esc((inv.Notes || '').replace(/\[DISPATCH:[^\]]+\]/g, '').trim())}</textarea></div>
       `,
       `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
        <button class="btn btn-primary" onclick="submitInvoice('${esc(invoiceId || '')}')">Save Sales Invoice</button>`,
@@ -2264,6 +2309,11 @@
     );
     renderInvLines();
     checkInvCustomerBlock(inv.CustomerId);
+
+    window.toggleInvDispatch = function(val) {
+      const grp = document.getElementById('fInvDispatchedByGroup');
+      if (grp) grp.style.display = (val === 'No') ? 'none' : '';
+    };
 
     // Close customer and sales person menus on outside click
     document.addEventListener('click', function _onInvBodyClick(e) {
@@ -2381,14 +2431,14 @@
     const list = [];
     const added = new Set();
 
-    // Strictly ONLY employees registered as Sales Officer in the Employee Directory (Requirement 4)
+    // Strictly ONLY employees registered as Sales Officer in the Employees tab (Requirement 4)
     (state.data.employees || []).forEach(e => {
       if (e.Status === 'Inactive') return;
       const pos = String(e.Position || '').trim().toLowerCase();
       const desig = String(e.Designation || '').trim().toLowerCase();
       const isSalesOfficer = pos === 'sales officer' || desig === 'sales officer' || pos.includes('sales') || desig.includes('sales');
       if (isSalesOfficer) {
-        const name = (e.Name || '').trim();
+        const name = (getEmployeeDisplayName(e) || '').trim();
         if (name && !added.has(name.toLowerCase())) {
           added.add(name.toLowerCase());
           list.push({
@@ -2415,7 +2465,7 @@
     });
 
     if (list.length === 0) {
-      menu.innerHTML = '<div style="padding:10px 12px; font-size:12.5px; color:#ef4444; text-align:center;">⚠️ Only employees registered as "Sales Officer" in the Employee Directory can be selected.</div>';
+      menu.innerHTML = '<div style="padding:10px 12px; font-size:12.5px; color:#ef4444; text-align:center;">⚠️ Only employees registered as "Sales Officer" in the Employees tab can be selected.</div>';
       return;
     }
 
@@ -2633,6 +2683,11 @@
     const dispatchedBy = document.getElementById('fInvDispatchedBy')?.value.trim() || '';
     let dispatchStatus = (dispatchVal === 'No') ? 'Not Dispatched' : 'Dispatched';
 
+    let cleanNotes = (document.getElementById('fInvNotes')?.value || '').replace(/\[DISPATCH:[^\]]+\]/g, '').trim();
+    if (dispatchStatus === 'Not Dispatched') {
+      cleanNotes = (cleanNotes ? cleanNotes + ' ' : '') + '[DISPATCH:Not Dispatched]';
+    }
+
     const companyId = document.getElementById('fInvCompany')?.value || (state.data.companyProfiles || [])[0]?.CompanyId || '';
     let assignedInvNo = document.getElementById('fInvNo')?.value.trim();
     if (!assignedInvNo) {
@@ -2660,10 +2715,10 @@
         TaxAmount: tax,
         Total: total,
         PaidAmount: finalPaid,
-        Notes: document.getElementById('fInvNotes')?.value || '',
+        Notes: cleanNotes,
         DispatchStatus: dispatchStatus,
         DispatchedDate: (dispatchStatus === 'Not Dispatched') ? '' : (document.getElementById('fInvDate')?.value || state.data.today),
-        DispatchedBy: dispatchedBy,
+        DispatchedBy: (dispatchStatus === 'Not Dispatched') ? '' : dispatchedBy,
         CreatedBy: state.user.Name
       },
       items: _invLines.filter(l => (l.ItemName || '').trim() !== '').map((l, idx) => ({
@@ -2712,10 +2767,13 @@
         dispatchStatus = 'Not Dispatched';
         payload.invoice.DispatchStatus = 'Not Dispatched';
         payload.invoice.DispatchedDate = '';
+        payload.invoice.DispatchedBy = '';
+        let n = (payload.invoice.Notes || '').replace(/\[DISPATCH:[^\]]+\]/g, '').trim();
+        payload.invoice.Notes = (n ? n + ' ' : '') + '[DISPATCH:Not Dispatched]';
       }
     }
 
-    // 2. Incremental Stock Deduction for Dispatched Invoices
+    // 2. Incremental Stock Deduction for Dispatched Invoices / Refund if changed to Not Dispatched
     if (dispatchStatus === 'Dispatched' && status !== 'Draft' && status !== 'Cancelled') {
       const existingItems = invoiceId ? (state.data.invoiceItems || []).filter(li => li.InvoiceId === invoiceId) : [];
       payload.items.forEach(li => {
@@ -2732,6 +2790,17 @@
         const delta = (Number(li.Qty) || 0) - oldQty;
         if (invItem && delta !== 0) {
           invItem.StockQty = Math.max(0, (Number(invItem.StockQty) || 0) - delta);
+          invItem.UpdatedAt = state.data.today;
+          if (window.sbClient) window.sbClient.from('Inventory').upsert(invItem).then();
+        }
+      });
+    } else if (existing && existing.DispatchStatus === 'Dispatched' && dispatchStatus === 'Not Dispatched') {
+      // Refund previously deducted stock because invoice was edited from Dispatched to Not Dispatched
+      const existingItems = invoiceId ? (state.data.invoiceItems || []).filter(li => li.InvoiceId === invoiceId) : [];
+      existingItems.forEach(li => {
+        const invItem = findMatchedInventoryItem(li);
+        if (invItem) {
+          invItem.StockQty = (Number(invItem.StockQty) || 0) + (Number(li.Qty) || 0);
           invItem.UpdatedAt = state.data.today;
           if (window.sbClient) window.sbClient.from('Inventory').upsert(invItem).then();
         }
@@ -2846,9 +2915,14 @@
       `;
     }).join('');
 
-    const staffOpts = (state.data.employees || []).filter(e => e.Status === 'Active').map(e =>
-      `<option value="${esc(e.Name)}">${esc(e.Name)} (${esc(e.Designation || e.Position || 'Staff')})</option>`
-    ).join('');
+    const delivOfficers = (state.data.employees || []).filter(e =>
+      e.Status === 'Active' && (e.Position === 'Delivery Officer' || (e.Designation || '').toLowerCase().includes('delivery'))
+    );
+    const officersList = delivOfficers.length > 0 ? delivOfficers : (state.data.employees || []).filter(e => e.Status === 'Active');
+    const staffOpts = officersList.map(e => {
+      const dName = getEmployeeDisplayName(e);
+      return `<option value="${esc(dName)}">${esc(dName)} (${esc(e.Designation || e.Position || 'Delivery Officer')})</option>`;
+    }).join('');
 
     openModal(
       '🚚 Dispatch Invoice Goods (' + esc(inv.InvoiceNo) + ')',
@@ -2959,9 +3033,11 @@
     inv.DispatchStatus = 'Dispatched';
     inv.DispatchedDate = dDate;
     inv.DispatchedBy = dBy;
+    let baseNotes = (inv.Notes || '').replace(/\[DISPATCH:Not Dispatched\]/g, '').trim();
     if (dNotes) {
-      inv.Notes = [inv.Notes || '', 'Dispatch: ' + dNotes].filter(Boolean).join(' | ');
+      baseNotes = [baseNotes, 'Dispatch: ' + dNotes].filter(Boolean).join(' | ');
     }
+    inv.Notes = baseNotes;
 
     closeModal();
     try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
@@ -9573,6 +9649,13 @@
     'Union Bank of Colombo PLC'
   ];
 
+  let _empSort = 'name_asc';
+  let _attStartDate = '';
+  let _attEndDate = '';
+  let _attSort = '';
+  let _leaveStartDate = '';
+  let _leaveEndDate = '';
+
   function renderEmployeesView() {
     ensureDataDefaults();
     const tab = state.empTab || 'directory';
@@ -9587,10 +9670,24 @@
 
     let body = '';
     if (tab === 'directory') {
+      let displayedEmps = [...emps];
+      if (_empSort === 'name_asc') {
+        displayedEmps.sort((a, b) => (getEmployeeDisplayName(a) || '').localeCompare(getEmployeeDisplayName(b) || ''));
+      } else if (_empSort === 'name_desc') {
+        displayedEmps.sort((a, b) => (getEmployeeDisplayName(b) || '').localeCompare(getEmployeeDisplayName(a) || ''));
+      }
+
       body = `
-        <div class="section-header">
-          <input class="search-input" placeholder="Search employees by name, NIC, position, phone..." oninput="filterTable('empTable', this.value)">
-          <div class="section-actions">
+        <div class="section-header" style="flex-wrap:wrap; gap:10px;">
+          <input class="search-input" placeholder="Search employees by name, NIC, position, phone..." oninput="filterTable('empTable', this.value)" style="min-width:240px;">
+          <div class="section-actions" style="flex-wrap:wrap; gap:8px;">
+            <div style="display:inline-flex; align-items:center; gap:6px;">
+              <label style="font-size:12px; font-weight:600; color:var(--muted); margin:0;">Sort:</label>
+              <select onchange="_empSort=this.value; renderEmployeesView()" style="width:160px; margin:0; padding:6px 10px; font-size:12.5px;">
+                <option value="name_asc" ${_empSort === 'name_asc' ? 'selected' : ''}>Sort by Name (A to Z)</option>
+                <option value="name_desc" ${_empSort === 'name_desc' ? 'selected' : ''}>Sort by Name (Z to A)</option>
+              </select>
+            </div>
             <button class="btn btn-secondary" onclick="exportEmployeesExcel()">⬇ Export Excel</button>
             <button class="btn btn-primary" onclick="openEmployeeModal()">+ Add Employee</button>
           </div>
@@ -9599,7 +9696,10 @@
           <table id="empTable">
             <thead>
               <tr style="background:#f1f5f9;">
-                <th>Name &amp; Contact</th>
+                <th onclick="_empSort = (_empSort === 'name_asc' ? 'name_desc' : 'name_asc'); renderEmployeesView();" style="cursor:pointer; user-select:none;">
+                  Name &amp; Contact ${_empSort === 'name_asc' ? '▲' : '▼'}
+                </th>
+                <th>User Name</th>
                 <th>Designation</th>
                 <th>Position</th>
                 <th>National ID (NIC)</th>
@@ -9613,21 +9713,24 @@
               </tr>
             </thead>
             <tbody>
-              ${emps.map(e => {
+              ${displayedEmps.map(e => {
                 const curYear = new Date(state.data.today || Date.now()).getFullYear();
                 const bal = getEmployeeLeaveBalances(e.EmpId || e.Name, curYear);
+                const dispName = getEmployeeDisplayName(e);
                 return `
                 <tr>
                   <td>
                     <div style="display:flex; align-items:center; gap:8px;">
-                      <img src="${e.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(e.Name || 'User') + '&background=0f766e&color=fff')}" style="width:28px; height:28px; border-radius:50%; object-fit:cover; background:#e2e8f0;">
+                      <img src="${e.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(dispName || 'User') + '&background=0f766e&color=fff')}" style="width:28px; height:28px; border-radius:50%; object-fit:cover; background:#e2e8f0;">
                       <div>
-                        <b>${esc(e.Name)}</b>
+                        <b>${esc(dispName)}</b>
+                        ${(e.UserName && e.UserName.trim() && e.UserName !== e.Name) ? `<div style="font-size:11px; color:#0f766e; font-weight:600;">Full: ${esc(e.Name)}</div>` : ''}
                         ${e.Email ? `<div style="font-size:11px; color:var(--muted);">${esc(e.Email)}</div>` : ''}
-                        ${e.Address ? `<div style="font-size:11px; color:var(--muted);">${esc(e.Address)}</div>` : ''}
+                        ${e.Address ? `<div style="font-size:11px; color:var(--muted);">${esc((e.Address || '').replace(/\[UN:[^\]]+\]/g, '').trim())}</div>` : ''}
                       </div>
                     </div>
                   </td>
+                  <td>${e.UserName ? `<code style="font-weight:700; color:#0f766e;">${esc(e.UserName)}</code>` : '<span style="color:var(--muted); font-size:12px;">-</span>'}</td>
                   <td><b>${esc(e.Designation || '-')}</b></td>
                   <td><span class="badge badge-info">${esc(e.Position || 'Office Staff')}</span></td>
                   <td>${esc(e.NIC || '-')}</td>
@@ -9646,7 +9749,7 @@
                     <button class="btn btn-sm btn-danger" onclick="removeEmployee('${esc(e.EmpId)}')">Del</button>
                   </td>
                 </tr>
-              `;}).join('') || '<tr><td colspan="11" style="color:var(--muted)">No employees added yet. Click "+ Add Employee" to create one.</td></tr>'}
+              `;}).join('') || '<tr><td colspan="12" style="color:var(--muted)">No employees added yet. Click "+ Add Employee" to create one.</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -9766,9 +9869,36 @@
         </div>
       `;
     } else if (tab === 'attendance') {
-      const rows = [...(state.data.attendance || [])].reverse();
-      body = `
-        <!-- Fingerprint Biometric Device Readiness Card -->
+      const isAdmin = state.user && state.user.Role === 'Admin';
+      let attRows = [...(state.data.attendance || [])];
+
+      // Date range filter
+      if (_attStartDate) {
+        attRows = attRows.filter(a => a.Date >= _attStartDate);
+      }
+      if (_attEndDate) {
+        attRows = attRows.filter(a => a.Date <= _attEndDate);
+      }
+
+      // Name sort or date sort
+      if (_attSort === 'name_asc') {
+        attRows.sort((a, b) => {
+          const na = getEmployeeDisplayName(a.UserName || '');
+          const nb = getEmployeeDisplayName(b.UserName || '');
+          return na.localeCompare(nb);
+        });
+      } else if (_attSort === 'name_desc') {
+        attRows.sort((a, b) => {
+          const na = getEmployeeDisplayName(a.UserName || '');
+          const nb = getEmployeeDisplayName(b.UserName || '');
+          return nb.localeCompare(na);
+        });
+      } else {
+        attRows.reverse();
+      }
+
+      const biometricCardHtml = isAdmin ? `
+        <!-- Fingerprint Biometric Device Readiness Card (Admin Only) -->
         <div class="card" style="margin-bottom:14px; background:#f0fdf4; border:1.5px solid #16a34a; padding:12px 16px; border-radius:8px;">
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
             <div style="display:flex; align-items:center; gap:10px;">
@@ -9789,14 +9919,39 @@
             </div>
           </div>
         </div>
+      ` : '';
 
-        <div class="section-header">
+      body = `
+        ${biometricCardHtml}
+
+        <div class="section-header" style="flex-wrap:wrap; gap:10px;">
           <div>
-            <h3 style="margin:0; font-size:15px; color:var(--text);">Daily Attendance Records</h3>
-            <div style="font-size:12px; color:var(--muted);">View employee punch in/out timestamps, duration, method (Fingerprint / Web), and daily status.</div>
+            <h3 style="margin:0; font-size:15px; color:var(--text);">Attendance</h3>
+            <div style="font-size:12px; color:var(--muted);">
+              ${(_attStartDate || _attEndDate) ? `Showing attendance records between ${_attStartDate || 'Any'} and ${_attEndDate || 'Any'}` : 'View employee punch in/out timestamps and daily work hours.'}
+            </div>
           </div>
-          <div class="section-actions">
-            <input class="search-input" placeholder="Search by name, date or method..." oninput="filterTable('attTable', this.value)">
+          <div class="section-actions" style="flex-wrap:wrap; gap:8px;">
+            <div style="display:inline-flex; align-items:center; gap:6px;">
+              <label style="font-size:12px; font-weight:600; color:var(--muted); margin:0;">Start Date:</label>
+              <input type="date" value="${esc(_attStartDate || '')}" onchange="_attStartDate=this.value; renderEmployeesView()" style="width:140px; margin:0; padding:5px 8px; font-size:12.5px;">
+            </div>
+            <div style="display:inline-flex; align-items:center; gap:6px;">
+              <label style="font-size:12px; font-weight:600; color:var(--muted); margin:0;">End Date:</label>
+              <input type="date" value="${esc(_attEndDate || '')}" onchange="_attEndDate=this.value; renderEmployeesView()" style="width:140px; margin:0; padding:5px 8px; font-size:12.5px;">
+            </div>
+            <div style="display:inline-flex; align-items:center; gap:6px;">
+              <label style="font-size:12px; font-weight:600; color:var(--muted); margin:0;">Sort:</label>
+              <select onchange="_attSort=this.value; renderEmployeesView()" style="width:150px; margin:0; padding:5px 8px; font-size:12.5px;">
+                <option value="" ${_attSort === '' ? 'selected' : ''}>Latest Date</option>
+                <option value="name_asc" ${_attSort === 'name_asc' ? 'selected' : ''}>Name (A to Z)</option>
+                <option value="name_desc" ${_attSort === 'name_desc' ? 'selected' : ''}>Name (Z to A)</option>
+              </select>
+            </div>
+            ${(_attStartDate || _attEndDate || _attSort) ? `
+              <button class="btn btn-sm btn-secondary" onclick="_attStartDate=''; _attEndDate=''; _attSort=''; renderEmployeesView()">Reset</button>
+            ` : ''}
+            <input class="search-input" placeholder="Search..." oninput="filterTable('attTable', this.value)" style="width:140px;">
             <button class="btn btn-secondary" onclick="exportAttendanceExcel()">⬇ Export Excel</button>
           </div>
         </div>
@@ -9804,18 +9959,26 @@
           <table id="attTable">
             <thead>
               <tr style="background:#f1f5f9;">
-                <th>Date</th>
-                <th>Team Member</th>
-                <th>Biometric ID</th>
-                <th>Method</th>
-                <th>Clock In</th>
-                <th>Clock Out</th>
-                <th>Duration</th>
-                <th>Status</th>
+                ${isAdmin ? `
+                  <th>Date</th>
+                  <th>Team Member</th>
+                  <th>Biometric ID</th>
+                  <th>Method</th>
+                  <th>Clock In</th>
+                  <th>Clock Out</th>
+                  <th>Duration</th>
+                  <th>Status</th>
+                ` : `
+                  <th>Team Member</th>
+                  <th>Date</th>
+                  <th>Clock In</th>
+                  <th>Clock Out</th>
+                  <th>Duration</th>
+                `}
               </tr>
             </thead>
             <tbody>
-              ${rows.map(a => {
+              ${attRows.map(a => {
                 let duration = '-';
                 if (a.ClockIn && a.ClockOut) {
                   try {
@@ -9825,46 +9988,66 @@
                     if (diffM > 0) duration = `${Math.floor(diffM / 60)}h ${diffM % 60}m`;
                   } catch (e) {}
                 }
-                const emp = (state.data.employees || []).find(e => e.EmpId === a.UserId || e.Name === a.UserName);
+                const emp = (state.data.employees || []).find(e => e.EmpId === a.UserId || e.Name === a.UserName || e.UserName === a.UserName);
+                const dispName = getEmployeeDisplayName(emp || a.UserName);
                 const bioId = a.BiometricId || (emp ? (emp.BiometricId || emp.NIC || '-') : '-');
                 const methodBadge = a.Method === 'Fingerprint'
                   ? '<span class="badge" style="background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;">👆 Fingerprint</span>'
                   : '<span class="badge badge-secondary">💻 Web / Manual</span>';
-                return `
-                  <tr>
-                    <td>${esc(a.Date)}</td>
-                    <td><b>${esc(a.UserName)}</b></td>
-                    <td><code style="font-weight:700; color:#0f766e;">${esc(bioId)}</code></td>
-                    <td>${methodBadge}</td>
-                    <td><span class="badge badge-success">${esc(a.ClockIn)}</span></td>
-                    <td>${a.ClockOut ? `<span class="badge badge-info">${esc(a.ClockOut)}</span>` : '<span class="badge badge-warning">Active</span>'}</td>
-                    <td><b>${esc(duration)}</b></td>
-                    <td>${statusBadge(a.Status || 'Present')}</td>
-                  </tr>
-                `;
-              }).join('') || '<tr><td colspan="8" style="color:var(--muted); text-align:center;">No attendance records found.</td></tr>'}
+                
+                if (isAdmin) {
+                  return `
+                    <tr>
+                      <td>${esc(a.Date)}</td>
+                      <td><b>${esc(dispName)}</b></td>
+                      <td><code style="font-weight:700; color:#0f766e;">${esc(bioId)}</code></td>
+                      <td>${methodBadge}</td>
+                      <td><span class="badge badge-success">${esc(a.ClockIn)}</span></td>
+                      <td>${a.ClockOut ? `<span class="badge badge-info">${esc(a.ClockOut)}</span>` : '<span class="badge badge-warning">Active</span>'}</td>
+                      <td><b>${esc(duration)}</b></td>
+                      <td>${statusBadge(a.Status || 'Present')}</td>
+                    </tr>
+                  `;
+                } else {
+                  return `
+                    <tr>
+                      <td><b>${esc(dispName)}</b></td>
+                      <td>${esc(a.Date)}</td>
+                      <td><span class="badge badge-success">${esc(a.ClockIn || '-')}</span></td>
+                      <td>${a.ClockOut ? `<span class="badge badge-info">${esc(a.ClockOut)}</span>` : '<span class="badge badge-warning">Active</span>'}</td>
+                      <td><b>${esc(duration)}</b></td>
+                    </tr>
+                  `;
+                }
+              }).join('') || `<tr><td colspan="${isAdmin ? 8 : 5}" style="color:var(--muted); text-align:center;">No attendance records found.</td></tr>`}
             </tbody>
           </table>
         </div>
       `;
     } else {
-      const leaveList = [...(state.data.leaves || [])].reverse();
-      const isAdmin = state.user && (state.user.Role === 'Admin' || state.user.Role === 'Manager');
       const currentYear = new Date(state.data.today || Date.now()).getFullYear();
       const policy = getLeavePolicy();
       const activeEmpsList = emps.filter(e => e.Status !== 'Inactive');
 
+      // Date range filter for leaves (Default: Today's leaves)
+      let leaveList = [...(state.data.leaves || [])];
+      const hasDateFilter = !!(_leaveStartDate || _leaveEndDate);
+      if (hasDateFilter) {
+        if (_leaveStartDate) leaveList = leaveList.filter(l => (l.EndDate || l.StartDate) >= _leaveStartDate);
+        if (_leaveEndDate) leaveList = leaveList.filter(l => (l.StartDate || l.EndDate) <= _leaveEndDate);
+        leaveList.reverse();
+      } else {
+        // Default: only employees on leave TODAY
+        leaveList = leaveList.filter(l => today >= l.StartDate && today <= (l.EndDate || l.StartDate)).reverse();
+      }
+
       body = `
-        <!-- Annual Leave Entitlement & Balance Card -->
+        <!-- Leaves Entitlement & Remaining Balances Card -->
         <div class="card" style="margin-bottom:14px; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:8px; padding:14px 18px;">
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
             <div>
-              <div style="font-weight:700; font-size:15px; color:var(--text); display:flex; align-items:center; gap:8px;">
-                🏖️ Annual Leave Entitlement &amp; Remaining Balances (${currentYear})
-                <span class="badge" style="background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; font-size:11px;">Policy: ${policy.Annual} Annual / ${policy.Casual} Casual / ${policy.Sick} Sick</span>
-              </div>
-              <div style="font-size:12px; color:var(--muted); margin-top:2px;">
-                Leave entitlements are refreshed annually. Leaves taken during ${currentYear} automatically deduct from each employee's remaining quota.
+              <div style="font-weight:700; font-size:16px; color:var(--text); display:flex; align-items:center; gap:8px;">
+                🏖️ Leaves
               </div>
             </div>
             <div style="display:flex; gap:8px;">
@@ -9887,13 +10070,14 @@
               <tbody>
                 ${activeEmpsList.map(e => {
                   const bal = getEmployeeLeaveBalances(e.EmpId || e.Name, currentYear);
+                  const dispName = getEmployeeDisplayName(e);
                   return `
                     <tr>
                       <td>
                         <div style="display:flex; align-items:center; gap:8px;">
-                          <img src="${e.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(e.Name || 'User') + '&background=0f766e&color=fff')}" style="width:26px; height:26px; border-radius:50%; object-fit:cover;">
+                          <img src="${e.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(dispName || 'User') + '&background=0f766e&color=fff')}" style="width:26px; height:26px; border-radius:50%; object-fit:cover;">
                           <div>
-                            <b>${esc(e.Name)}</b>
+                            <b>${esc(dispName)}</b>
                             <div style="font-size:11px; color:var(--muted);">${esc(e.Designation || e.Position || 'Staff')}</div>
                           </div>
                         </div>
@@ -9930,12 +10114,27 @@
           </div>
         </div>
 
-        <div class="section-header">
+        <div class="section-header" style="flex-wrap:wrap; gap:10px;">
           <div>
-            <h3 style="margin:0; font-size:15px; color:var(--text);">Employee Leave Application Records</h3>
-            <div style="font-size:12px; color:var(--muted);">Review official leaves taken, approval history, reasons, and submit new leave requests.</div>
+            <h3 style="margin:0; font-size:15px; color:var(--text);">Leaves Records</h3>
+            <div style="font-size:12px; color:var(--muted);">
+              ${hasDateFilter 
+                ? `Showing leaves between ${_leaveStartDate || 'Any'} and ${_leaveEndDate || 'Any'}`
+                : `Showing employees on leave today (${today})`}
+            </div>
           </div>
-          <div class="section-actions">
+          <div class="section-actions" style="flex-wrap:wrap; gap:8px;">
+            <div style="display:inline-flex; align-items:center; gap:6px;">
+              <label style="font-size:12px; font-weight:600; color:var(--muted); margin:0;">Start Date:</label>
+              <input type="date" value="${esc(_leaveStartDate || '')}" onchange="_leaveStartDate=this.value; renderEmployeesView()" style="width:140px; margin:0; padding:5px 8px; font-size:12.5px;">
+            </div>
+            <div style="display:inline-flex; align-items:center; gap:6px;">
+              <label style="font-size:12px; font-weight:600; color:var(--muted); margin:0;">End Date:</label>
+              <input type="date" value="${esc(_leaveEndDate || '')}" onchange="_leaveEndDate=this.value; renderEmployeesView()" style="width:140px; margin:0; padding:5px 8px; font-size:12.5px;">
+            </div>
+            ${hasDateFilter ? `
+              <button class="btn btn-sm btn-secondary" onclick="_leaveStartDate=''; _leaveEndDate=''; renderEmployeesView()">Today's Leaves</button>
+            ` : ''}
             <button class="btn btn-primary" onclick="openLeaveModal()">+ Request Leave</button>
           </div>
         </div>
@@ -9943,27 +10142,26 @@
           <table>
             <thead><tr style="background:#f1f5f9;"><th>Employee</th><th>Leave Type</th><th>Dates</th><th>Days</th><th>Reason</th><th>Status</th><th>Action</th></tr></thead>
             <tbody>
-              ${leaveList.map(l => `
+              ${leaveList.map(l => {
+                const emp = (state.data.employees || []).find(e => e.EmpId === l.UserId || e.Name === l.UserName || e.UserName === l.UserName);
+                const dispName = getEmployeeDisplayName(emp || l.UserName);
+                return `
                 <tr>
                   <td>
-                    <b>${esc(l.UserName)}</b>
+                    <b>${esc(dispName)}</b>
                     ${l.UserEmail ? `<div style="font-size:11px; color:var(--muted);">${esc(l.UserEmail)}</div>` : ''}
                   </td>
                   <td><span class="badge badge-info">${esc(l.Type)}</span></td>
                   <td>${esc(l.StartDate)} → ${esc(l.EndDate)}</td>
                   <td><b>${l.Days} day(s)</b></td>
                   <td>${esc(l.Reason || '-')}</td>
-                  <td>${statusBadge(l.Status)}</td>
+                  <td><span class="badge badge-success">Approved</span></td>
                   <td style="white-space:nowrap;">
-                    ${isAdmin && l.Status === 'Pending' ? `
-                      <button class="btn btn-sm btn-success" onclick="setLeaveStatus('${esc(l.LeaveId)}','Approved')">Approve</button>
-                      <button class="btn btn-sm btn-danger" onclick="setLeaveStatus('${esc(l.LeaveId)}','Rejected')">Reject</button>
-                    ` : (l.ApprovedBy ? `<span style="font-size:11px; color:var(--muted); margin-right:4px;">(${esc(l.ApprovedBy)})</span>` : '')}
                     <button class="btn btn-sm btn-secondary" onclick="openLeaveModal('${esc(l.LeaveId)}')">Edit</button>
                     <button class="btn btn-sm btn-danger" onclick="removeLeave('${esc(l.LeaveId)}')">Del</button>
                   </td>
                 </tr>
-              `).join('') || '<tr><td colspan="7" style="color:var(--muted)">No leave requests found.</td></tr>'}
+              `;}).join('') || `<tr><td colspan="7" style="color:var(--muted); text-align:center;">${hasDateFilter ? 'No leave records found for selected period.' : 'No employees are on leave today.'}</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -9984,19 +10182,19 @@
           <div class="kpi-sub">${(emps.length > 0 ? ((todayAtt.length / emps.length) * 100).toFixed(0) : 0)}% of team clocked in</div>
         </div>
         <div class="card" style="padding:12px 16px;">
-          <div class="kpi-label">LEAVE REQUESTS</div>
-          <div class="kpi-val" style="color:${pendingLeaves.length > 0 ? '#d97706' : '#16a34a'}; font-size:22px;">${pendingLeaves.length}</div>
-          <div class="kpi-sub">${leaves.length} total recorded leaves</div>
+          <div class="kpi-label">LEAVES RECORDED</div>
+          <div class="kpi-val" style="color:#0f766e; font-size:22px;">${leaves.length}</div>
+          <div class="kpi-sub">Total official recorded leaves</div>
         </div>
       </div>
 
       <!-- Employee Sub-Tabs -->
       <div class="tabs" style="margin-bottom:16px;">
-        <button class="tab-btn ${tab === 'directory' ? 'active' : ''}" onclick="state.empTab='directory'; renderEmployeesView()">👥 Employee Directory (${emps.length})</button>
+        <button class="tab-btn ${tab === 'directory' ? 'active' : ''}" onclick="state.empTab='directory'; renderEmployeesView()">👥 Employees (${emps.length})</button>
         <button class="tab-btn ${tab === 'bank' ? 'active' : ''}" onclick="state.empTab='bank'; renderEmployeesView()">🏦 Bank Details (${emps.filter(e => e.BankName || e.BankAccountNo).length}/${emps.length})</button>
         <button class="tab-btn ${tab === 'targets' ? 'active' : ''}" onclick="state.empTab='targets'; renderEmployeesView()">🎯 Sales Person Targets (${emps.filter(e => e.SalesTarget || e.Position === 'Sales Officer').length})</button>
-        <button class="tab-btn ${tab === 'attendance' ? 'active' : ''}" onclick="state.empTab='attendance'; renderEmployeesView()">🕒 Daily Attendance (${(state.data.attendance || []).length})</button>
-        <button class="tab-btn ${tab === 'leaves' ? 'active' : ''}" onclick="state.empTab='leaves'; renderEmployeesView()">🏖️ Leaves Taken &amp; Requests (${leaves.length})</button>
+        <button class="tab-btn ${tab === 'attendance' ? 'active' : ''}" onclick="state.empTab='attendance'; renderEmployeesView()">🕒 Attendance (${(state.data.attendance || []).length})</button>
+        <button class="tab-btn ${tab === 'leaves' ? 'active' : ''}" onclick="state.empTab='leaves'; renderEmployeesView()">🏖️ Leaves (${leaves.length})</button>
       </div>
 
       ${body}
@@ -10008,6 +10206,7 @@
     const e = id ? (state.data.employees || []).find(x => x.EmpId === id) : {
       EmpNo: autoEmpNo,
       Name: '',
+      UserName: '',
       Designation: '',
       Address: '',
       NIC: '',
@@ -10023,7 +10222,7 @@
       Status: 'Active'
     };
 
-    const positionOptions = ['Office Staff', 'Technical Officer', 'Factory Staff', 'Sales Officer'];
+    const positionOptions = ['Office Staff', 'Technical Officer', 'Factory Staff', 'Sales Officer', 'Delivery Officer'];
     const genderOptions = ['Male', 'Female'];
     const statusOptions = ['Active', 'Inactive'];
 
@@ -10036,19 +10235,19 @@
             <input id="fEmName" value="${esc(e.Name)}" placeholder="e.g. Kasun Perera" required>
           </div>
           <div class="form-group">
-            <label>Designation *</label>
-            <input id="fEmDes" value="${esc(e.Designation)}" placeholder="e.g. Senior Accountant / Lab Analyst / Supervisor">
+            <label>User Name <span style="font-weight:normal; color:var(--muted); font-size:11.5px;">(Optional - Display Name in System)</span></label>
+            <input id="fEmUserName" value="${esc(e.UserName || '')}" placeholder="e.g. Kasun (leave blank to use Full Name)">
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label>National ID Number (NIC) *</label>
-            <input id="fEmNic" value="${esc(e.NIC)}" placeholder="e.g. 199512345678 / 951234567V">
+            <label>Designation *</label>
+            <input id="fEmDes" value="${esc(e.Designation)}" placeholder="e.g. Senior Accountant / Lab Analyst / Supervisor / Delivery Officer">
           </div>
           <div class="form-group">
-            <label>EPF / ETF Number</label>
-            <input id="fEmEpf" value="${esc(e.EpfEtfNo)}" placeholder="e.g. EPF-1234 / 5678">
+            <label>National ID Number (NIC) *</label>
+            <input id="fEmNic" value="${esc(e.NIC)}" placeholder="e.g. 199512345678 / 951234567V">
           </div>
         </div>
 
@@ -10069,7 +10268,7 @@
 
         <div class="form-group">
           <label>Residential Address</label>
-          <input id="fEmAddr" value="${esc(e.Address)}" placeholder="Street, City">
+          <input id="fEmAddr" value="${esc((e.Address || '').replace(/\[UN:[^\]]+\]/g, '').trim())}" placeholder="Street, City">
         </div>
 
         <div class="form-row">
@@ -10144,11 +10343,18 @@
       showToast('Please enter Employee Name.');
       return;
     }
-    await gas('saveEmployee', {
+    const userName = document.getElementById('fEmUserName') ? document.getElementById('fEmUserName').value.trim() : '';
+    let address = document.getElementById('fEmAddr').value.trim().replace(/\[UN:[^\]]+\]/g, '').trim();
+    if (userName) {
+      address = (address ? address + ' ' : '') + '[UN:' + userName + ']';
+    }
+
+    const payload = {
       EmpId: id,
       Name: name,
+      UserName: userName,
       Designation: document.getElementById('fEmDes').value.trim(),
-      Address: document.getElementById('fEmAddr').value.trim(),
+      Address: address,
       NIC: document.getElementById('fEmNic').value.trim(),
       EpfEtfNo: document.getElementById('fEmEpf').value.trim(),
       DOB: document.getElementById('fEmDob').value,
@@ -10163,7 +10369,8 @@
       BankName: document.getElementById('fEmBank') ? document.getElementById('fEmBank').value : '',
       BankBranch: document.getElementById('fEmBranch') ? document.getElementById('fEmBranch').value.trim() : '',
       BankAccountNo: document.getElementById('fEmAcc') ? document.getElementById('fEmAcc').value.trim() : ''
-    });
+    };
+    await gas('saveEmployee', payload);
     closeModal();
     showToast('Employee saved successfully!');
     await refreshData();
@@ -10679,15 +10886,17 @@
     const activeEmps = (state.data.employees || []).filter(e => e.Status !== 'Inactive');
     const selectedEmpId = preSelectedEmpId || (l ? l.UserId : state.user.UserId);
     const empOptions = activeEmps.length
-      ? activeEmps.map(e => `<option value="${esc(e.EmpId)}" data-name="${esc(e.Name)}" ${e.EmpId === selectedEmpId || e.Name === (l ? l.UserName : '') ? 'selected' : ''}>${esc(e.Name)} (${esc(e.Position || e.Designation || 'Staff')})</option>`).join('')
+      ? activeEmps.map(e => {
+          const dName = getEmployeeDisplayName(e);
+          return `<option value="${esc(e.EmpId)}" data-name="${esc(dName)}" ${e.EmpId === selectedEmpId || e.Name === (l ? l.UserName : '') || e.UserName === (l ? l.UserName : '') ? 'selected' : ''}>${esc(dName)} (${esc(e.Position || e.Designation || 'Staff')})</option>`;
+        }).join('')
       : `<option value="${esc(state.user.UserId)}" data-name="${esc(state.user.Name)}">${esc(state.user.Name)}</option>`;
 
     const selectedType = l ? l.Type : 'Annual';
     const typeOpts = ['Annual', 'Casual', 'Sick', 'Duty Leave'].map(t => `<option ${t === selectedType ? 'selected' : ''}>${t}</option>`).join('');
-    const statusOpts = ['Pending', 'Approved', 'Rejected'].map(s => `<option ${(l?.Status || 'Pending') === s ? 'selected' : ''}>${s}</option>`).join('');
 
     openModal(
-      isEdit ? 'Edit Leave Request' : 'Request Leave',
+      isEdit ? 'Edit Leave Record' : 'Apply Leave',
       `
         <div id="leaveModalBalanceInfo" style="background:#eff6ff; border:1.5px solid #bfdbfe; border-radius:6px; padding:10px 14px; margin-bottom:12px;"></div>
 
@@ -10718,9 +10927,12 @@
             <div style="font-size:11px; color:var(--muted); margin-top:2px;">Automatically calculated from Start &amp; End dates.</div>
           </div>
         </div>
-        <div class="form-group"><label>Reason</label><textarea id="fLvReason" rows="2" placeholder="Reason for leave request...">${esc(l ? l.Reason : '')}</textarea></div>
+        <div class="form-group"><label>Reason</label><textarea id="fLvReason" rows="2" placeholder="Reason for leave...">${esc(l ? l.Reason : '')}</textarea></div>
+        <div class="form-group">
+          <label>Status</label>
+          <div><span class="badge badge-success" style="font-size:12.5px; padding:4px 10px; font-weight:700;">✓ Approved</span></div>
+        </div>
         ${isEdit ? `
-          <div class="form-group"><label>Status</label><select id="fLvStatus">${statusOpts}</select></div>
           <div class="form-group" style="background:#fef2f2; border:1px solid #fecaca; border-radius:6px; padding:10px 12px; margin-top:12px;">
             <label style="color:#991b1b; font-weight:700; display:block; margin-bottom:4px;">
               🔒 Enter Login PIN / Password to Authorize Edit *
@@ -10731,7 +10943,7 @@
         ` : ''}
       `,
       `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-       <button class="btn btn-primary" onclick="submitLeave('${esc(leaveId || '')}')">${isEdit ? 'Save Changes' : 'Submit Request'}</button>`
+       <button class="btn btn-primary" onclick="submitLeave('${esc(leaveId || '')}')">${isEdit ? 'Save Changes' : 'Submit Leave'}</button>`
     );
 
     setTimeout(() => { updateLeaveModalBalanceDisplay(); }, 50);
@@ -10760,7 +10972,6 @@
     const empId = sel.value;
     const empName = sel.options[sel.selectedIndex]?.getAttribute('data-name') || sel.options[sel.selectedIndex]?.text || state.user.Name;
     const existingLeave = isEdit ? (state.data.leaves || []).find(x => x.LeaveId === leaveId) : null;
-    const statusVal = isEdit && document.getElementById('fLvStatus') ? document.getElementById('fLvStatus').value : (existingLeave?.Status || 'Pending');
 
     const finalLeaveId = leaveId || ('LV-' + Date.now() + '-' + Math.floor(Math.random() * 1000));
     const payload = {
@@ -10772,8 +10983,8 @@
       StartDate: document.getElementById('fLvStart').value,
       EndDate: document.getElementById('fLvEnd').value,
       Reason: document.getElementById('fLvReason').value,
-      Status: statusVal,
-      ApprovedBy: (statusVal === 'Approved' || statusVal === 'Rejected') ? (existingLeave?.ApprovedBy || state.user.Name) : ''
+      Status: 'Approved',
+      ApprovedBy: existingLeave?.ApprovedBy || state.user.Name
     };
 
     if (leaveId) {
@@ -10787,7 +10998,7 @@
 
     closeModal();
     renderEmployeesView();
-    showToast(isEdit ? 'Leave request updated!' : 'Leave request submitted!');
+    showToast(isEdit ? 'Leave record updated!' : 'Leave approved and saved successfully!');
 
     gas('saveLeaveRequest', payload).catch(err => console.error(err));
   }
@@ -10962,7 +11173,7 @@
           ? `<span class="badge badge-success" style="font-size:11px; padding:3px 8px;">✓ Linked (${esc(info.matchedBy)})</span>`
           : `<span class="badge badge-warning" style="font-size:11px; padding:3px 8px;">⚠️ Not Linked</span>`}
       </h3>
-      <p style="font-size:12px; color:var(--muted); margin-bottom:12px;">Official company details matched from the Employee Directory.</p>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:12px;">Official company details matched from Employees.</p>
 
       ${isMatched ? `
         <div style="background:#f0fdf4; border:1px solid #86efac; border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:12.5px; color:#166534; font-weight:600; display:flex; align-items:center; gap:8px;">
@@ -10977,7 +11188,7 @@
           <span style="font-size:16px;">ℹ️</span>
           <div>
             <div>Enter your National ID (NIC) on the left</div>
-            <div style="font-size:11.5px; font-weight:normal; color:#b45309;">Your official Employee Directory details will automatically link and populate here.</div>
+            <div style="font-size:11.5px; font-weight:normal; color:#b45309;">Your official Employees details will automatically link and populate here.</div>
           </div>
         </div>
       `}
@@ -11868,7 +12079,11 @@ CREATE TABLE IF NOT EXISTS "Invoices" (
   "ReceiptNo" TEXT DEFAULT '',
   "PaymentStatus" TEXT DEFAULT '',
   "TokenAmount" TEXT DEFAULT '',
-  "ReturnAmount" TEXT DEFAULT ''
+  "ReturnAmount" TEXT DEFAULT '',
+  "DispatchStatus" TEXT DEFAULT 'Dispatched',
+  "DispatchedBy" TEXT DEFAULT '',
+  "DispatchedDate" TEXT DEFAULT '',
+  "PaymentsJson" TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS "Quotations" (
@@ -11916,6 +12131,7 @@ CREATE TABLE IF NOT EXISTS "Employees" (
   "EmpId" TEXT PRIMARY KEY,
   "EmpNo" TEXT DEFAULT '',
   "Name" TEXT DEFAULT '',
+  "UserName" TEXT DEFAULT '',
   "Designation" TEXT DEFAULT '',
   "Address" TEXT DEFAULT '',
   "NIC" TEXT DEFAULT '',
@@ -12200,21 +12416,21 @@ CREATE TABLE IF NOT EXISTS "Transactions" (
     openModal(
       userId ? 'Edit Team Member Profile' : 'Add New Team Member',
       `
-        <!-- Link with Employee from Directory -->
+        <!-- Link with Employee Record -->
         <div class="form-group" style="margin-bottom:12px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px;">
           <label style="font-weight:700; color:#1e40af; margin-bottom:4px; display:block;">
-            🔗 Link to Employee Directory Record
+            🔗 Link to Employee Record
           </label>
           <select id="fUsEmpLink" onchange="onUserEmpLinkChange(this.value)" style="width:100%; background:#fff; font-size:13px;">
             <option value="">-- Choose Employee to link details --</option>
             ${(state.data.employees || []).map(e => `
               <option value="${esc(e.EmpId)}" ${(u.NIC && e.NIC && String(u.NIC).trim().toUpperCase() === String(e.NIC).trim().toUpperCase()) || (u.Email && e.Email && u.Email.toLowerCase() === e.Email.toLowerCase()) ? 'selected' : ''}>
-                ${esc(e.Name)} (${esc(e.Position || e.Designation || 'Staff')}) - NIC: ${esc(e.NIC || 'No NIC')}
+                ${esc(getEmployeeDisplayName(e))} (${esc(e.Position || e.Designation || 'Staff')}) - NIC: ${esc(e.NIC || 'No NIC')}
               </option>
             `).join('')}
           </select>
           <div style="font-size:11.5px; color:#2563eb; margin-top:4px;">
-            Selecting an employee links this login user to the official directory record and auto-populates their Name, NIC, Email &amp; Role.
+            Selecting an employee links this login user to the official record and auto-populates their Name, NIC, Email &amp; Role.
           </div>
         </div>
 
