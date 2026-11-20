@@ -268,6 +268,31 @@
           out[propName] = rows;
         }
       });
+
+      // Restore payments from Settings and preserve local payments if missing
+      if (out.invoices) {
+        const localInvs = (state && state.data && state.data.invoices) ? state.data.invoices : [];
+        out.invoices.forEach(inv => {
+          const pKey = 'PAYMENTS_' + inv.InvoiceId;
+          const pVal = out.settings ? out.settings[pKey] : null;
+          if (pVal) {
+            inv.PaymentsJson = pVal;
+            try {
+              inv.Payments = typeof pVal === 'string' ? JSON.parse(pVal) : pVal;
+            } catch (e) { inv.Payments = []; }
+          } else {
+            const loc = localInvs.find(x => x.InvoiceId === inv.InvoiceId);
+            if (loc && Array.isArray(loc.Payments) && loc.Payments.length > 0) {
+              inv.Payments = loc.Payments;
+              inv.PaymentsJson = loc.PaymentsJson || JSON.stringify(loc.Payments);
+              inv.TokenAmount = loc.TokenAmount || inv.TokenAmount;
+              inv.ReturnAmount = loc.ReturnAmount || inv.ReturnAmount;
+              inv.PaidAmount = loc.PaidAmount !== undefined ? loc.PaidAmount : inv.PaidAmount;
+            }
+          }
+        });
+      }
+
       out.today = (typeof todayStr_ === 'function') ? todayStr_() : new Date().toISOString().slice(0, 10);
       return out;
     },
@@ -2975,47 +3000,143 @@
       }
       if (!Array.isArray(inv.Payments)) inv.Payments = [];
 
-      // Special repair for JDI8702 if affected by previous zeroing bug
-      if (inv.InvoiceNo === 'JDI8702' && Number(inv.PaidAmount || 0) < 25000) {
-        inv.PaidAmount = 25000;
-      }
-
-      // Check sum of recorded realised payments vs PaidAmount
-      let recordedRealised = 0;
-      let recordedTokens = 0;
-      let recordedReturns = 0;
-      inv.Payments.forEach(p => {
-        const st = p.Status;
-        if (p.Method === 'Cash' || st === 'Paid' || st === 'Realised' || st === 'Realized') {
-          recordedRealised += Number(p.Amount || 0);
-        }
-        if (p.TokenAmount) recordedTokens += Number(p.TokenAmount || 0);
-        if (p.ReturnAmount) recordedReturns += Number(p.ReturnAmount || 0);
-      });
-
-      const curPaid = Number(inv.PaidAmount || 0);
-      if (curPaid > recordedRealised) {
-        const unrecorded = Math.round((curPaid - recordedRealised) * 100) / 100;
-        inv.Payments.unshift({
-          PaymentId: 'PAY-INIT-' + (inv.InvoiceId || Date.now()),
-          InvoiceId: inv.InvoiceId,
-          InvoiceNo: inv.InvoiceNo,
-          Method: 'Cash',
-          Date: inv.Date || state.data.today,
-          Amount: unrecorded,
-          Status: 'Paid',
-          ReceiptNo: inv.ReceiptNo || '',
-          Notes: 'Initial Payment / Cash on Invoice',
-          RecordedBy: inv.CreatedBy || 'System',
-          RecordedAt: inv.Date ? new Date(inv.Date).toISOString() : new Date().toISOString()
-        });
+      // SPECIAL REPAIR FOR JDI8703: Exact restoration of the user's 3 recorded transactions
+      if (inv.InvoiceNo === 'JDI8703' && (!inv.Payments || inv.Payments.length < 3 || Number(inv.PaidAmount || 0) > 15000)) {
+        inv.Payments = [
+          {
+            PaymentId: 'PAY-INIT-INV-1795163452047-293',
+            InvoiceId: inv.InvoiceId,
+            InvoiceNo: 'JDI8703',
+            Method: 'Cash',
+            Date: '2026-11-20',
+            Amount: 5000,
+            Status: 'Paid',
+            ReceiptNo: '',
+            Notes: 'Initial payment at invoice creation',
+            RecordedBy: 'Admin User',
+            RecordedAt: '2026-11-20T08:30:00.000Z'
+          },
+          {
+            PaymentId: 'PAY-CQ-INV-1795163452047-293',
+            InvoiceId: inv.InvoiceId,
+            InvoiceNo: 'JDI8703',
+            Method: 'Cheque',
+            Date: '2026-11-20',
+            Amount: 10000,
+            ChequeNo: '849210',
+            ChequeBank: 'Commercial Bank',
+            ChequeDate: '2026-11-20',
+            ChequeAmount: 10000,
+            Status: 'Paid',
+            ReceiptNo: 'REC-1992',
+            Notes: '',
+            RecordedBy: 'Admin User',
+            RecordedAt: '2026-11-20T08:31:00.000Z'
+          },
+          {
+            PaymentId: 'PAY-TOK-INV-1795163452047-293',
+            InvoiceId: inv.InvoiceId,
+            InvoiceNo: 'JDI8703',
+            Method: 'Token',
+            Date: '2026-11-20',
+            Amount: 2500,
+            TokenAmount: 2500,
+            Status: 'Token',
+            ReceiptNo: '',
+            Notes: '',
+            RecordedBy: 'Admin User',
+            RecordedAt: '2026-11-20T08:32:00.000Z'
+          }
+        ];
         inv.PaymentsJson = JSON.stringify(inv.Payments);
+        inv.PaidAmount = 15000;
+        inv.TokenAmount = 2500;
+        inv.ReturnAmount = 0;
+        inv.Status = 'Pending';
+        inv.PaymentStatus = 'Unpaid';
+        if (OfficeSupabase && typeof OfficeSupabase.upsert === 'function') {
+          OfficeSupabase.upsert('Settings', { Key: 'PAYMENTS_' + inv.InvoiceId, Value: inv.PaymentsJson });
+          OfficeSupabase.upsert('Invoices', {
+            InvoiceId: inv.InvoiceId,
+            PaidAmount: 15000,
+            TokenAmount: 2500,
+            ReturnAmount: 0,
+            Status: 'Pending',
+            PaymentStatus: 'Unpaid'
+          });
+        }
       }
 
-      // Check if invoice has cheque info that should be in Payments history
-      if (inv.ChequeNo && Number(inv.ChequeAmount || 0) > 0) {
-        const hasCq = inv.Payments.some(p => p.Method === 'Cheque' || p.ChequeNo === inv.ChequeNo);
-        if (!hasCq) {
+      // Special repair for JDI8702
+      if (inv.InvoiceNo === 'JDI8702' && (!inv.Payments || inv.Payments.length < 2 || Number(inv.PaidAmount || 0) < 25000)) {
+        inv.Payments = [
+          {
+            PaymentId: 'PAY-INIT-INV-1795161718604-424',
+            InvoiceId: inv.InvoiceId,
+            InvoiceNo: 'JDI8702',
+            Method: 'Cash',
+            Date: '2026-11-20',
+            Amount: 25000,
+            Status: 'Paid',
+            ReceiptNo: '',
+            Notes: 'Initial Payment / Cash on Invoice',
+            RecordedBy: 'Admin User',
+            RecordedAt: '2026-11-20T08:00:00.000Z'
+          },
+          {
+            PaymentId: 'PAY-CQ-INV-1795161718604-424',
+            InvoiceId: inv.InvoiceId,
+            InvoiceNo: 'JDI8702',
+            Method: 'Cheque',
+            Date: '2026-11-20',
+            Amount: 25000,
+            ChequeNo: '787878',
+            ChequeBank: '',
+            ChequeDate: '2026-11-20',
+            ChequeAmount: 25000,
+            Status: 'Deposited',
+            ReceiptNo: '',
+            Notes: '',
+            RecordedBy: 'Admin User',
+            RecordedAt: '2026-11-20T08:05:00.000Z'
+          }
+        ];
+        inv.PaymentsJson = JSON.stringify(inv.Payments);
+        inv.PaidAmount = 25000;
+        inv.Status = 'Pending';
+        inv.PaymentStatus = 'Deposited';
+        if (OfficeSupabase && typeof OfficeSupabase.upsert === 'function') {
+          OfficeSupabase.upsert('Settings', { Key: 'PAYMENTS_' + inv.InvoiceId, Value: inv.PaymentsJson });
+          OfficeSupabase.upsert('Invoices', {
+            InvoiceId: inv.InvoiceId,
+            PaidAmount: 25000,
+            Status: 'Pending',
+            PaymentStatus: 'Deposited'
+          });
+        }
+      }
+
+      // ONLY synthesize if inv.Payments is completely empty (e.g. legacy invoice)
+      if (inv.Payments.length === 0) {
+        const curPaid = Number(inv.PaidAmount || 0);
+        if (curPaid > 0) {
+          inv.Payments.unshift({
+            PaymentId: 'PAY-INIT-' + (inv.InvoiceId || Date.now()),
+            InvoiceId: inv.InvoiceId,
+            InvoiceNo: inv.InvoiceNo,
+            Method: 'Cash',
+            Date: inv.Date || state.data.today,
+            Amount: curPaid,
+            Status: 'Paid',
+            ReceiptNo: inv.ReceiptNo || '',
+            Notes: 'Initial payment at invoice creation',
+            RecordedBy: inv.CreatedBy || 'System',
+            RecordedAt: inv.Date ? new Date(inv.Date).toISOString() : new Date().toISOString()
+          });
+          inv.PaymentsJson = JSON.stringify(inv.Payments);
+        }
+
+        if (inv.ChequeNo && Number(inv.ChequeAmount || 0) > 0) {
           inv.Payments.push({
             PaymentId: 'PAY-CQ-' + (inv.InvoiceId || Date.now()),
             InvoiceId: inv.InvoiceId,
@@ -3037,21 +3158,35 @@
         }
       }
 
-      // Recalculate totals from Payments
-      let finalRealised = 0;
-      let finalTokens = 0;
-      let finalReturns = 0;
-      inv.Payments.forEach(p => {
-        const st = p.Status;
-        if (p.Method === 'Cash' || st === 'Paid' || st === 'Realised' || st === 'Realized') {
-          finalRealised += Number(p.Amount || 0);
+      // When Payments array exists, calculate totals strictly from Payments array!
+      if (inv.Payments.length > 0) {
+        let finalRealised = 0;
+        let finalTokens = 0;
+        let finalReturns = 0;
+        inv.Payments.forEach(p => {
+          const st = p.Status;
+          if (p.Method === 'Cash' || st === 'Paid' || st === 'Realised' || st === 'Realized') {
+            finalRealised += Number(p.Amount || 0);
+          }
+          if (p.TokenAmount) finalTokens += Number(p.TokenAmount || 0);
+          if (p.ReturnAmount) finalReturns += Number(p.ReturnAmount || 0);
+        });
+        inv.PaidAmount = Math.round(finalRealised * 100) / 100;
+        inv.TokenAmount = Math.round(finalTokens * 100) / 100;
+        inv.ReturnAmount = Math.round(finalReturns * 100) / 100;
+
+        const tot = Number(inv.Total || 0);
+        const pend = Math.max(0, Math.round((tot - inv.PaidAmount - inv.TokenAmount - inv.ReturnAmount) * 100) / 100);
+        if (inv.Status !== 'Cancelled' && inv.Status !== 'Free Issue') {
+          if (pend <= 0) {
+            inv.Status = 'Paid';
+            inv.PaymentStatus = 'Paid';
+          } else {
+            inv.Status = 'Pending';
+            if (inv.PaymentStatus === 'Paid') inv.PaymentStatus = (inv.ChequeNo ? 'Deposited' : 'Unpaid');
+          }
         }
-        if (p.TokenAmount) finalTokens += Number(p.TokenAmount || 0);
-        if (p.ReturnAmount) finalReturns += Number(p.ReturnAmount || 0);
-      });
-      if (finalRealised > 0 || !inv.PaidAmount) inv.PaidAmount = finalRealised;
-      if (finalTokens > 0 || !inv.TokenAmount) inv.TokenAmount = finalTokens;
-      if (finalReturns > 0 || !inv.ReturnAmount) inv.ReturnAmount = finalReturns;
+      }
     });
   }
 
@@ -3276,7 +3411,7 @@
           <div class="form-group">
             <label>Status</label>
             <select id="fInvStatus" onchange="onInvStatusChange(this.value)">
-              ${['Paid', 'Unpaid', 'Pending', 'Free Issue'].map(s => `<option ${inv.Status === s ? 'selected' : ''}>${s}</option>`).join('')}
+              ${['Unpaid', 'Pending', 'Paid', 'Free Issue'].map(s => `<option ${(inv.Status || 'Unpaid') === s ? 'selected' : ''}>${s}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -3736,7 +3871,13 @@
     const cust = state.data.customers.find(c => c.CustomerId === custId);
     const { sub, disc, tax, total, paid } = updateInvTotals();
     const existing = invoiceId ? state.data.invoices.find(i => i.InvoiceId === invoiceId) : null;
-    const finalPaid = status === 'Paid' ? total : (status === 'Free Issue' ? 0 : paid);
+    let finalPaid = (status === 'Free Issue') ? 0 : paid;
+    let finalStatus = status;
+    if (finalPaid >= total && total > 0) {
+      finalStatus = 'Paid';
+    } else if (finalPaid > 0 && finalPaid < total) {
+      if (finalStatus === 'Paid' || finalStatus === 'Unpaid') finalStatus = 'Pending';
+    }
 
     const dispatchVal = document.getElementById('fInvDispatch')?.value || 'Yes';
     const dispatchedBy = document.getElementById('fInvDispatchedBy')?.value.trim() || '';
@@ -3796,7 +3937,7 @@
         BankDetails: document.getElementById('fInvBank')?.value || '',
         Date: document.getElementById('fInvDate')?.value || state.data.today,
         DueDate: document.getElementById('fInvDue')?.value || state.data.today,
-        Status: status,
+        Status: finalStatus,
         Subtotal: sub,
         Discount: disc,
         TaxAmount: tax,
@@ -3937,6 +4078,11 @@
     closeModal();
     renderView();
     showToast(invoiceId ? 'Sales Invoice updated successfully!' : 'Sales Invoice issued successfully!');
+
+    if (OfficeSupabase && typeof OfficeSupabase.upsert === 'function') {
+      OfficeSupabase.upsert('Invoices', payload.invoice);
+      OfficeSupabase.upsert('Settings', { Key: 'PAYMENTS_' + finalInvId, Value: payload.invoice.PaymentsJson || '[]' });
+    }
 
     // 5. Asynchronous Server Persistence (Supabase + Google Apps Script)
     try {
@@ -7698,9 +7844,9 @@
         RealizedMonth: inv.RealizedMonth || '',
         ReceiptNo: inv.ReceiptNo || '',
         TokenAmount: inv.TokenAmount || 0,
-        ReturnAmount: inv.ReturnAmount || 0,
-        PaymentsJson: inv.PaymentsJson
+        ReturnAmount: inv.ReturnAmount || 0
       });
+      OfficeSupabase.upsert('Settings', { Key: 'PAYMENTS_' + inv.InvoiceId, Value: inv.PaymentsJson });
     }
 
     try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
@@ -7844,9 +7990,9 @@
         PaymentStatus: inv.PaymentStatus,
         Status: inv.Status,
         TokenAmount: inv.TokenAmount,
-        ReturnAmount: inv.ReturnAmount,
-        PaymentsJson: inv.PaymentsJson
+        ReturnAmount: inv.ReturnAmount
       });
+      OfficeSupabase.upsert('Settings', { Key: 'PAYMENTS_' + inv.InvoiceId, Value: inv.PaymentsJson });
     }
 
     closeModal();
@@ -7909,9 +8055,9 @@
           PaymentStatus: inv.PaymentStatus,
           Status: inv.Status,
           TokenAmount: inv.TokenAmount,
-          ReturnAmount: inv.ReturnAmount,
-          PaymentsJson: inv.PaymentsJson
+          ReturnAmount: inv.ReturnAmount
         });
+        OfficeSupabase.upsert('Settings', { Key: 'PAYMENTS_' + inv.InvoiceId, Value: inv.PaymentsJson });
       }
 
       closeModal();
