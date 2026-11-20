@@ -2318,7 +2318,7 @@
     const periodInvoices = invoices.filter(i => i.Status !== 'Cancelled' && inDateRange(i.Date));
     const allActiveInvoices = invoices.filter(i => i.Status !== 'Cancelled');
     const totalSales = getNetSales(periodInvoices);
-    const totalCollected = periodInvoices.reduce((s, i) => s + (i.Status === 'Paid' ? Number(i.Total || 0) : Number(i.PaidAmount || 0)), 0);
+    const totalCollected = periodInvoices.reduce((s, i) => s + Number(i.PaidAmount || 0), 0);
     const collectionRate = totalSales > 0 ? Math.min(100, Math.round((totalCollected / totalSales) * 100)) : 0;
 
     // Outstanding & Aging
@@ -2376,7 +2376,7 @@
       const isFree = (i.Status === 'Free Issue');
       const retAmt = Number(i.ReturnAmount || 0);
       const tokAmt = Number(i.TokenAmount || 0);
-      const invAmt = isFree ? 0 : Math.max(0, Number(i.Total || 0) - retAmt - tokAmt);
+      const invAmt = isFree ? 0 : Math.max(0, Number(i.Total || 0) - retAmt);
       const paidAmt = Number(i.PaidAmount || 0);
       const rawSp = (i.SalesPerson || 'Unassigned').trim();
       const emp = employees.find(e => (e.Name && e.Name.trim().toLowerCase() === rawSp.toLowerCase()) || (e.UserName && e.UserName.trim().toLowerCase() === rawSp.toLowerCase())) ||
@@ -2804,7 +2804,7 @@
       const isFree = (i.Status === 'Free Issue');
       const retAmt = Number(i.ReturnAmount || 0);
       const tokAmt = Number(i.TokenAmount || 0);
-      const invAmt = isFree ? 0 : Math.max(0, Number(i.Total || 0) - retAmt - tokAmt);
+      const invAmt = isFree ? 0 : Math.max(0, Number(i.Total || 0) - retAmt);
       const paidAmt = Number(i.PaidAmount || 0);
       dateMap[d].sales += invAmt;
       dateMap[d].coll += paidAmt;
@@ -2971,7 +2971,7 @@
       rows = sortList(rows, _invSortField, _invSortDir);
 
       const totalSales = getNetSales(allInvoices);
-      const totalCollected = allInvoices.reduce((s, i) => s + (i.Status !== 'Cancelled' ? (i.Status === 'Paid' ? Number(i.Total || 0) : Number(i.PaidAmount || 0)) : 0), 0);
+      const totalCollected = allInvoices.reduce((s, i) => s + (i.Status !== 'Cancelled' ? Number(i.PaidAmount || 0) : 0), 0);
       const totalCreditOutstanding = allInvoices.reduce((s, i) => {
         if (i.Status === 'Paid' || i.Status === 'Cancelled' || i.Status === 'Free Issue') return s;
         return s + getInvOutstandingPending(i);
@@ -3233,6 +3233,7 @@
     // Summary calculations
     let totalSales = 0;
     let totalCollection = 0;
+    let totalTokens = 0;
     let freeIssueCount = 0;
 
     // Grouping by Sales Person (Requirement: Display by User Name, fallback to given Name)
@@ -3242,12 +3243,13 @@
       const isFree = (i.Status === 'Free Issue');
       const retAmt = Number(i.ReturnAmount || 0);
       const tokAmt = Number(i.TokenAmount || 0);
-      const invAmt = isFree ? 0 : Math.max(0, Number(i.Total || 0) - retAmt - tokAmt);
+      const invAmt = isFree ? 0 : Math.max(0, Number(i.Total || 0) - retAmt);
       const paidAmt = Number(i.PaidAmount || 0);
 
       if (isFree) freeIssueCount++;
       totalSales += invAmt;
       totalCollection += paidAmt;
+      totalTokens += tokAmt;
 
       const rawSp = (i.SalesPerson || 'Unassigned / Direct').trim();
       const matchedEmp = employees.find(e =>
@@ -3269,12 +3271,14 @@
           department: matchedEmp ? (matchedEmp.Department || 'Sales & Marketing') : 'Sales & Marketing',
           sales: 0,
           collected: 0,
+          tokens: 0,
           invoiceCount: 0,
           avatar: (matchedEmp && matchedEmp.Avatar) || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(spDisplayName) + '&background=0284c7&color=fff')
         };
       }
       spMap[spKey].sales += invAmt;
       spMap[spKey].collected += paidAmt;
+      spMap[spKey].tokens += tokAmt;
       spMap[spKey].invoiceCount += 1;
     });
 
@@ -3293,6 +3297,7 @@
           department: e.Department || 'Sales',
           sales: 0,
           collected: 0,
+          tokens: 0,
           invoiceCount: 0,
           avatar: e.Avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(spDisplayName) + '&background=0284c7&color=fff')
         };
@@ -3308,7 +3313,7 @@
     // Sort descending by sales amount, then collection amount
     spList.sort((a, b) => (b.sales - a.sales) || (b.collected - a.collected));
 
-    const totalOutstandingInPeriod = Math.max(0, totalSales - totalCollection);
+    const totalOutstandingInPeriod = Math.max(0, Math.round((totalSales - totalCollection - totalTokens) * 100) / 100);
     const overallRate = totalSales > 0 ? ((totalCollection / totalSales) * 100).toFixed(1) : '0.0';
 
     const periodLabel = (_mgrSalesState.start && _mgrSalesState.end) 
@@ -3364,15 +3369,15 @@
           <div class="kpi-val" style="color:#16a34a;">${fmtMoney(totalCollection)}</div>
           <div class="kpi-sub">Overall Collection Rate: <b>${overallRate}%</b></div>
         </div>
+        <div class="card" style="border-top:3px solid #7c3aed;">
+          <div class="kpi-label">TOKEN CONCESSIONS</div>
+          <div class="kpi-val" style="color:#7c3aed;">${fmtMoney(totalTokens)}</div>
+          <div class="kpi-sub">Approved discounts &amp; concessions</div>
+        </div>
         <div class="card" style="border-top:3px solid #d97706;">
           <div class="kpi-label">OUTSTANDING IN PERIOD</div>
           <div class="kpi-val" style="color:#d97706;">${fmtMoney(totalOutstandingInPeriod)}</div>
           <div class="kpi-sub">Uncollected balance from period invoices</div>
-        </div>
-        <div class="card" style="border-top:3px solid #2563eb;">
-          <div class="kpi-label">ACTIVE SALES PERSONS</div>
-          <div class="kpi-val" style="color:#2563eb;">${spList.length}</div>
-          <div class="kpi-sub">Ranked team members</div>
         </div>
       </div>
 
@@ -5767,8 +5772,7 @@
       if (inv.Status === 'Cancelled' || inv.PaymentStatus === 'Cancel') return sum;
       const total = Number(inv.Total || 0);
       const ret = Number(inv.ReturnAmount || 0);
-      const tok = Number(inv.TokenAmount || 0);
-      return sum + Math.max(0, total - ret - tok);
+      return sum + Math.max(0, total - ret);
     }, 0);
   }
 
@@ -7890,7 +7894,7 @@
     // Summary calculations
     const totalInvAmt = allInvs.reduce((s, i) => s + (i.Status !== 'Cancelled' && i.Status !== 'Free Issue' && i.PaymentStatus !== 'Cancel' ? Number(i.Total || 0) : 0), 0);
     const totalChqAmt = allInvs.reduce((s, i) => s + Number(i.ChequeAmount || 0), 0);
-    const totalRealisedAmt = allInvs.reduce((s, i) => s + ((i.PaymentStatus === 'Paid' || i.Status === 'Paid') ? Number(i.Total || 0) : Number(i.PaidAmount || 0)), 0);
+    const totalRealisedAmt = allInvs.reduce((s, i) => s + (i.Status !== 'Cancelled' && i.Status !== 'Free Issue' && i.PaymentStatus !== 'Cancel' ? Number(i.PaidAmount || 0) : 0), 0);
     const totalPendingAmt = allInvs.reduce((s, i) => s + getInvOutstandingPending(i), 0);
 
     // Sort
