@@ -11301,12 +11301,83 @@
    * 4. Customers (CRM)
    * ======================================================================== */
 
+  let _custSortField = 'Name';
+  let _custSortDir = 'asc';
+  let _custSearch = '';
+
+  function sortCustomerTable(field) {
+    if (_custSortField === field) {
+      _custSortDir = _custSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      _custSortField = field;
+      _custSortDir = 'asc';
+    }
+    renderCustomersView();
+  }
+
+  function setCustomerSort(val) {
+    if (!val) return;
+    const parts = val.split('_');
+    _custSortField = parts[0] || 'Name';
+    _custSortDir = parts[1] || 'asc';
+    renderCustomersView();
+  }
+
   function renderCustomersView() {
-    const custs = state.data.customers || [];
+    ensureDataDefaults();
+    let custs = Array.isArray(state.data.customers) ? [...state.data.customers] : [];
+
+    // Filter by search
+    if (_custSearch) {
+      const q = _custSearch.toLowerCase().trim();
+      custs = custs.filter(c =>
+        (c.Name || '').toLowerCase().includes(q) ||
+        (c.CustomerCode || '').toLowerCase().includes(q) ||
+        (c.BusinessIdentifier || '').toLowerCase().includes(q) ||
+        (c.SalesOfficerName || '').toLowerCase().includes(q) ||
+        (c.Phone || '').toLowerCase().includes(q) ||
+        (c.Email || '').toLowerCase().includes(q)
+      );
+    }
+
+    // Sort by field and direction
+    custs.sort((a, b) => {
+      let va = '';
+      let vb = '';
+      if (_custSortField === 'CustomerCode') {
+        va = String(a.CustomerCode || a.CustomerId || '').trim();
+        vb = String(b.CustomerCode || b.CustomerId || '').trim();
+      } else {
+        va = String(a.Name || '').trim();
+        vb = String(b.Name || '').trim();
+      }
+      const comp = va.localeCompare(vb, undefined, { numeric: true, sensitivity: 'base' });
+      return _custSortDir === 'asc' ? comp : -comp;
+    });
+
+    const codeArrow = _custSortField === 'CustomerCode' ? (_custSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕';
+    const nameArrow = _custSortField === 'Name' ? (_custSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕';
+    const sortVal = `${_custSortField}_${_custSortDir}`;
+
     document.getElementById('mainContent').innerHTML = `
-      <div class="section-header">
-        <input class="search-input" placeholder="Search customers by name, code, business ID, sales officer..." oninput="filterTable('custTable', this.value)">
-        <div class="section-actions">
+      <div class="section-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:280px;">
+          <input class="search-input" placeholder="Search customers by name, code, business ID, sales officer..." 
+                 value="${esc(_custSearch)}" 
+                 oninput="_custSearch = this.value; renderCustomersView();"
+                 style="flex:1;">
+          <div style="display:inline-flex; align-items:center; gap:6px; background:#fff; padding:4px 8px; border:1px solid #cbd5e1; border-radius:6px; white-space:nowrap;">
+            <span style="font-size:12px; font-weight:700; color:var(--muted);">Sort:</span>
+            <select style="border:none; outline:none; background:transparent; font-size:12.5px; font-weight:600; color:var(--text); cursor:pointer;" 
+                    onchange="setCustomerSort(this.value)">
+              <option value="Name_asc" ${sortVal === 'Name_asc' ? 'selected' : ''}>Name (A → Z)</option>
+              <option value="Name_desc" ${sortVal === 'Name_desc' ? 'selected' : ''}>Name (Z → A)</option>
+              <option value="CustomerCode_asc" ${sortVal === 'CustomerCode_asc' ? 'selected' : ''}>Code (Ascending)</option>
+              <option value="CustomerCode_desc" ${sortVal === 'CustomerCode_desc' ? 'selected' : ''}>Code (Descending)</option>
+            </select>
+          </div>
+        </div>
+        <div class="section-actions" style="display:flex; gap:8px;">
           <button class="btn btn-secondary" onclick="exportCustomersExcel()">⬇ Export Excel</button>
           <button class="btn btn-primary" onclick="openCustomerModal()">+ Add Customer</button>
         </div>
@@ -11315,8 +11386,12 @@
         <table id="custTable">
           <thead>
             <tr>
-              <th>Code</th>
-              <th>Customer Name</th>
+              <th style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="sortCustomerTable('CustomerCode')" title="Click to sort by Code">
+                Code <span style="font-size:11px; color:var(--primary);">${codeArrow}</span>
+              </th>
+              <th style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="sortCustomerTable('Name')" title="Click to sort by Name">
+                Customer Name <span style="font-size:11px; color:var(--primary);">${nameArrow}</span>
+              </th>
               <th>Business Identifier</th>
               <th>Sales Officer</th>
               <th>Phone / Email</th>
@@ -11351,7 +11426,7 @@
                   </td>
                 </tr>
               `;
-            }).join('') || '<tr><td colspan="9" style="color:var(--muted)">No customers added yet. Click "+ Add Customer" to create one.</td></tr>'}
+            }).join('') || '<tr><td colspan="9" style="color:var(--muted)">No customers found.</td></tr>'}
           </tbody>
         </table>
       </div>
