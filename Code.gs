@@ -712,22 +712,23 @@ function updateInvoicePayment(payload) {
   return withLock_(() => {
     const invId = payload.InvoiceId;
     if (!invId) throw new Error('InvoiceId required');
-    const updates = {
-      ChequeNo: payload.ChequeNo || '',
-      ChequeBank: payload.ChequeBank || '',
-      ChequeDate: payload.ChequeDate || '',
-      ChequeAmount: Number(payload.ChequeAmount) || 0,
-      PaidAmount: Number(payload.RealisedAmount) || Number(payload.PaidAmount) || 0,
-      RealisedDate: payload.RealisedDate || '',
-      RealizedMonth: payload.RealizedMonth || '',
-      ReceiptNo: payload.ReceiptNo || '',
-      PaymentStatus: payload.PaymentStatus || 'Unpaid'
-    };
+    const updates = {};
+    if (payload.ChequeNo !== undefined) updates.ChequeNo = payload.ChequeNo;
+    if (payload.ChequeBank !== undefined) updates.ChequeBank = payload.ChequeBank;
+    if (payload.ChequeDate !== undefined) updates.ChequeDate = payload.ChequeDate;
+    if (payload.ChequeAmount !== undefined) updates.ChequeAmount = Number(payload.ChequeAmount) || 0;
+    if (payload.RealisedAmount !== undefined || payload.PaidAmount !== undefined) {
+      updates.PaidAmount = Number(payload.RealisedAmount !== undefined ? payload.RealisedAmount : payload.PaidAmount) || 0;
+    }
+    if (payload.RealisedDate !== undefined) updates.RealisedDate = payload.RealisedDate;
+    if (payload.RealizedMonth !== undefined) updates.RealizedMonth = payload.RealizedMonth;
+    if (payload.ReceiptNo !== undefined) updates.ReceiptNo = payload.ReceiptNo;
+    if (payload.PaymentStatus !== undefined) updates.PaymentStatus = payload.PaymentStatus;
     if (payload.TokenAmount !== undefined) updates.TokenAmount = Number(payload.TokenAmount) || 0;
     if (payload.ReturnAmount !== undefined) updates.ReturnAmount = Number(payload.ReturnAmount) || 0;
-    if (payload.Status) updates.Status = payload.Status;
+    if (payload.Status !== undefined) updates.Status = payload.Status;
     if (payload.Total !== undefined) updates.Total = Number(payload.Total) || 0;
-    if (payload.PaymentsJson) {
+    if (payload.PaymentsJson !== undefined) {
       updates.PaymentsJson = typeof payload.PaymentsJson === 'string' ? payload.PaymentsJson : JSON.stringify(payload.PaymentsJson);
     }
     updateRowByKey_('Invoices', 'InvoiceId', invId, updates);

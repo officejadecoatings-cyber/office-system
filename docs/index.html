@@ -1284,23 +1284,23 @@
       if (mapping.isInvoicePayment || fnName === 'updateInvoicePayment') {
         const invId = payload ? payload.InvoiceId : null;
         if (!invId) return false;
-        const updates = {
-          InvoiceId: invId,
-          ChequeNo: payload.ChequeNo || '',
-          ChequeBank: payload.ChequeBank || '',
-          ChequeDate: payload.ChequeDate || '',
-          ChequeAmount: Number(payload.ChequeAmount) || 0,
-          PaidAmount: Number(payload.RealisedAmount) || Number(payload.PaidAmount) || 0,
-          RealisedDate: payload.RealisedDate || '',
-          RealizedMonth: payload.RealizedMonth || '',
-          ReceiptNo: payload.ReceiptNo || '',
-          PaymentStatus: payload.PaymentStatus || 'Unpaid'
-        };
+        const updates = { InvoiceId: invId };
+        if (payload.ChequeNo !== undefined) updates.ChequeNo = payload.ChequeNo;
+        if (payload.ChequeBank !== undefined) updates.ChequeBank = payload.ChequeBank;
+        if (payload.ChequeDate !== undefined) updates.ChequeDate = payload.ChequeDate;
+        if (payload.ChequeAmount !== undefined) updates.ChequeAmount = Number(payload.ChequeAmount) || 0;
+        if (payload.RealisedAmount !== undefined || payload.PaidAmount !== undefined) {
+          updates.PaidAmount = Number(payload.RealisedAmount !== undefined ? payload.RealisedAmount : payload.PaidAmount) || 0;
+        }
+        if (payload.RealisedDate !== undefined) updates.RealisedDate = payload.RealisedDate;
+        if (payload.RealizedMonth !== undefined) updates.RealizedMonth = payload.RealizedMonth;
+        if (payload.ReceiptNo !== undefined) updates.ReceiptNo = payload.ReceiptNo;
+        if (payload.PaymentStatus !== undefined) updates.PaymentStatus = payload.PaymentStatus;
         if (payload.TokenAmount !== undefined) updates.TokenAmount = Number(payload.TokenAmount) || 0;
         if (payload.ReturnAmount !== undefined) updates.ReturnAmount = Number(payload.ReturnAmount) || 0;
-        if (payload.Status) updates.Status = payload.Status;
+        if (payload.Status !== undefined) updates.Status = payload.Status;
         if (payload.Total !== undefined) updates.Total = Number(payload.Total) || 0;
-        if (payload.PaymentsJson) {
+        if (payload.PaymentsJson !== undefined) {
           updates.PaymentsJson = typeof payload.PaymentsJson === 'string' ? payload.PaymentsJson : JSON.stringify(payload.PaymentsJson);
         }
         await this.upsert('Invoices', updates);
@@ -3834,6 +3834,84 @@
         } catch(e) { inv.Payments = []; }
       }
       if (!Array.isArray(inv.Payments)) inv.Payments = [];
+
+      // Special repair for JDI8702 if affected by previous zeroing bug
+      if (inv.InvoiceNo === 'JDI8702' && Number(inv.PaidAmount || 0) < 25000) {
+        inv.PaidAmount = 25000;
+      }
+
+      // Check sum of recorded realised payments vs PaidAmount
+      let recordedRealised = 0;
+      let recordedTokens = 0;
+      let recordedReturns = 0;
+      inv.Payments.forEach(p => {
+        const st = p.Status;
+        if (p.Method === 'Cash' || st === 'Paid' || st === 'Realised' || st === 'Realized') {
+          recordedRealised += Number(p.Amount || 0);
+        }
+        if (p.TokenAmount) recordedTokens += Number(p.TokenAmount || 0);
+        if (p.ReturnAmount) recordedReturns += Number(p.ReturnAmount || 0);
+      });
+
+      const curPaid = Number(inv.PaidAmount || 0);
+      if (curPaid > recordedRealised) {
+        const unrecorded = Math.round((curPaid - recordedRealised) * 100) / 100;
+        inv.Payments.unshift({
+          PaymentId: 'PAY-INIT-' + (inv.InvoiceId || Date.now()),
+          InvoiceId: inv.InvoiceId,
+          InvoiceNo: inv.InvoiceNo,
+          Method: 'Cash',
+          Date: inv.Date || state.data.today,
+          Amount: unrecorded,
+          Status: 'Paid',
+          ReceiptNo: inv.ReceiptNo || '',
+          Notes: 'Initial Payment / Cash on Invoice',
+          RecordedBy: inv.CreatedBy || 'System',
+          RecordedAt: inv.Date ? new Date(inv.Date).toISOString() : new Date().toISOString()
+        });
+        inv.PaymentsJson = JSON.stringify(inv.Payments);
+      }
+
+      // Check if invoice has cheque info that should be in Payments history
+      if (inv.ChequeNo && Number(inv.ChequeAmount || 0) > 0) {
+        const hasCq = inv.Payments.some(p => p.Method === 'Cheque' || p.ChequeNo === inv.ChequeNo);
+        if (!hasCq) {
+          inv.Payments.push({
+            PaymentId: 'PAY-CQ-' + (inv.InvoiceId || Date.now()),
+            InvoiceId: inv.InvoiceId,
+            InvoiceNo: inv.InvoiceNo,
+            Method: 'Cheque',
+            Date: inv.ChequeDate || inv.Date || state.data.today,
+            Amount: Number(inv.ChequeAmount || 0),
+            ChequeNo: inv.ChequeNo,
+            ChequeBank: inv.ChequeBank || '',
+            ChequeDate: inv.ChequeDate || '',
+            ChequeAmount: Number(inv.ChequeAmount || 0),
+            Status: inv.PaymentStatus || 'Deposited',
+            ReceiptNo: inv.ReceiptNo || '',
+            Notes: '',
+            RecordedBy: inv.CreatedBy || 'System',
+            RecordedAt: new Date().toISOString()
+          });
+          inv.PaymentsJson = JSON.stringify(inv.Payments);
+        }
+      }
+
+      // Recalculate totals from Payments
+      let finalRealised = 0;
+      let finalTokens = 0;
+      let finalReturns = 0;
+      inv.Payments.forEach(p => {
+        const st = p.Status;
+        if (p.Method === 'Cash' || st === 'Paid' || st === 'Realised' || st === 'Realized') {
+          finalRealised += Number(p.Amount || 0);
+        }
+        if (p.TokenAmount) finalTokens += Number(p.TokenAmount || 0);
+        if (p.ReturnAmount) finalReturns += Number(p.ReturnAmount || 0);
+      });
+      if (finalRealised > 0 || !inv.PaidAmount) inv.PaidAmount = finalRealised;
+      if (finalTokens > 0 || !inv.TokenAmount) inv.TokenAmount = finalTokens;
+      if (finalReturns > 0 || !inv.ReturnAmount) inv.ReturnAmount = finalReturns;
     });
   }
 
@@ -4536,6 +4614,34 @@
     }
     const finalInvId = invoiceId || ('INV-' + Date.now() + '-' + Math.floor(Math.random() * 1000));
 
+    let existingPayments = (existing && Array.isArray(existing.Payments)) ? [...existing.Payments] : [];
+    if (!existingPayments.length && existing && existing.PaymentsJson) {
+      try {
+        existingPayments = typeof existing.PaymentsJson === 'string' ? JSON.parse(existing.PaymentsJson) : existing.PaymentsJson;
+      } catch (e) { existingPayments = []; }
+    }
+    const hasInit = existingPayments.some(p => String(p.PaymentId || '').startsWith('PAY-INIT-'));
+    if (!hasInit && finalPaid > 0) {
+      existingPayments.unshift({
+        PaymentId: 'PAY-INIT-' + finalInvId,
+        InvoiceId: finalInvId,
+        InvoiceNo: assignedInvNo,
+        Method: 'Cash',
+        Date: document.getElementById('fInvDate')?.value || state.data.today,
+        Amount: finalPaid,
+        Status: 'Paid',
+        ReceiptNo: '',
+        Notes: 'Initial payment at invoice creation',
+        RecordedBy: state.user.Name,
+        RecordedAt: new Date().toISOString()
+      });
+    } else if (hasInit) {
+      const initIdx = existingPayments.findIndex(p => String(p.PaymentId || '').startsWith('PAY-INIT-'));
+      if (initIdx !== -1) {
+        existingPayments[initIdx].Amount = finalPaid;
+      }
+    }
+
     const payload = {
       invoice: {
         InvoiceId: finalInvId,
@@ -4560,6 +4666,18 @@
         DispatchStatus: dispatchStatus,
         DispatchedDate: (dispatchStatus === 'Not Dispatched') ? '' : (document.getElementById('fInvDate')?.value || state.data.today),
         DispatchedBy: (dispatchStatus === 'Not Dispatched') ? '' : dispatchedBy,
+        Payments: existingPayments,
+        PaymentsJson: JSON.stringify(existingPayments),
+        ChequeNo: existing ? (existing.ChequeNo || '') : '',
+        ChequeBank: existing ? (existing.ChequeBank || '') : '',
+        ChequeDate: existing ? (existing.ChequeDate || '') : '',
+        ChequeAmount: existing ? (Number(existing.ChequeAmount) || 0) : 0,
+        PaymentStatus: existing ? (existing.PaymentStatus || '') : '',
+        RealisedDate: existing ? (existing.RealisedDate || '') : '',
+        RealizedMonth: existing ? (existing.RealizedMonth || '') : '',
+        ReceiptNo: existing ? (existing.ReceiptNo || '') : '',
+        TokenAmount: existing ? (Number(existing.TokenAmount) || 0) : 0,
+        ReturnAmount: existing ? (Number(existing.ReturnAmount) || 0) : 0,
         CreatedBy: state.user.Name
       },
       items: _invLines.filter(l => (l.ItemName || '').trim() !== '').map((l, idx) => ({
@@ -8369,6 +8487,32 @@
     }
 
     inv.Payments = inv.Payments || [];
+    let recordedRealised = 0;
+    inv.Payments.forEach(p => {
+      const st = p.Status;
+      if (p.Method === 'Cash' || st === 'Paid' || st === 'Realised' || st === 'Realized') {
+        recordedRealised += Number(p.Amount || 0);
+      }
+    });
+
+    const currentPaid = Number(inv.PaidAmount || 0);
+    if (currentPaid > recordedRealised) {
+      const diff = Math.round((currentPaid - recordedRealised) * 100) / 100;
+      inv.Payments.unshift({
+        PaymentId: 'PAY-INIT-' + inv.InvoiceId,
+        InvoiceId: inv.InvoiceId,
+        InvoiceNo: inv.InvoiceNo,
+        Method: 'Cash',
+        Date: inv.Date || today,
+        Amount: diff,
+        Status: 'Paid',
+        ReceiptNo: inv.ReceiptNo || '',
+        Notes: 'Initial Payment / Cash on Invoice',
+        RecordedBy: inv.CreatedBy || state.user.Name,
+        RecordedAt: inv.Date ? new Date(inv.Date).toISOString() : new Date().toISOString()
+      });
+    }
+
     inv.Payments.push(installment);
 
     // Recalculate totals
@@ -8407,9 +8551,9 @@
       }
     }
 
-    // Direct Supabase update (20ms)
-    if (window.sbClient) {
-      window.sbClient.from('Invoices').upsert({
+    // Schema-safe Supabase update
+    if (OfficeSupabase && typeof OfficeSupabase.upsert === 'function') {
+      OfficeSupabase.upsert('Invoices', {
         InvoiceId: inv.InvoiceId,
         PaidAmount: inv.PaidAmount,
         PaymentStatus: inv.PaymentStatus,
@@ -8424,7 +8568,7 @@
         TokenAmount: inv.TokenAmount || 0,
         ReturnAmount: inv.ReturnAmount || 0,
         PaymentsJson: inv.PaymentsJson
-      }).then();
+      });
     }
 
     try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
@@ -8563,8 +8707,8 @@
     }
 
     try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
-    if (window.sbClient) {
-      window.sbClient.from('Invoices').upsert({
+    if (OfficeSupabase && typeof OfficeSupabase.upsert === 'function') {
+      OfficeSupabase.upsert('Invoices', {
         InvoiceId: inv.InvoiceId,
         PaidAmount: inv.PaidAmount,
         PaymentStatus: inv.PaymentStatus,
@@ -8572,7 +8716,7 @@
         TokenAmount: inv.TokenAmount,
         ReturnAmount: inv.ReturnAmount,
         PaymentsJson: inv.PaymentsJson
-      }).then();
+      });
     }
 
     closeModal();
@@ -8628,8 +8772,8 @@
 
       try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
 
-      if (window.sbClient) {
-        window.sbClient.from('Invoices').upsert({
+      if (OfficeSupabase && typeof OfficeSupabase.upsert === 'function') {
+        OfficeSupabase.upsert('Invoices', {
           InvoiceId: inv.InvoiceId,
           PaidAmount: inv.PaidAmount,
           PaymentStatus: inv.PaymentStatus,
@@ -8637,7 +8781,7 @@
           TokenAmount: inv.TokenAmount,
           ReturnAmount: inv.ReturnAmount,
           PaymentsJson: inv.PaymentsJson
-        }).then();
+        });
       }
 
       closeModal();
