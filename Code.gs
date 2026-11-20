@@ -695,7 +695,21 @@ function adjustInventoryStock_(items, multiplier) {
       invItem = inventory.find(x => String(x.Name || '').trim().toLowerCase() === lnDesc);
     }
     if (!invItem && lnCode) {
-      invItem = inventory.find(x => String(x.SKU || '').trim().toLowerCase() === lnCode);
+      const bySkuList = inventory.filter(x => String(x.SKU || '').trim().toLowerCase() === lnCode);
+      if (bySkuList.length === 1) {
+        invItem = bySkuList[0];
+      } else if (bySkuList.length > 1) {
+        if (lnDesc) {
+          invItem = bySkuList.find(x => {
+            const u = String(x.Unit || '').trim().toLowerCase();
+            const itName = String(x.Name || '').trim().toLowerCase();
+            return (u && (lnDesc.includes(u) || lnDesc.includes(u.replace(/\s+/g, '')))) ||
+                   itName === lnDesc || itName.includes(lnDesc) || lnDesc.includes(itName);
+          }) || bySkuList[0];
+        } else {
+          invItem = bySkuList[0];
+        }
+      }
     }
     if (invItem) {
       const newQty = Math.max(0, (Number(invItem.StockQty) || 0) + (multiplier * (Number(li.Qty) || 0)));

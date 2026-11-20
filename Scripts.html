@@ -3960,11 +3960,7 @@
       const oldItems = (state.data.invoiceItems || []).filter(li => li.InvoiceId === id);
       if (oldInv && oldInv.Status !== 'Draft' && oldInv.Status !== 'Cancelled' && oldInv.DispatchStatus !== 'Not Dispatched') {
         oldItems.forEach(li => {
-          const invItem = state.data.inventory.find(x => 
-            (li.ItemId && x.ItemId === li.ItemId) ||
-            (li.ItemCode && x.SKU && String(x.SKU).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase()) ||
-            (li.ItemName && x.Name && String(x.Name).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
-          );
+          const invItem = findMatchedInventoryItem(li);
           if (invItem) {
             invItem.StockQty = (Number(invItem.StockQty) || 0) + (Number(li.Qty) || 0);
             if (window.sbClient) window.sbClient.from('Inventory').upsert(invItem).then();
@@ -3990,11 +3986,7 @@
 
     let allAvail = true;
     const itemsHtml = items.map(li => {
-      const invItem = state.data.inventory.find(x => 
-        (li.ItemId && x.ItemId === li.ItemId) ||
-        (li.ItemCode && x.SKU && String(x.SKU).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase()) ||
-        (li.ItemName && x.Name && String(x.Name).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
-      );
+      const invItem = findMatchedInventoryItem(li);
       const avail = invItem ? (Number(invItem.StockQty) || 0) : 0;
       const req = Number(li.Qty) || 0;
       const ok = avail >= req;
