@@ -3975,11 +3975,7 @@
 
     // Verify stock
     for (const li of items) {
-      const invItem = state.data.inventory.find(x => 
-        (li.ItemId && x.ItemId === li.ItemId) ||
-        (li.ItemCode && x.SKU && String(x.SKU).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase()) ||
-        (li.ItemName && x.Name && String(x.Name).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
-      );
+      const invItem = findMatchedInventoryItem(li);
       const avail = invItem ? (Number(invItem.StockQty) || 0) : 0;
       const req = Number(li.Qty) || 0;
       if (req > avail) {
@@ -3994,11 +3990,7 @@
 
     // Deduct stock
     items.forEach(li => {
-      const invItem = state.data.inventory.find(x => 
-        (li.ItemId && x.ItemId === li.ItemId) ||
-        (li.ItemCode && x.SKU && String(x.SKU).trim().toLowerCase() === String(li.ItemCode).trim().toLowerCase()) ||
-        (li.ItemName && x.Name && String(x.Name).trim().toLowerCase() === String(li.ItemName).trim().toLowerCase())
-      );
+      const invItem = findMatchedInventoryItem(li);
       if (invItem) {
         invItem.StockQty = Math.max(0, (Number(invItem.StockQty) || 0) - (Number(li.Qty) || 0));
         invItem.UpdatedAt = dDate;
@@ -5074,9 +5066,9 @@
   function findMatchedInventoryItem(ln) {
     if (!ln) return null;
     const items = state.data.inventory || [];
-    const lnId = String(ln.ItemId || '').trim();
-    const lnDesc = String(ln.Description || ln.ItemName || ln.Name || '').trim().toLowerCase();
-    const lnCode = String(ln.ItemCode || ln.SKU || '').trim().toLowerCase();
+    const lnId = String(ln.ItemId || ln.itemId || '').trim();
+    const lnDesc = String(ln.Description || ln.ItemName || ln.itemName || ln.Name || ln.name || '').trim().toLowerCase();
+    const lnCode = String(ln.ItemCode || ln.itemCode || ln.SKU || ln.sku || '').trim().toLowerCase();
 
     // 1. Exact ItemId match FIRST (Direct item binding)
     if (lnId) {
@@ -5477,11 +5469,7 @@
       _quotLines = items.map(it => {
         const itName = it.itemName || it.ItemName || it.name || it.Name || it.Description || it.description || '';
         const itSku = it.sku || it.SKU || it.itemCode || it.ItemCode || '';
-        const inv = (state.data.inventory || []).find(x => 
-          (it.itemId && x.ItemId === it.itemId) ||
-          (itSku && x.SKU && x.SKU.toLowerCase() === itSku.toLowerCase()) ||
-          (itName && x.Name && x.Name.toLowerCase() === itName.toLowerCase())
-        );
+        const inv = findMatchedInventoryItem(it);
 
         const qty = Number(it.qty || it.Qty || it.quantity || it.Quantity || 1);
         const unitPrice = Number(it.unitPrice || it.UnitPrice || it.price || it.Price || (inv ? inv.UnitPrice : 0));
@@ -5490,11 +5478,16 @@
         const lineDisc = lineSub * (disc / 100);
         const amt = Math.round((lineSub - lineDisc) * 100) / 100;
 
+        const itemId = inv ? inv.ItemId : (it.itemId || it.ItemId || '');
+        const itemCode = inv ? (inv.SKU || '') : itSku;
+        const description = (inv ? inv.Name : '') || itName;
+        const itemDisplay = inv ? `${inv.SKU ? inv.SKU + ' - ' : ''}${inv.Name}` : (itemCode ? `${itemCode} - ${description}` : description);
+
         return {
-          ItemId: inv ? inv.ItemId : (it.itemId || it.ItemId || ''),
-          ItemCode: inv ? (inv.SKU || '') : itSku,
-          Description: itName || (inv ? inv.Name : ''),
-          ItemDisplay: inv ? `${inv.SKU ? inv.SKU + ' - ' : ''}${inv.Name}` : (itName || ''),
+          ItemId: itemId,
+          ItemCode: itemCode,
+          Description: description,
+          ItemDisplay: itemDisplay,
           Qty: qty,
           UnitPrice: unitPrice,
           Discount: disc,
@@ -6643,17 +6636,20 @@
       QuoteNo: order.OrderNo || order.OrderId
     };
 
-    const newInvoiceItems = items.map((it, i) => ({
-      LineId: 'LN-' + Date.now() + '-' + (i + 1),
-      InvoiceId: invId,
-      ItemId: it.itemId || '',
-      ItemCode: it.sku || '',
-      ItemName: it.itemName || 'Item',
-      Qty: it.qty || 1,
-      UnitPrice: it.unitPrice || 0,
-      DiscountPercent: 0,
-      LineTotal: it.total || (it.unitPrice * it.qty)
-    }));
+    const newInvoiceItems = items.map((it, i) => {
+      const invItem = findMatchedInventoryItem(it);
+      return {
+        LineId: 'LN-' + Date.now() + '-' + (i + 1),
+        InvoiceId: invId,
+        ItemId: invItem ? invItem.ItemId : (it.itemId || ''),
+        ItemCode: invItem ? (invItem.SKU || '') : (it.sku || ''),
+        ItemName: (invItem ? invItem.Name : '') || it.itemName || 'Item',
+        Qty: it.qty || 1,
+        UnitPrice: it.unitPrice || (invItem ? invItem.UnitPrice : 0),
+        DiscountPercent: 0,
+        LineTotal: it.total || ((it.unitPrice || 0) * (it.qty || 1))
+      };
+    });
 
     if (!state.data.invoices) state.data.invoices = [];
     if (!state.data.invoiceItems) state.data.invoiceItems = [];
