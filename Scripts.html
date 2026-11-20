@@ -1293,11 +1293,14 @@
 
   function getCustomerOverdueInfo(customerId) {
     if (!customerId) return { blocked: false, maxDays: 0, balance: 0, overdueInvoices: [], overdueBalance: 0 };
-    const unpaid = (state.data.invoices || []).filter(i =>
-      i.CustomerId === customerId &&
-      i.Status !== 'Paid' && i.Status !== 'Cancelled' && i.Status !== 'Draft' && i.Status !== 'Free Issue' &&
-      (Number(i.Total || 0) - Number(i.PaidAmount || 0)) > 0
-    );
+    const unpaid = (state.data.invoices || []).filter(i => {
+      const invNo = String(i.InvoiceNo || '').trim().toUpperCase();
+      const invId = String(i.InvoiceId || '').trim().toUpperCase();
+      if (invNo.startsWith('ORD-') || invId.startsWith('ORD-')) return false;
+      return i.CustomerId === customerId &&
+        i.Status !== 'Paid' && i.Status !== 'Cancelled' && i.Status !== 'Draft' && i.Status !== 'Free Issue' &&
+        (Number(i.Total || 0) - Number(i.PaidAmount || 0)) > 0;
+    });
     let maxDays = 0;
     let balance = 0;
     let overdueBalance = 0;
@@ -1392,7 +1395,11 @@
       _dashState.end = today;
     }
 
-    const invoices = state.data.invoices || [];
+    const invoices = (state.data.invoices || []).filter(i => {
+      const invNo = String(i.InvoiceNo || '').trim().toUpperCase();
+      const invId = String(i.InvoiceId || '').trim().toUpperCase();
+      return !invNo.startsWith('ORD-') && !invId.startsWith('ORD-');
+    });
     const quotations = state.data.quotations || [];
     const inventory = state.data.inventory || [];
     const transactions = state.data.transactions || [];
@@ -2312,7 +2319,11 @@
       _mgrSalesState.end = today;
     }
 
-    const invoices = state.data.invoices || [];
+    const invoices = (state.data.invoices || []).filter(i => {
+      const invNo = String(i.InvoiceNo || '').trim().toUpperCase();
+      const invId = String(i.InvoiceId || '').trim().toUpperCase();
+      return !invNo.startsWith('ORD-') && !invId.startsWith('ORD-');
+    });
     const employees = state.data.employees || [];
 
     // Filter invoices by selected date range
@@ -2634,6 +2645,11 @@
       data.inventory = data.inventory.filter(it => !isRecordDeleted(it.ItemId));
     }
     if (Array.isArray(data.invoices)) {
+      data.invoices = data.invoices.filter(i => {
+        const invNo = String(i.InvoiceNo || '').trim().toUpperCase();
+        const invId = String(i.InvoiceId || '').trim().toUpperCase();
+        return !invNo.startsWith('ORD-') && !invId.startsWith('ORD-');
+      });
       data.invoices = dedupe(data.invoices, inv => (inv.InvoiceId || inv.InvoiceNo || '').toString().trim().toLowerCase());
       data.invoices = data.invoices.filter(i => !isRecordDeleted(i.InvoiceId) && !isRecordDeleted(i.InvoiceNo));
     }
@@ -2803,6 +2819,14 @@
       } else {
         data.orderForms.push(orderObj);
       }
+    });
+
+    // Strictly remove ORD- entries from data.invoices so they are NEVER counted in Sales or Outstanding
+    data.invoices = data.invoices.filter(inv => {
+      if (!inv) return false;
+      const invNo = String(inv.InvoiceNo || '').trim().toUpperCase();
+      const invId = String(inv.InvoiceId || '').trim().toUpperCase();
+      return !invNo.startsWith('ORD-') && !invId.startsWith('ORD-');
     });
   }
 
@@ -6357,29 +6381,10 @@
       state.data.orderForms.unshift(payload);
     }
 
-    // Sync to Invoices and InvoiceItems for mobile app unified compatibility
-    const orderInv = {
-      InvoiceId: orderId,
-      InvoiceNo: payload.OrderNo,
-      CustomerId: payload.CustomerId,
-      CustomerName: payload.CustomerName,
-      CustomerPhone: payload.CustomerPhone,
-      CustomerAddress: payload.CustomerAddress,
-      SalesPerson: payload.SalesOfficerName,
-      Date: payload.Date,
-      DueDate: payload.RequestedDate || payload.Date,
-      Status: payload.Status,
-      Subtotal: payload.TotalAmount,
-      Discount: 0,
-      TaxAmount: 0,
-      Total: payload.TotalAmount,
-      PaidAmount: 0,
-      Notes: payload.Notes || 'Order from mobile app / office',
-      CreatedBy: payload.CreatedBy
-    };
+    // Orders are strictly kept in OrderForms (NOT in Invoices/Outstanding until converted)
     const orderLineItems = items.map((it, lIdx) => ({
       LineId: 'LN-' + orderId + '-' + (lIdx + 1),
-      InvoiceId: orderId,
+      OrderId: orderId,
       ItemId: it.itemId || '',
       ItemCode: it.sku || '',
       ItemName: it.itemName || '',
@@ -6389,29 +6394,28 @@
       DiscountPercent: 0
     }));
 
-    if (!state.data.invoices) state.data.invoices = [];
-    const invIdx = state.data.invoices.findIndex(i => i.InvoiceId === orderId || i.InvoiceNo === payload.OrderNo);
-    if (invIdx !== -1) state.data.invoices[invIdx] = orderInv;
-    else state.data.invoices.unshift(orderInv);
-
-    if (!state.data.invoiceItems) state.data.invoiceItems = [];
-    state.data.invoiceItems = state.data.invoiceItems.filter(ln => ln.InvoiceId !== orderId && ln.InvoiceId !== payload.OrderNo);
-    orderLineItems.forEach(ln => state.data.invoiceItems.push(ln));
+    // Ensure this order is NEVER in state.data.invoices
+    if (state.data.invoices) {
+      state.data.invoices = state.data.invoices.filter(i => 
+        String(i.InvoiceId || '').toLowerCase() !== String(orderId).toLowerCase() && 
+        String(i.InvoiceNo || '').toLowerCase() !== String(payload.OrderNo).toLowerCase()
+      );
+    }
 
     try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
     closeModal();
     renderOrderFormView();
     showToast('Order saved successfully!');
 
-    // Supabase real-time dual persistence
+    // Supabase dedicated OrderForms and OrderFormItems persistence
     if (typeof OfficeSupabase !== 'undefined' && OfficeSupabase.isReady()) {
       try {
-        await OfficeSupabase.upsert('Invoices', orderInv);
+        await OfficeSupabase.upsert('OrderForms', payload);
         if (orderLineItems.length) {
-          await OfficeSupabase.upsert('InvoiceItems', orderLineItems);
+          await OfficeSupabase.upsert('OrderFormItems', orderLineItems);
         }
       } catch (err) {
-        console.warn('Sync order to Supabase Invoices/InvoiceItems error:', err);
+        console.warn('Sync order to Supabase OrderForms/OrderFormItems error:', err);
       }
     }
 
@@ -6569,7 +6573,11 @@
 
     const selectedComp = companies.find(c => c.CompanyId === _outFilterCompany) || defaultComp || { CompanyName: 'Colour Max Lanka (pvt) Ltd' };
 
-    let allInvs = [...(state.data.invoices || [])];
+    let allInvs = (state.data.invoices || []).filter(i => {
+      const invNo = String(i.InvoiceNo || '').trim().toUpperCase();
+      const invId = String(i.InvoiceId || '').trim().toUpperCase();
+      return !invNo.startsWith('ORD-') && !invId.startsWith('ORD-');
+    });
 
     // Filter by company
     if (_outFilterCompany) {
