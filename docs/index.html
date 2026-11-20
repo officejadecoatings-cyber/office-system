@@ -2888,7 +2888,11 @@
     const tab = (state.invTab === 'accounts' ? 'invoices' : (state.invTab || 'invoices'));
     state.invTab = tab;
 
-    const allInvoices = state.data.invoices || [];
+    const allInvoices = (state.data.invoices || []).filter(i => {
+      const invNo = String(i.InvoiceNo || '').trim().toUpperCase();
+      const invId = String(i.InvoiceId || '').trim().toUpperCase();
+      return !invNo.startsWith('ORD-') && !invId.startsWith('ORD-');
+    });
     const notDispatchedCount = allInvoices.filter(i => i.DispatchStatus === 'Not Dispatched' && i.Status !== 'Cancelled').length;
 
     let body = '';
@@ -3560,10 +3564,92 @@
     if (Array.isArray(data.painterParticipants)) {
       data.painterParticipants = dedupe(data.painterParticipants, p => (p.ParticipantId || '').toString().trim().toLowerCase());
     }
+    syncOrderFormsWithInvoices(data);
     return data;
   }
 
+  function syncOrderFormsWithInvoices(data) {
+    if (!data) return;
+    if (!Array.isArray(data.orderForms)) data.orderForms = [];
+    if (!Array.isArray(data.invoices)) return;
+    const invItems = Array.isArray(data.invoiceItems) ? data.invoiceItems : [];
+
+    data.invoices.forEach(inv => {
+      if (!inv) return;
+      const invNo = String(inv.InvoiceNo || '').trim().toUpperCase();
+      const invId = String(inv.InvoiceId || '').trim().toUpperCase();
+      const isOrder = invNo.startsWith('ORD-') || invId.startsWith('ORD-') || String(inv.Notes || '').toLowerCase().includes('order');
+      if (!isOrder) return;
+
+      if (isRecordDeleted(inv.InvoiceId) || isRecordDeleted(inv.InvoiceNo)) return;
+
+      const orderKey = (inv.InvoiceId || inv.InvoiceNo || '').trim().toLowerCase();
+
+      // Find matching lines
+      const matchedLines = invItems.filter(ln => {
+        if (!ln) return false;
+        const lnInvId = String(ln.InvoiceId || '').trim();
+        return (inv.InvoiceId && lnInvId === String(inv.InvoiceId).trim()) ||
+               (inv.InvoiceNo && lnInvId === String(inv.InvoiceNo).trim());
+      });
+
+      const items = matchedLines.map(ln => ({
+        itemId: ln.ItemId || '',
+        sku: ln.ItemCode || '',
+        itemName: ln.ItemName || '',
+        qty: Number(ln.Qty) || 1,
+        unitPrice: Number(ln.UnitPrice) || 0,
+        total: Number(ln.LineTotal) || (Number(ln.Qty || 1) * Number(ln.UnitPrice || 0))
+      }));
+
+      const totalQty = items.reduce((acc, it) => acc + it.qty, 0) || 1;
+      const totalAmount = Number(inv.Total) || Number(inv.Subtotal) || items.reduce((acc, it) => acc + it.total, 0);
+
+      const itemsSummary = items.length 
+        ? items.map(it => `${it.itemName} (x${it.qty})`).join(', ') 
+        : (inv.Notes || 'Order Item');
+
+      const existingIdx = data.orderForms.findIndex(o => 
+        (o.OrderId && o.OrderId.toLowerCase() === orderKey) ||
+        (o.OrderNo && o.OrderNo.toLowerCase() === invNo.toLowerCase())
+      );
+
+      const orderObj = {
+        OrderId: inv.InvoiceId || inv.InvoiceNo,
+        OrderNo: inv.InvoiceNo || inv.InvoiceId,
+        CustomerId: inv.CustomerId || '',
+        CustomerName: inv.CustomerName || 'Customer',
+        CustomerPhone: inv.CustomerPhone || '',
+        CustomerAddress: inv.CustomerAddress || '',
+        SalesOfficerId: '',
+        SalesOfficerName: inv.SalesPerson || '',
+        Date: inv.Date || '',
+        RequestedDate: inv.DueDate || inv.Date || '',
+        Status: inv.Status || 'Pending',
+        ItemsSummary: itemsSummary,
+        TotalQty: totalQty,
+        TotalAmount: totalAmount,
+        ItemsJson: JSON.stringify(items),
+        Notes: inv.Notes || '',
+        CreatedBy: inv.CreatedBy || inv.SalesPerson || 'Mobile App',
+        CreatedAt: inv.Date || ''
+      };
+
+      if (existingIdx !== -1) {
+        const local = data.orderForms[existingIdx];
+        if (items.length > 0 || !local.ItemsJson || local.ItemsJson === '[]') {
+          data.orderForms[existingIdx] = { ...local, ...orderObj };
+        } else {
+          data.orderForms[existingIdx] = { ...orderObj, ...local };
+        }
+      } else {
+        data.orderForms.push(orderObj);
+      }
+    });
+  }
+
   function ensureDataDefaults() {
+    if (state.data) syncOrderFormsWithInvoices(state.data);
     if (state.data) cleanDataRedundancy(state.data);
     if (!state.data.painterParticipants || !Array.isArray(state.data.painterParticipants)) {
       state.data.painterParticipants = [];
@@ -7113,10 +7199,63 @@
       state.data.orderForms.unshift(payload);
     }
 
+    // Sync to Invoices and InvoiceItems for mobile app unified compatibility
+    const orderInv = {
+      InvoiceId: orderId,
+      InvoiceNo: payload.OrderNo,
+      CustomerId: payload.CustomerId,
+      CustomerName: payload.CustomerName,
+      CustomerPhone: payload.CustomerPhone,
+      CustomerAddress: payload.CustomerAddress,
+      SalesPerson: payload.SalesOfficerName,
+      Date: payload.Date,
+      DueDate: payload.RequestedDate || payload.Date,
+      Status: payload.Status,
+      Subtotal: payload.TotalAmount,
+      Discount: 0,
+      TaxAmount: 0,
+      Total: payload.TotalAmount,
+      PaidAmount: 0,
+      Notes: payload.Notes || 'Order from mobile app / office',
+      CreatedBy: payload.CreatedBy
+    };
+    const orderLineItems = items.map((it, lIdx) => ({
+      LineId: 'LN-' + orderId + '-' + (lIdx + 1),
+      InvoiceId: orderId,
+      ItemId: it.itemId || '',
+      ItemCode: it.sku || '',
+      ItemName: it.itemName || '',
+      Qty: it.qty,
+      UnitPrice: it.unitPrice,
+      LineTotal: it.total,
+      DiscountPercent: 0
+    }));
+
+    if (!state.data.invoices) state.data.invoices = [];
+    const invIdx = state.data.invoices.findIndex(i => i.InvoiceId === orderId || i.InvoiceNo === payload.OrderNo);
+    if (invIdx !== -1) state.data.invoices[invIdx] = orderInv;
+    else state.data.invoices.unshift(orderInv);
+
+    if (!state.data.invoiceItems) state.data.invoiceItems = [];
+    state.data.invoiceItems = state.data.invoiceItems.filter(ln => ln.InvoiceId !== orderId && ln.InvoiceId !== payload.OrderNo);
+    orderLineItems.forEach(ln => state.data.invoiceItems.push(ln));
+
     try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
     closeModal();
     renderOrderFormView();
     showToast('Order saved successfully!');
+
+    // Supabase real-time dual persistence
+    if (typeof OfficeSupabase !== 'undefined' && OfficeSupabase.isReady()) {
+      try {
+        await OfficeSupabase.upsert('Invoices', orderInv);
+        if (orderLineItems.length) {
+          await OfficeSupabase.upsert('InvoiceItems', orderLineItems);
+        }
+      } catch (err) {
+        console.warn('Sync order to Supabase Invoices/InvoiceItems error:', err);
+      }
+    }
 
     try {
       await gas('saveOrderForm', payload);
@@ -7130,6 +7269,20 @@
       markRecordAsDeleted(id);
       if (state.data.orderForms) {
         state.data.orderForms = state.data.orderForms.filter(o => String(o.OrderId).trim().toLowerCase() !== String(id).trim().toLowerCase());
+      }
+      if (state.data.invoices) {
+        state.data.invoices = state.data.invoices.filter(i => String(i.InvoiceId).toLowerCase() !== String(id).toLowerCase() && String(i.InvoiceNo).toLowerCase() !== String(id).toLowerCase());
+      }
+      if (state.data.invoiceItems) {
+        state.data.invoiceItems = state.data.invoiceItems.filter(ln => String(ln.InvoiceId).toLowerCase() !== String(id).toLowerCase());
+      }
+      if (typeof OfficeSupabase !== 'undefined' && OfficeSupabase.isReady()) {
+        try {
+          await OfficeSupabase.delete('Invoices', 'InvoiceId', id);
+          await OfficeSupabase.delete('InvoiceItems', 'InvoiceId', id);
+        } catch (err) {
+          console.warn('Delete order from Invoices/InvoiceItems error:', err);
+        }
       }
       try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
       renderOrderFormView();
