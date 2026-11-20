@@ -4053,6 +4053,29 @@
         }
       }
     });
+
+    // Ensure all inventory items have unique JD-xxx primary key SKUs
+    if (Array.isArray(state.data.inventory)) {
+      const seenSkus = new Set();
+      let maxNum = 0;
+      state.data.inventory.forEach(it => {
+        const s = String(it.SKU || '').trim();
+        const m = s.match(/^JD[-_]?(\d+)/i);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (!isNaN(n) && n > maxNum) maxNum = n;
+        }
+      });
+      state.data.inventory.forEach(it => {
+        let s = String(it.SKU || '').trim().toUpperCase();
+        if (!s || seenSkus.has(s)) {
+          maxNum++;
+          s = 'JD-' + String(maxNum).padStart(3, '0');
+          it.SKU = s;
+        }
+        seenSkus.add(s);
+      });
+    }
   }
 
   function getEmployeeDisplayName(e) {
@@ -5004,8 +5027,8 @@
       if (!ok) allAvail = false;
       return `
         <tr style="border-bottom:1px solid #f1f5f9;">
-          <td style="padding:6px 8px;"><b>${esc(li.ItemCode || '-')}</b></td>
-          <td style="padding:6px 8px;">${esc(li.ItemName || '')}</td>
+          <td style="padding:6px 8px;"><b>${esc(invItem?.SKU || li.ItemCode || '-')}</b></td>
+          <td style="padding:6px 8px;">${esc(invItem?.Name || li.ItemName || '')}</td>
           <td style="padding:6px 8px; text-align:center;"><b>${req}</b></td>
           <td style="padding:6px 8px; text-align:center;">
             <b style="color:${ok ? '#16a34a' : '#dc2626'}">${avail} ${esc(invItem?.Unit || '')}</b>
@@ -5679,39 +5702,21 @@
 
   function generateNextSKU() {
     const items = state.data.inventory || [];
-    let prefix = 'JD-001-';
     let maxNum = 0;
-    let foundPattern = false;
-
     items.forEach(it => {
       const s = String(it.SKU || '').trim();
-      const m = s.match(/^(JD-001-)(\d+)$/i);
+      const m = s.match(/^JD[-_]?(\d+)/i);
       if (m) {
-        foundPattern = true;
-        prefix = m[1];
-        const n = parseInt(m[2], 10);
+        const n = parseInt(m[1], 10);
         if (!isNaN(n) && n > maxNum) maxNum = n;
       }
     });
-
-    if (!foundPattern) {
-      items.forEach(it => {
-        const s = String(it.SKU || '').trim();
-        const m = s.match(/^(.*?)(\d+)$/);
-        if (m) {
-          prefix = m[1] || 'SKU-';
-          const n = parseInt(m[2], 10);
-          if (!isNaN(n) && n > maxNum) maxNum = n;
-        }
-      });
-    }
-
-    if (maxNum === 0) maxNum = 80 + items.length;
+    if (maxNum === 0) maxNum = items.length;
     let nextNum = maxNum + 1;
-    let candidate = prefix + nextNum;
-    while (items.some(it => String(it.SKU || '').trim().toLowerCase() === candidate.toLowerCase())) {
+    let candidate = 'JD-' + String(nextNum).padStart(3, '0');
+    while (items.some(it => String(it.SKU || '').trim().toUpperCase() === candidate.toUpperCase())) {
       nextNum++;
-      candidate = prefix + nextNum;
+      candidate = 'JD-' + String(nextNum).padStart(3, '0');
     }
     return candidate;
   }
@@ -6194,7 +6199,7 @@
     const items = state.data.inventory || [];
     const lnId = String(ln.ItemId || ln.itemId || '').trim();
     const lnDesc = String(ln.Description || ln.ItemName || ln.itemName || ln.Name || ln.name || '').trim().toLowerCase();
-    const lnCode = String(ln.ItemCode || ln.itemCode || ln.SKU || ln.sku || '').trim().toLowerCase();
+    const lnCode = String(ln.ItemCode || ln.itemCode || ln.SKU || ln.sku || '').trim().toUpperCase();
 
     // 1. Exact ItemId match FIRST (Direct item binding)
     if (lnId) {
@@ -6202,38 +6207,26 @@
       if (byId) return byId;
     }
 
-    // 2. Exact Name AND SKU match
+    // 2. Exact unique SKU match (Primary Key)
+    if (lnCode) {
+      const bySku = items.find(it => String(it.SKU || '').trim().toUpperCase() === lnCode);
+      if (bySku) return bySku;
+    }
+
+    // 3. Exact Name AND SKU match
     if (lnDesc && lnCode) {
       const byBoth = items.find(it => {
         const itName = String(it.Name || '').trim().toLowerCase();
-        const itSku = String(it.SKU || '').trim().toLowerCase();
+        const itSku = String(it.SKU || '').trim().toUpperCase();
         return (itName === lnDesc && itSku === lnCode);
       });
       if (byBoth) return byBoth;
     }
 
-    // 3. Exact Name match
+    // 4. Exact Name match
     if (lnDesc) {
       const byName = items.find(it => String(it.Name || '').trim().toLowerCase() === lnDesc);
       if (byName) return byName;
-    }
-
-    // 4. SKU match with disambiguation for multiple variants sharing same code (e.g. JD-020 500ml/1L/4L/20L)
-    if (lnCode) {
-      const bySkuList = items.filter(it => String(it.SKU || '').trim().toLowerCase() === lnCode);
-      if (bySkuList.length === 1) return bySkuList[0];
-      if (bySkuList.length > 1) {
-        if (lnDesc) {
-          const byPack = bySkuList.find(it => {
-            const u = String(it.Unit || '').trim().toLowerCase();
-            const itName = String(it.Name || '').trim().toLowerCase();
-            return (u && (lnDesc.includes(u) || lnDesc.includes(u.replace(/\s+/g, '')))) ||
-                   itName === lnDesc || itName.includes(lnDesc) || lnDesc.includes(itName);
-          });
-          if (byPack) return byPack;
-        }
-        return bySkuList[0];
-      }
     }
 
     // 5. Name Substring / Contains match
@@ -12256,18 +12249,23 @@
 
   function generateNextSKU() {
     const items = state.data.inventory || [];
-    let maxNum = 1000;
+    let maxNum = 0;
     items.forEach(it => {
-      const m = String(it.SKU || '').match(/(?:SKU|ITM)[-_]?(\d+)/i);
+      const s = String(it.SKU || '').trim();
+      const m = s.match(/^JD[-_]?(\d+)/i);
       if (m) {
-        const num = parseInt(m[1], 10);
-        if (!isNaN(num) && num > maxNum) maxNum = num;
+        const n = parseInt(m[1], 10);
+        if (!isNaN(n) && n > maxNum) maxNum = n;
       }
     });
-    if (maxNum === 1000 && items.length > 0) {
-      maxNum = 1000 + items.length;
+    if (maxNum === 0) maxNum = items.length;
+    let nextNum = maxNum + 1;
+    let candidate = 'JD-' + String(nextNum).padStart(3, '0');
+    while (items.some(it => String(it.SKU || '').trim().toUpperCase() === candidate.toUpperCase())) {
+      nextNum++;
+      candidate = 'JD-' + String(nextNum).padStart(3, '0');
     }
-    return 'SKU-' + (maxNum + 1);
+    return candidate;
   }
 
   function updateUnitDisplayPreview() {
@@ -12357,9 +12355,13 @@
 
   async function submitInventory(itemId) {
     let sku = document.getElementById('fItSku')?.value.trim();
-    // Use user-entered SKU; only generate next SKU if field was left blank
     if (!sku) {
       sku = generateNextSKU();
+    } else {
+      sku = sku.toUpperCase();
+      if (/^JD\d+/i.test(sku)) {
+        sku = 'JD-' + sku.slice(2);
+      }
     }
     const name = document.getElementById('fItName')?.value.trim();
     const uSize = document.getElementById('fItUnitSize')?.value.trim() || '500';

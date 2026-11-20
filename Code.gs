@@ -569,6 +569,23 @@ function saveInventoryItem(item) {
     item.StockQty = Number(item.StockQty) || 0;
     item.ReorderLevel = Number(item.ReorderLevel) || 0;
     item.UpdatedAt = todayStr_();
+
+    // Auto-generate sequential JD-xxx SKU if not provided
+    if (!item.SKU || !String(item.SKU).trim()) {
+      const inv = readSheetObjects_('Inventory');
+      let maxNum = 0;
+      inv.forEach(x => {
+        const m = String(x.SKU || '').match(/^JD[-_]?(\d+)/i);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (!isNaN(n) && n > maxNum) maxNum = n;
+        }
+      });
+      item.SKU = 'JD-' + String(maxNum + 1).padStart(3, '0');
+    } else {
+      item.SKU = String(item.SKU).trim().toUpperCase();
+    }
+
     return upsertRowByKey_('Inventory', 'ItemId', item.ItemId, item, 'ITM');
   });
 }
