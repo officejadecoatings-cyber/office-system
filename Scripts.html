@@ -2662,8 +2662,16 @@
       data.quotations = data.quotations.filter(q => !isRecordDeleted(q.QuotationId) && !isRecordDeleted(q.QuoteNo));
     }
     if (Array.isArray(data.orderForms)) {
+      data.orderForms = data.orderForms.filter(o => {
+        if (!o) return false;
+        const oNo = String(o.OrderNo || '').trim().toUpperCase();
+        const oId = String(o.OrderId || '').trim().toUpperCase();
+        if (oNo.startsWith('INV-') || oId.startsWith('INV-') || oNo.startsWith('JDI') || oId.startsWith('JDI') || oNo.startsWith('JDQ') || oId.startsWith('JDQ') || oNo.startsWith('QT-') || oId.startsWith('QT-')) {
+          return false;
+        }
+        return !isRecordDeleted(o.OrderId) && !isRecordDeleted(o.OrderNo);
+      });
       data.orderForms = dedupe(data.orderForms, o => (o.OrderId || o.OrderNo || '').toString().trim().toLowerCase());
-      data.orderForms = data.orderForms.filter(o => !isRecordDeleted(o.OrderId) && !isRecordDeleted(o.OrderNo));
     }
     if (Array.isArray(data.callReports)) {
       data.callReports = dedupe(data.callReports, r => (r.CallId || '').toString().trim().toLowerCase());
@@ -2752,7 +2760,8 @@
       if (!inv) return;
       const invNo = String(inv.InvoiceNo || '').trim().toUpperCase();
       const invId = String(inv.InvoiceId || '').trim().toUpperCase();
-      const isOrder = invNo.startsWith('ORD-') || invId.startsWith('ORD-') || String(inv.Notes || '').toLowerCase().includes('order');
+      if (invNo.startsWith('JDI') || invNo.startsWith('INV-') || invId.startsWith('INV-')) return;
+      const isOrder = invNo.startsWith('ORD-') || invId.startsWith('ORD-');
       if (!isOrder) return;
 
       if (isRecordDeleted(inv.InvoiceId) || isRecordDeleted(inv.InvoiceNo)) return;
@@ -2827,6 +2836,14 @@
       const invNo = String(inv.InvoiceNo || '').trim().toUpperCase();
       const invId = String(inv.InvoiceId || '').trim().toUpperCase();
       return !invNo.startsWith('ORD-') && !invId.startsWith('ORD-');
+    });
+
+    // Strictly remove any invoice or quotation entries from data.orderForms
+    data.orderForms = data.orderForms.filter(o => {
+      if (!o) return false;
+      const oNo = String(o.OrderNo || '').trim().toUpperCase();
+      const oId = String(o.OrderId || '').trim().toUpperCase();
+      return !oNo.startsWith('INV-') && !oId.startsWith('INV-') && !oNo.startsWith('JDI') && !oId.startsWith('JDI') && !oNo.startsWith('JDQ') && !oId.startsWith('JDQ') && !oNo.startsWith('QT-') && !oId.startsWith('QT-');
     });
   }
 
@@ -2932,10 +2949,18 @@
 
     // Ensure invoice dispatch status and payments array
     (state.data.invoices || []).forEach(inv => {
-      if (inv.Notes && inv.Notes.includes('[DISPATCH:Not Dispatched]')) {
+      const notes = String(inv.Notes || '');
+      const isOrderLinked = notes.includes('Order Ref:') || notes.includes('Converted from Order');
+      if (notes.includes('[DISPATCH:Not Dispatched]')) {
         inv.DispatchStatus = 'Not Dispatched';
-      } else if (!inv.DispatchStatus) {
+      } else if (notes.includes('[DISPATCH:Dispatched]')) {
         inv.DispatchStatus = 'Dispatched';
+      } else if (!inv.DispatchStatus) {
+        if (isOrderLinked) {
+          inv.DispatchStatus = 'Not Dispatched';
+        } else {
+          inv.DispatchStatus = 'Dispatched';
+        }
       }
       if (!inv.DispatchedDate && inv.DispatchStatus === 'Dispatched') inv.DispatchedDate = inv.Date || state.data.today;
       if (inv.PaymentsJson && (!inv.Payments || !inv.Payments.length)) {
@@ -3984,11 +4009,30 @@
     inv.DispatchStatus = 'Dispatched';
     inv.DispatchedDate = dDate;
     inv.DispatchedBy = dBy;
-    let baseNotes = (inv.Notes || '').replace(/\[DISPATCH:Not Dispatched\]/g, '').trim();
+    let baseNotes = (inv.Notes || '').replace(/\[DISPATCH:[^\]]+\]/g, '').trim();
     if (dNotes) {
       baseNotes = [baseNotes, 'Dispatch: ' + dNotes].filter(Boolean).join(' | ');
     }
+    baseNotes = (baseNotes ? baseNotes + ' ' : '') + '[DISPATCH:Dispatched]';
     inv.Notes = baseNotes;
+
+    // Update any linked order in state.data.orderForms
+    if (Array.isArray(state.data.orderForms)) {
+      state.data.orderForms.forEach(order => {
+        if (!order) return;
+        const linkedInv = getOrderLinkedInvoice(order);
+        if (linkedInv && (linkedInv.InvoiceId === inv.InvoiceId || linkedInv.InvoiceNo === inv.InvoiceNo)) {
+          order.Status = 'Dispatched';
+          if (typeof OfficeSupabase !== 'undefined' && OfficeSupabase.isReady()) {
+            OfficeSupabase.upsert('OrderForms', {
+              OrderId: order.OrderId,
+              Status: 'Dispatched'
+            }).catch(e => console.warn('Supabase order dispatch update error:', e));
+          }
+          gas('saveOrderForm', order).catch(e => console.warn('GAS order dispatch update error:', e));
+        }
+      });
+    }
 
     closeModal();
     try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
@@ -5907,6 +5951,91 @@
     return String(itemsJson);
   }
 
+  function getOrderLinkedInvoice(order) {
+    if (!order || !state.data || !Array.isArray(state.data.invoices)) return null;
+    const oNo = String(order.OrderNo || '').trim().toUpperCase();
+    const oId = String(order.OrderId || '').trim().toUpperCase();
+
+    for (const inv of state.data.invoices) {
+      if (!inv) continue;
+      const invNotes = String(inv.Notes || '').toUpperCase();
+      const invQuote = String(inv.QuoteNo || '').trim().toUpperCase();
+      const invNo = String(inv.InvoiceNo || '').trim().toUpperCase();
+      const invId = String(inv.InvoiceId || '').trim().toUpperCase();
+
+      if (oNo && (invNotes.includes(oNo) || invQuote === oNo)) return inv;
+      if (oId && (invNotes.includes(oId) || invQuote === oId)) return inv;
+      if (order.InvoiceNo && (invNo === String(order.InvoiceNo).toUpperCase() || invId === String(order.InvoiceNo).toUpperCase())) return inv;
+      if (order.InvoiceId && (invId === String(order.InvoiceId).toUpperCase() || invNo === String(order.InvoiceId).toUpperCase())) return inv;
+
+      if (invQuote && Array.isArray(state.data.quotations)) {
+        const q = state.data.quotations.find(x => 
+          String(x.QuotationNo || '').trim().toUpperCase() === invQuote ||
+          String(x.QuotationId || '').trim().toUpperCase() === invQuote
+        );
+        if (q) {
+          const qNotes = String(q.Description || q.Notes || '').toUpperCase();
+          let qData = '';
+          try { qData = String(q.DataJson || '').toUpperCase(); } catch(e){}
+          if ((oNo && (qNotes.includes(oNo) || qData.includes(oNo))) ||
+              (oId && (qNotes.includes(oId) || qData.includes(oId)))) {
+            return inv;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function getOrderDispatchInfo(order) {
+    if (!order) return { status: 'Not Dispatched', isDispatched: false, invoice: null, badgeText: 'Not Dispatched', subText: '' };
+    const ordStatus = String(order.Status || '').trim().toLowerCase();
+    const inv = getOrderLinkedInvoice(order);
+
+    if (inv) {
+      const isInvDispatched = (
+        (inv.DispatchStatus === 'Dispatched' || String(inv.Notes || '').includes('[DISPATCH:Dispatched]') || !!inv.DispatchedDate) &&
+        inv.DispatchStatus !== 'Not Dispatched' &&
+        !String(inv.Notes || '').includes('[DISPATCH:Not Dispatched]')
+      );
+      if (isInvDispatched || ordStatus === 'dispatched') {
+        return {
+          status: 'Dispatched',
+          isDispatched: true,
+          invoice: inv,
+          badgeText: 'Dispatched',
+          subText: inv.InvoiceNo || inv.InvoiceId
+        };
+      } else {
+        return {
+          status: 'Not Dispatched',
+          isDispatched: false,
+          invoice: inv,
+          badgeText: 'Not Dispatched',
+          subText: inv.InvoiceNo || inv.InvoiceId
+        };
+      }
+    }
+
+    if (ordStatus === 'dispatched') {
+      return {
+        status: 'Dispatched',
+        isDispatched: true,
+        invoice: null,
+        badgeText: 'Dispatched',
+        subText: ''
+      };
+    }
+
+    return {
+      status: 'Not Dispatched',
+      isDispatched: false,
+      invoice: null,
+      badgeText: 'Not Dispatched',
+      subText: ''
+    };
+  }
+
   function renderOrderFormView() {
     ensureDataDefaults();
     const orders = Array.isArray(state.data.orderForms) ? [...state.data.orderForms] : [];
@@ -5920,10 +6049,20 @@
         const matchNo = String(o.OrderNo || '').toLowerCase().includes(s);
         const matchSP = String(o.SalesOfficerName || '').toLowerCase().includes(s);
         const matchItems = String(o.ItemsSummary || '').toLowerCase().includes(s);
-        if (!matchCus && !matchNo && !matchSP && !matchItems) return false;
+        const disp = getOrderDispatchInfo(o);
+        const matchInv = disp.invoice ? (String(disp.invoice.InvoiceNo || '') + ' ' + String(disp.invoice.InvoiceId || '')).toLowerCase().includes(s) : false;
+        if (!matchCus && !matchNo && !matchSP && !matchItems && !matchInv) return false;
       }
-      if (_orderFilter.status && (o.Status || 'Pending').toLowerCase() !== _orderFilter.status.toLowerCase()) {
-        return false;
+      if (_orderFilter.status) {
+        const sel = _orderFilter.status.toLowerCase();
+        const disp = getOrderDispatchInfo(o);
+        if (sel === 'not dispatched') {
+          if (disp.isDispatched) return false;
+        } else if (sel === 'dispatched') {
+          if (!disp.isDispatched) return false;
+        } else {
+          if ((o.Status || 'Pending').toLowerCase() !== sel) return false;
+        }
       }
       if (_orderFilter.startDate && o.Date && o.Date < _orderFilter.startDate) return false;
       if (_orderFilter.endDate && o.Date && o.Date > _orderFilter.endDate) return false;
@@ -5945,8 +6084,8 @@
 
     // Metrics
     const totalCount = orders.length;
-    const pendingCount = orders.filter(o => (o.Status || 'Pending').toLowerCase() === 'pending').length;
-    const approvedCount = orders.filter(o => (o.Status || '').toLowerCase() === 'approved').length;
+    const notDispatchedCount = orders.filter(o => !getOrderDispatchInfo(o).isDispatched).length;
+    const dispatchedCount = orders.filter(o => getOrderDispatchInfo(o).isDispatched).length;
     const totalVal = orders.reduce((acc, o) => acc + (Number(o.TotalAmount) || 0), 0);
 
     const content = document.getElementById('mainContent');
@@ -5969,12 +6108,12 @@
           <div style="font-size:24px; font-weight:700; margin-top:4px;">${totalCount}</div>
         </div>
         <div class="card" style="padding:14px; border-left:4px solid #f59e0b;">
-          <div style="font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase;">Pending Orders</div>
-          <div style="font-size:24px; font-weight:700; color:#d97706; margin-top:4px;">${pendingCount}</div>
+          <div style="font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase;">Not Dispatched Orders</div>
+          <div style="font-size:24px; font-weight:700; color:#d97706; margin-top:4px;">${notDispatchedCount}</div>
         </div>
         <div class="card" style="padding:14px; border-left:4px solid #10b981;">
-          <div style="font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase;">Approved Orders</div>
-          <div style="font-size:24px; font-weight:700; color:#059669; margin-top:4px;">${approvedCount}</div>
+          <div style="font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase;">Dispatched Orders</div>
+          <div style="font-size:24px; font-weight:700; color:#059669; margin-top:4px;">${dispatchedCount}</div>
         </div>
         <div class="card" style="padding:14px; border-left:4px solid #6366f1;">
           <div style="font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase;">Total Order Value</div>
@@ -5994,9 +6133,10 @@
             <label style="font-size:11px; font-weight:600; color:var(--muted); margin-bottom:4px; display:block;">Status</label>
             <select class="form-control" onchange="_orderFilter.status = this.value; renderOrderFormView();">
               <option value="">All Statuses</option>
+              <option value="Not Dispatched" ${_orderFilter.status === 'Not Dispatched' ? 'selected' : ''}>Not Dispatched</option>
+              <option value="Dispatched" ${_orderFilter.status === 'Dispatched' ? 'selected' : ''}>Dispatched</option>
               <option value="Pending" ${_orderFilter.status === 'Pending' ? 'selected' : ''}>Pending</option>
               <option value="Approved" ${_orderFilter.status === 'Approved' ? 'selected' : ''}>Approved</option>
-              <option value="Processing" ${_orderFilter.status === 'Processing' ? 'selected' : ''}>Processing</option>
               <option value="Completed" ${_orderFilter.status === 'Completed' ? 'selected' : ''}>Completed</option>
               <option value="Cancelled" ${_orderFilter.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
             </select>
@@ -6034,16 +6174,22 @@
             </thead>
             <tbody>
               ${filtered.length ? filtered.map(r => {
-                const status = r.Status || 'Pending';
-                let statusBadge = '<span class="badge" style="background:#fef3c7; color:#92400e; padding:3px 8px; border-radius:12px; font-weight:600; font-size:11px;">Pending</span>';
-                if (status.toLowerCase() === 'approved') {
-                  statusBadge = '<span class="badge" style="background:#d1fae5; color:#065f46; padding:3px 8px; border-radius:12px; font-weight:600; font-size:11px;">Approved</span>';
-                } else if (status.toLowerCase() === 'processing') {
-                  statusBadge = '<span class="badge" style="background:#e0f2fe; color:#0369a1; padding:3px 8px; border-radius:12px; font-weight:600; font-size:11px;">Processing</span>';
-                } else if (status.toLowerCase() === 'completed') {
-                  statusBadge = '<span class="badge" style="background:#dcfce7; color:#166534; padding:3px 8px; border-radius:12px; font-weight:600; font-size:11px;">Completed</span>';
-                } else if (status.toLowerCase() === 'cancelled') {
-                  statusBadge = '<span class="badge" style="background:#fee2e2; color:#991b1b; padding:3px 8px; border-radius:12px; font-weight:600; font-size:11px;">Cancelled</span>';
+                const dispInfo = getOrderDispatchInfo(r);
+                let statusBadge = '';
+                if (dispInfo.isDispatched) {
+                  statusBadge = `
+                    <span class="badge" style="background:#dcfce7; color:#15803d; border:1px solid #86efac; padding:4px 9px; border-radius:12px; font-weight:700; font-size:11.5px; display:inline-flex; align-items:center; gap:4px;">
+                      ✓ Dispatched
+                    </span>
+                    ${dispInfo.subText ? `<div style="font-size:10.5px; color:var(--muted); margin-top:3px; font-family:monospace; cursor:pointer;" onclick="openInvoiceModal('${esc(dispInfo.invoice ? dispInfo.invoice.InvoiceId : '')}')" title="View Invoice">Inv: ${esc(dispInfo.subText)}</div>` : ''}
+                  `;
+                } else {
+                  statusBadge = `
+                    <span class="badge" style="background:#ffedd5; color:#c2410c; border:1px solid #fdba74; padding:4px 9px; border-radius:12px; font-weight:700; font-size:11.5px; display:inline-flex; align-items:center; gap:4px;">
+                      📦 Not Dispatched
+                    </span>
+                    ${dispInfo.subText ? `<div style="font-size:10.5px; color:var(--muted); margin-top:3px; font-family:monospace; cursor:pointer;" onclick="openInvoiceModal('${esc(dispInfo.invoice ? dispInfo.invoice.InvoiceId : '')}')" title="View Invoice">Inv: ${esc(dispInfo.subText)}</div>` : ''}
+                  `;
                 }
 
                 const itemsDesc = r.ItemsSummary || formatOrderItemsSummary(r.ItemsJson);
