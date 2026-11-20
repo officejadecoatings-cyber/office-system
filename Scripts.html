@@ -798,10 +798,15 @@
    * Mandatory PIN/Password Verification for Any Deletion
    * ======================================================================== */
 
-  function verifyPinAndExecute(actionTitle, onConfirmed) {
+  function verifyPinAndExecute(actionTitle, onConfirmed, options = {}) {
+    const isDelete = !options.btnText && (!actionTitle || actionTitle.toLowerCase().includes('delete') || actionTitle.toLowerCase().includes('remove'));
+    const modalTitle = options.title || (isDelete ? 'Confirm Deletion' : 'Security Verification');
+    const btnText = options.btnText || (isDelete ? 'Verify &amp; Delete' : 'Verify &amp; Confirm');
+    const btnClass = options.btnClass || (isDelete ? 'btn-danger' : 'btn-primary');
+
     const modalHtml = `
       <div style="padding:4px 0;">
-        <div style="color:var(--danger); font-size:14px; font-weight:700; margin-bottom:10px;">
+        <div style="color:${isDelete ? 'var(--danger)' : '#1e3a8a'}; font-size:14px; font-weight:700; margin-bottom:10px;">
           ⚠️ Security Check: PIN Verification Required
         </div>
         <p style="margin-bottom:14px; font-size:13px; color:var(--text);">
@@ -816,11 +821,11 @@
     `;
 
     openModal(
-      'Confirm Deletion',
+      modalTitle,
       modalHtml,
       `
         <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-danger" id="deleteConfirmSubmitBtn">Verify &amp; Delete</button>
+        <button class="btn ${btnClass}" id="deleteConfirmSubmitBtn">${btnText}</button>
       `
     );
 
@@ -7732,60 +7737,58 @@
   }
 
   function editPaymentInstallment(invoiceId, paymentId) {
-    verifyPinAndExecute('Edit Payment Record', () => {
-      const inv = (state.data.invoices || []).find(i => i.InvoiceId === invoiceId);
-      if (!inv || !Array.isArray(inv.Payments)) return;
-      const p = inv.Payments.find(x => x.PaymentId === paymentId);
-      if (!p) return;
+    const inv = (state.data.invoices || []).find(i => i.InvoiceId === invoiceId);
+    if (!inv || !Array.isArray(inv.Payments)) return;
+    const p = inv.Payments.find(x => x.PaymentId === paymentId);
+    if (!p) return;
 
-      openModal(
-        'Edit Payment Installment',
-        `
-          <div class="form-row">
-            <div class="form-group">
-              <label style="font-weight:700;">Amount (LKR) *</label>
-              <input type="number" step="0.01" id="fEditPayAmt" value="${p.Amount || p.TokenAmount || p.ReturnAmount || 0}" style="font-weight:700;">
-            </div>
-            <div class="form-group">
-              <label style="font-weight:700;">Date *</label>
-              <input type="date" id="fEditPayDate" value="${p.Date || ''}">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Status *</label>
-              <select id="fEditPayStatus" style="font-weight:700;">
-                ${['Realized', 'Deposited', 'Paid', 'Cheque Bounce', 'Cheque Cancel', 'Token', 'Return', 'Cancel'].map(st =>
-                  `<option value="${st}" ${(p.Status === st || p.Method === st) ? 'selected' : ''}>${st}</option>`
-                ).join('')}
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Receipt No</label>
-              <input id="fEditPayReceipt" value="${esc(p.ReceiptNo || '')}">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Cheque No</label>
-              <input id="fEditPayCqNo" value="${esc(p.ChequeNo || '')}">
-            </div>
-            <div class="form-group">
-              <label>Bank Name</label>
-              <input id="fEditPayBank" value="${esc(p.ChequeBank || '')}">
-            </div>
+    openModal(
+      'Edit Payment Installment',
+      `
+        <div class="form-row">
+          <div class="form-group">
+            <label style="font-weight:700;">Amount (LKR) *</label>
+            <input type="number" step="0.01" id="fEditPayAmt" value="${p.Amount || p.TokenAmount || p.ReturnAmount || 0}" style="font-weight:700;">
           </div>
           <div class="form-group">
-            <label>Notes</label>
-            <input id="fEditPayNotes" value="${esc(p.Notes || '')}">
+            <label style="font-weight:700;">Date *</label>
+            <input type="date" id="fEditPayDate" value="${p.Date || ''}">
           </div>
-        `,
-        `
-          <button class="btn btn-secondary" onclick="closeModal(); openOutstandingPaymentModal('${esc(invoiceId)}')">Cancel</button>
-          <button class="btn btn-primary" onclick="submitEditPaymentInstallment('${esc(invoiceId)}', '${esc(paymentId)}')">Save Changes</button>
-        `
-      );
-    });
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Status *</label>
+            <select id="fEditPayStatus" style="font-weight:700;">
+              ${['Realized', 'Deposited', 'Paid', 'Cheque Bounce', 'Cheque Cancel', 'Token', 'Return', 'Cancel'].map(st =>
+                `<option value="${st}" ${(p.Status === st || p.Method === st) ? 'selected' : ''}>${st}</option>`
+              ).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Receipt No</label>
+            <input id="fEditPayReceipt" value="${esc(p.ReceiptNo || '')}">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Cheque No</label>
+            <input id="fEditPayCqNo" value="${esc(p.ChequeNo || '')}">
+          </div>
+          <div class="form-group">
+            <label>Bank Name</label>
+            <input id="fEditPayBank" value="${esc(p.ChequeBank || '')}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <input id="fEditPayNotes" value="${esc(p.Notes || '')}">
+        </div>
+      `,
+      `
+        <button class="btn btn-secondary" onclick="closeModal(); openOutstandingPaymentModal('${esc(invoiceId)}')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitEditPaymentInstallment('${esc(invoiceId)}', '${esc(paymentId)}')">Save Changes</button>
+      `
+    );
   }
 
   function submitEditPaymentInstallment(invoiceId, paymentId) {
