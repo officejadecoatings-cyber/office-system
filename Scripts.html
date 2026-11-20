@@ -4661,6 +4661,25 @@
       `
         <div style="background:#fff; font-family:'Segoe UI', Arial, sans-serif;">
           
+          <!-- Order Form Selective Reference & Auto-fill -->
+          <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 14px; margin-bottom:14px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <div style="font-weight:700; font-size:12.5px; color:#166534; display:flex; align-items:center; gap:6px; min-width:180px;">
+              📋 <span>Import from Order Form:</span>
+            </div>
+            <div style="flex:1; min-width:260px; position:relative;">
+              <input list="quotOrderFormList" id="fQuotOrderRef" placeholder="Type or select Order No (e.g. ORD-0101)..." 
+                     value="${esc(parsedData.OrderNo || '')}"
+                     onchange="onQuotationOrderFormSelect(this.value)"
+                     style="width:100%; padding:7px 10px; font-size:13px; font-weight:600; border:1.5px solid #86efac; border-radius:6px; background:#fff; color:#0f172a;">
+              <datalist id="quotOrderFormList">
+                ${(state.data.orderForms || []).map(o => `
+                  <option value="${esc(o.OrderNo)}">${esc(o.OrderNo)} - ${esc(o.CustomerName || 'Customer')} (${esc(o.Status || 'Pending')}) - LKR ${Number(o.TotalAmount || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</option>
+                `).join('')}
+              </datalist>
+            </div>
+            <button type="button" class="btn btn-sm" onclick="clearQuotationOrderRef()" style="background:#dcfce7; color:#166534; border:1px solid #86efac; font-size:11.5px; padding:6px 10px; font-weight:600; cursor:pointer;">✕ Clear</button>
+          </div>
+
           <!-- Top Row: Date, Quote No, Company, Status -->
           <div style="display:flex; gap:12px; align-items:flex-end; margin-bottom:14px; flex-wrap:wrap;">
             <div style="width:160px;">
@@ -5219,6 +5238,136 @@
     return grand;
   }
 
+
+  function onQuotationOrderFormSelect(val) {
+    if (!val) return;
+    const raw = String(val).trim().toLowerCase();
+    const order = (state.data.orderForms || []).find(o => 
+      (o.OrderNo && o.OrderNo.toLowerCase() === raw) ||
+      (o.OrderId && o.OrderId.toLowerCase() === raw) ||
+      (o.OrderNo && raw.includes(o.OrderNo.toLowerCase())) ||
+      (o.OrderId && raw.includes(o.OrderId.toLowerCase()))
+    );
+    if (!order) {
+      showToast('Order not found. Please select a valid Order No.');
+      return;
+    }
+
+    // 1. Fill Customer Name & ID
+    const custInput = document.getElementById('fQuotCustInput');
+    const custIdEl = document.getElementById('fQuotCustId');
+    if (custInput && order.CustomerName) {
+      custInput.value = order.CustomerName;
+    }
+
+    const cust = (state.data.customers || []).find(c => 
+      (order.CustomerId && c.CustomerId === order.CustomerId) ||
+      (c.Name && order.CustomerName && c.Name.trim().toLowerCase() === String(order.CustomerName).trim().toLowerCase())
+    );
+    if (cust) {
+      if (custIdEl) custIdEl.value = cust.CustomerId;
+      const addrEl = document.getElementById('fQuotAddr');
+      if (addrEl && (!addrEl.value.trim() || addrEl.value.includes('will automatically populate'))) {
+        addrEl.value = [cust.Address, cust.Phone ? 'Tel: ' + cust.Phone : ''].filter(Boolean).join('\n');
+      }
+    } else if (order.CustomerAddress || order.CustomerPhone) {
+      const addrEl = document.getElementById('fQuotAddr');
+      if (addrEl && (!addrEl.value.trim() || addrEl.value.includes('will automatically populate'))) {
+        addrEl.value = [order.CustomerAddress, order.CustomerPhone ? 'Tel: ' + order.CustomerPhone : ''].filter(Boolean).join('\n');
+      }
+    }
+
+    // 2. Fill Description / Reference
+    const descEl = document.getElementById('fQuotDesc');
+    if (descEl) {
+      const refText = `Order Ref: ${order.OrderNo || order.OrderId}${order.Notes ? ' - ' + order.Notes : ''}`;
+      if (!descEl.value.trim()) {
+        descEl.value = refText;
+      } else if (!descEl.value.includes(order.OrderNo)) {
+        descEl.value = descEl.value + ' | ' + refText;
+      }
+    }
+
+    // 3. Fill Line Items
+    let items = [];
+    if (order.ItemsJson) {
+      try {
+        items = typeof order.ItemsJson === 'string' ? JSON.parse(order.ItemsJson) : order.ItemsJson;
+      } catch (e) {}
+    }
+
+    if (Array.isArray(items) && items.length > 0) {
+      _quotLines = items.map(it => {
+        const itName = it.itemName || it.ItemName || it.name || it.Name || it.Description || it.description || '';
+        const itSku = it.sku || it.SKU || it.itemCode || it.ItemCode || '';
+        const inv = (state.data.inventory || []).find(x => 
+          (it.itemId && x.ItemId === it.itemId) ||
+          (itSku && x.SKU && x.SKU.toLowerCase() === itSku.toLowerCase()) ||
+          (itName && x.Name && x.Name.toLowerCase() === itName.toLowerCase())
+        );
+
+        const qty = Number(it.qty || it.Qty || it.quantity || it.Quantity || 1);
+        const unitPrice = Number(it.unitPrice || it.UnitPrice || it.price || it.Price || (inv ? inv.UnitPrice : 0));
+        const disc = Number(it.discount || it.Discount || 0);
+        const lineSub = qty * unitPrice;
+        const lineDisc = lineSub * (disc / 100);
+        const amt = Math.round((lineSub - lineDisc) * 100) / 100;
+
+        return {
+          ItemId: inv ? inv.ItemId : (it.itemId || it.ItemId || ''),
+          ItemCode: inv ? (inv.SKU || '') : itSku,
+          Description: itName || (inv ? inv.Name : ''),
+          ItemDisplay: inv ? `${inv.SKU ? inv.SKU + ' - ' : ''}${inv.Name}` : (itName || ''),
+          Qty: qty,
+          UnitPrice: unitPrice,
+          Discount: disc,
+          Tax: it.tax || it.Tax || 'No tax',
+          Amount: amt
+        };
+      });
+    } else if (order.ItemsSummary) {
+      const qty = Number(order.TotalQty || 1);
+      const total = Number(order.TotalAmount || 0);
+      _quotLines = [{
+        ItemId: '',
+        ItemCode: '',
+        Description: order.ItemsSummary,
+        ItemDisplay: order.ItemsSummary,
+        Qty: qty,
+        UnitPrice: Math.round((total / qty) * 100) / 100,
+        Discount: 0,
+        Tax: 'No tax',
+        Amount: total
+      }];
+    }
+
+    renderQuotLines();
+    updateQuotTotals();
+    showToast(`✓ Order ${order.OrderNo} loaded into quotation.`);
+  }
+
+  function clearQuotationOrderRef() {
+    const el = document.getElementById('fQuotOrderRef');
+    if (el) el.value = '';
+    showToast('Order reference cleared.');
+  }
+
+  function convertOrderToQuotation(orderId) {
+    const order = (state.data.orderForms || []).find(o => o.OrderId === orderId);
+    if (!order) {
+      showToast('Order not found.');
+      return;
+    }
+    openQuotationModal();
+    setTimeout(() => {
+      const el = document.getElementById('fQuotOrderRef');
+      if (el) {
+        el.value = order.OrderNo || order.OrderId;
+        onQuotationOrderFormSelect(order.OrderNo || order.OrderId);
+      }
+    }, 100);
+  }
+
   async function submitQuotation(quotId) {
     const custInput = document.getElementById('fQuotCustInput')?.value.trim() || '';
     const custId = document.getElementById('fQuotCustId')?.value || '';
@@ -5236,6 +5385,7 @@
 
     const dataJson = JSON.stringify({
       QuotationNo: quotNo,
+      OrderNo: document.getElementById('fQuotOrderRef')?.value.trim() || '',
       CustomerId: custId,
       CustomerName: custName,
       BillingAddress: addrVal,
@@ -5798,6 +5948,7 @@
                         <button class="btn btn-sm btn-secondary" style="padding:2px 6px; font-size:11px;" title="View Details" onclick="openOrderFormModal('${esc(r.OrderId)}', true)">View</button>
                         <button class="btn btn-sm btn-secondary" style="padding:2px 6px; font-size:11px;" title="Edit" onclick="openOrderFormModal('${esc(r.OrderId)}', false)">Edit</button>
                         <button class="btn btn-sm btn-primary" style="padding:2px 6px; font-size:11px;" title="Convert to Invoice" onclick="convertOrderToInvoice('${esc(r.OrderId)}')">Invoice</button>
+                        <button class="btn btn-sm" style="padding:2px 6px; font-size:11px; background:#0284c7; color:#fff;" title="Convert to Quotation" onclick="convertOrderToQuotation('${esc(r.OrderId)}')">Quote</button>
                         <button class="btn btn-sm btn-danger" style="padding:2px 6px; font-size:11px;" title="Delete" onclick="deleteOrderFormEntry('${esc(r.OrderId)}')">Del</button>
                       </div>
                     </td>
@@ -13438,6 +13589,7 @@
     { id: 'sales', label: '📈 Sales' },
     { id: 'invoices', label: '🧾 Sales Invoices' },
     { id: 'quotation', label: '📝 Quotation' },
+    { id: 'orderForm', label: '📋 Order Form' },
     { id: 'outstanding', label: '⏳ Outstanding' },
     { id: 'inventory', label: '📦 Stock' },
     { id: 'callReport', label: '📞 Call Report' },
@@ -13928,7 +14080,7 @@ CREATE TABLE IF NOT EXISTS "Transactions" (
     const mgrInfo = document.getElementById('mgrRoleNotice');
     if (mgrInfo) mgrInfo.style.display = role === 'Manager' ? 'block' : 'none';
     if (role === 'Manager') {
-      const mgrDefaults = ['dashboard', 'sales', 'invoices', 'quotation', 'outstanding', 'customers', 'employees', 'reports', 'settings'];
+      const mgrDefaults = ['dashboard', 'sales', 'invoices', 'quotation', 'orderform', 'outstanding', 'customers', 'employees', 'reports', 'settings'];
       document.querySelectorAll('.user-tab-checkbox').forEach(cb => {
         cb.checked = mgrDefaults.includes(cb.dataset.tab.toLowerCase());
       });
@@ -13981,8 +14133,8 @@ CREATE TABLE IF NOT EXISTS "Transactions" (
       : (u.Role === 'Admin' 
           ? allSystemTabs.map(t => t.id.toLowerCase()) 
           : (u.Role === 'Manager'
-              ? ['dashboard', 'sales', 'invoices', 'quotation', 'outstanding', 'customers', 'employees', 'reports', 'settings']
-              : ['dashboard', 'invoices', 'quotation', 'outstanding', 'settings']));
+              ? ['dashboard', 'sales', 'invoices', 'quotation', 'orderform', 'outstanding', 'customers', 'employees', 'reports', 'settings']
+              : ['dashboard', 'invoices', 'quotation', 'orderform', 'outstanding', 'settings']));
 
     const tabsCheckboxes = allSystemTabs.map(t => `
       <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; cursor:pointer; background:#fff; padding:6px 10px; border:1px solid #e2e8f0; border-radius:6px;">
