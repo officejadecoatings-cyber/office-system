@@ -1112,7 +1112,7 @@
       if (!this.isReady()) throw new Error('Supabase not configured');
       const tables = [
         'Settings', 'Users', 'Customers', 'Inventory', 'Invoices', 'InvoiceItems',
-        'CompanyProfiles', 'Quotations', 'OrderForms', 'Creditors', 'PettyCash', 'CallReports',
+        'CompanyProfiles', 'Quotations', 'OrderForms', 'OrderFormItems', 'Creditors', 'PettyCash', 'CallReports',
         'ProjectReports', 'PainterQuotations', 'PainterBillBalances', 'PainterParticipants',
         'Employees', 'CustomTabs', 'CustomTabRows', 'Transactions', 'Attendance',
         'Leaves', 'Tasks', 'SavedReports'
@@ -3573,6 +3573,29 @@
     if (!Array.isArray(data.orderForms)) data.orderForms = [];
     if (!Array.isArray(data.invoices)) return;
     const invItems = Array.isArray(data.invoiceItems) ? data.invoiceItems : [];
+
+    const ordItems = Array.isArray(data.orderFormItems) ? data.orderFormItems : [];
+    if (ordItems.length > 0) {
+      data.orderForms.forEach(order => {
+        if (!order) return;
+        const oId = String(order.OrderId || '').trim();
+        const oNo = String(order.OrderNo || '').trim();
+        const matched = ordItems.filter(ln => ln && (ln.OrderId === oId || ln.OrderId === oNo));
+        if (matched.length > 0 && (!order.ItemsJson || order.ItemsJson === '[]' || order.ItemsJson === '')) {
+          const items = matched.map(ln => ({
+            itemId: ln.ItemId || '',
+            sku: ln.ItemCode || '',
+            itemName: ln.ItemName || '',
+            qty: Number(ln.Qty) || 1,
+            unitPrice: Number(ln.UnitPrice) || 0,
+            total: Number(ln.LineTotal) || (Number(ln.Qty || 1) * Number(ln.UnitPrice || 0))
+          }));
+          order.ItemsJson = JSON.stringify(items);
+          order.ItemsSummary = items.map(it => `${it.itemName} (x${it.qty})`).join(', ');
+          order.TotalQty = items.reduce((acc, it) => acc + it.qty, 0) || order.TotalQty;
+        }
+      });
+    }
 
     data.invoices.forEach(inv => {
       if (!inv) return;

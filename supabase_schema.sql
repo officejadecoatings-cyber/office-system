@@ -174,6 +174,38 @@ CREATE TABLE IF NOT EXISTS "OrderForms" (
   "CreatedAt" TEXT DEFAULT ''
 );
 ALTER TABLE "OrderForms" DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON TABLE "OrderForms" TO anon, authenticated, service_role;
+
+-- Table: "OrderFormItems"
+CREATE TABLE IF NOT EXISTS "OrderFormItems" (
+  "LineId" TEXT PRIMARY KEY,
+  "OrderId" TEXT DEFAULT '',
+  "ItemId" TEXT DEFAULT '',
+  "ItemCode" TEXT DEFAULT '',
+  "ItemName" TEXT DEFAULT '',
+  "Qty" TEXT DEFAULT '1',
+  "UnitPrice" TEXT DEFAULT '0',
+  "DiscountPercent" TEXT DEFAULT '0',
+  "LineTotal" TEXT DEFAULT '0'
+);
+ALTER TABLE "OrderFormItems" DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON TABLE "OrderFormItems" TO anon, authenticated, service_role;
+
+-- Migrate existing mobile orders from Invoices
+INSERT INTO "OrderForms" ("OrderId", "OrderNo", "Date", "CustomerId", "CustomerName", "CustomerPhone", "CustomerAddress", "SalesOfficerName", "RequestedDate", "Status", "TotalAmount", "Notes", "CreatedBy", "CreatedAt")
+SELECT 
+  "InvoiceId", "InvoiceNo", "Date", "CustomerId", "CustomerName", "CustomerPhone", "CustomerAddress", "SalesPerson", "DueDate", "Status", CAST(NULLIF("Total", '') AS NUMERIC), "Notes", "CreatedBy", "Date"
+FROM "Invoices"
+WHERE "InvoiceNo" LIKE 'ORD-%' OR "InvoiceId" LIKE 'ORD-%'
+ON CONFLICT ("OrderId") DO NOTHING;
+
+-- Migrate existing mobile items from InvoiceItems
+INSERT INTO "OrderFormItems" ("LineId", "OrderId", "ItemId", "ItemCode", "ItemName", "Qty", "UnitPrice", "DiscountPercent", "LineTotal")
+SELECT 
+  "LineId", "InvoiceId", "ItemId", "ItemCode", "ItemName", "Qty", "UnitPrice", "DiscountPercent", "LineTotal"
+FROM "InvoiceItems"
+WHERE "InvoiceId" LIKE 'ORD-%'
+ON CONFLICT ("LineId") DO NOTHING;
 
 -- Table: "Creditors"
 CREATE TABLE IF NOT EXISTS "Creditors" (
