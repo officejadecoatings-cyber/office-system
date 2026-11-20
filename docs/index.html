@@ -12177,7 +12177,7 @@
       _custSortField = field;
       _custSortDir = 'asc';
     }
-    renderCustomersView();
+    renderCustomersTableBody();
   }
 
   function setCustomerSort(val) {
@@ -12185,11 +12185,20 @@
     const parts = val.split('_');
     _custSortField = parts[0] || 'Name';
     _custSortDir = parts[1] || 'asc';
-    renderCustomersView();
+    renderCustomersTableBody();
   }
 
-  function renderCustomersView() {
-    ensureDataDefaults();
+  function onCustomerSearchInput(val) {
+    _custSearch = val || '';
+    renderCustomersTableBody();
+  }
+
+  function renderCustomersTableBody() {
+    const tbody = document.querySelector('#custTable tbody');
+    if (!tbody) {
+      renderCustomersView();
+      return;
+    }
     let custs = Array.isArray(state.data.customers) ? [...state.data.customers] : [];
 
     // Filter by search
@@ -12220,20 +12229,61 @@
       return _custSortDir === 'asc' ? comp : -comp;
     });
 
-    const codeArrow = _custSortField === 'CustomerCode' ? (_custSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕';
-    const nameArrow = _custSortField === 'Name' ? (_custSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕';
+    tbody.innerHTML = custs.map(c => {
+      const info = getCustomerOverdueInfo(c.CustomerId);
+      return `
+        <tr class="${info.blocked ? 'row-overdue' : ''}">
+          <td><b>${esc(c.CustomerCode || '-')}</b></td>
+          <td>
+            <b>${esc(c.Name)}</b>
+            ${c.BillingAddress ? `<div style="font-size:11px; color:var(--muted);">${esc(c.BillingAddress)}</div>` : ''}
+          </td>
+          <td>${esc(c.BusinessIdentifier || '-')}</td>
+          <td><span class="badge badge-info">${esc(c.SalesOfficerName || 'Not Assigned')}</span></td>
+          <td>
+            ${c.Phone ? `<div>📞 ${esc(c.Phone)}</div>` : ''}
+            ${c.Email ? `<div style="font-size:11px; color:var(--muted);">✉️ ${esc(c.Email)}</div>` : ''}
+          </td>
+          <td>${fmtMoney(c.CreditLimit || 0)}</td>
+          <td><b>${fmtMoney(info.balance)}</b></td>
+          <td>${info.blocked ? `<span class="badge badge-danger">BLOCKED (${info.maxDays}d)</span>` : `<span class="badge badge-success">Active</span>`}</td>
+          <td>
+            <button class="btn btn-sm btn-secondary" onclick="openCustomerModal('${esc(c.CustomerId)}')">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="removeCustomer('${esc(c.CustomerId)}')">Del</button>
+          </td>
+        </tr>
+      `;
+    }).join('') || '<tr><td colspan="9" style="color:var(--muted); text-align:center; padding:20px;">No customers found.</td></tr>';
+
+    // Update header indicator arrows and select dropdown without re-rendering search input
+    const codeHeader = document.getElementById('thCustCode');
+    const nameHeader = document.getElementById('thCustName');
+    const sortSelect = document.getElementById('selCustSort');
+    if (codeHeader) {
+      codeHeader.innerHTML = `Code <span style="font-size:11px; color:var(--primary);">${_custSortField === 'CustomerCode' ? (_custSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕'}</span>`;
+    }
+    if (nameHeader) {
+      nameHeader.innerHTML = `Customer Name <span style="font-size:11px; color:var(--primary);">${_custSortField === 'Name' ? (_custSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕'}</span>`;
+    }
+    if (sortSelect) {
+      sortSelect.value = `${_custSortField}_${_custSortDir}`;
+    }
+  }
+
+  function renderCustomersView() {
+    ensureDataDefaults();
     const sortVal = `${_custSortField}_${_custSortDir}`;
 
     document.getElementById('mainContent').innerHTML = `
       <div class="section-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
         <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:280px;">
-          <input class="search-input" placeholder="Search customers by name, code, business ID, sales officer..." 
+          <input class="search-input" id="custSearchInput" placeholder="Search customers by name, code, business ID, sales officer..." 
                  value="${esc(_custSearch)}" 
-                 oninput="_custSearch = this.value; renderCustomersView();"
+                 oninput="onCustomerSearchInput(this.value)"
                  style="flex:1;">
           <div style="display:inline-flex; align-items:center; gap:6px; background:#fff; padding:4px 8px; border:1px solid #cbd5e1; border-radius:6px; white-space:nowrap;">
             <span style="font-size:12px; font-weight:700; color:var(--muted);">Sort:</span>
-            <select style="border:none; outline:none; background:transparent; font-size:12.5px; font-weight:600; color:var(--text); cursor:pointer;" 
+            <select id="selCustSort" style="border:none; outline:none; background:transparent; font-size:12.5px; font-weight:600; color:var(--text); cursor:pointer;" 
                     onchange="setCustomerSort(this.value)">
               <option value="Name_asc" ${sortVal === 'Name_asc' ? 'selected' : ''}>Name (A → Z)</option>
               <option value="Name_desc" ${sortVal === 'Name_desc' ? 'selected' : ''}>Name (Z → A)</option>
@@ -12251,11 +12301,11 @@
         <table id="custTable">
           <thead>
             <tr>
-              <th style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="sortCustomerTable('CustomerCode')" title="Click to sort by Code">
-                Code <span style="font-size:11px; color:var(--primary);">${codeArrow}</span>
+              <th id="thCustCode" style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="sortCustomerTable('CustomerCode')" title="Click to sort by Code">
+                Code <span style="font-size:11px; color:var(--primary);">${_custSortField === 'CustomerCode' ? (_custSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕'}</span>
               </th>
-              <th style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="sortCustomerTable('Name')" title="Click to sort by Name">
-                Customer Name <span style="font-size:11px; color:var(--primary);">${nameArrow}</span>
+              <th id="thCustName" style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="sortCustomerTable('Name')" title="Click to sort by Name">
+                Customer Name <span style="font-size:11px; color:var(--primary);">${_custSortField === 'Name' ? (_custSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕'}</span>
               </th>
               <th>Business Identifier</th>
               <th>Sales Officer</th>
@@ -12266,36 +12316,12 @@
               <th>Actions</th>
             </tr>
           </thead>
-          <tbody>
-            ${custs.map(c => {
-              const info = getCustomerOverdueInfo(c.CustomerId);
-              return `
-                <tr class="${info.blocked ? 'row-overdue' : ''}">
-                  <td><b>${esc(c.CustomerCode || '-')}</b></td>
-                  <td>
-                    <b>${esc(c.Name)}</b>
-                    ${c.BillingAddress ? `<div style="font-size:11px; color:var(--muted);">${esc(c.BillingAddress)}</div>` : ''}
-                  </td>
-                  <td>${esc(c.BusinessIdentifier || '-')}</td>
-                  <td><span class="badge badge-info">${esc(c.SalesOfficerName || 'Not Assigned')}</span></td>
-                  <td>
-                    ${c.Phone ? `<div>📞 ${esc(c.Phone)}</div>` : ''}
-                    ${c.Email ? `<div style="font-size:11px; color:var(--muted);">✉️ ${esc(c.Email)}</div>` : ''}
-                  </td>
-                  <td>${fmtMoney(c.CreditLimit || 0)}</td>
-                  <td><b>${fmtMoney(info.balance)}</b></td>
-                  <td>${info.blocked ? `<span class="badge badge-danger">BLOCKED (${info.maxDays}d)</span>` : `<span class="badge badge-success">Active</span>`}</td>
-                  <td>
-                    <button class="btn btn-sm btn-secondary" onclick="openCustomerModal('${esc(c.CustomerId)}')">Edit</button>
-                    <button class="btn btn-sm btn-danger" onclick="removeCustomer('${esc(c.CustomerId)}')">Del</button>
-                  </td>
-                </tr>
-              `;
-            }).join('') || '<tr><td colspan="9" style="color:var(--muted)">No customers found.</td></tr>'}
-          </tbody>
+          <tbody></tbody>
         </table>
       </div>
     `;
+
+    renderCustomersTableBody();
   }
 
   function openCustomerModal(custId) {
