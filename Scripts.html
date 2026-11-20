@@ -29,6 +29,7 @@
       savedReports: [],
       companyProfiles: [],
       quotations: [],
+      orderForms: [],
       today: ''
     }
   };
@@ -70,9 +71,9 @@
       return tabs;
     }
     if (isRashiniFernando()) return ['callreport', 'projectreport', 'pettycash', 'settings'];
-    if (isShihaniNuwanthi()) return ['dashboard', 'sales', 'invoices', 'quotation', 'outstanding', 'inventory', 'callreport', 'projectreport', 'pettycash', 'customers', 'companyprofile', 'employees', 'paintertraining', 'reports', 'import', 'settings'];
-    if (state.user.Role === 'Manager') return ['dashboard', 'sales', 'invoices', 'quotation', 'outstanding', 'customers', 'employees', 'reports', 'settings'];
-    return ['dashboard', 'sales', 'invoices', 'quotation', 'outstanding', 'inventory', 'customers', 'companyprofile', 'employees', 'paintertraining', 'reports', 'import', 'settings'];
+    if (isShihaniNuwanthi()) return ['dashboard', 'sales', 'invoices', 'quotation', 'orderform', 'outstanding', 'inventory', 'callreport', 'projectreport', 'pettycash', 'customers', 'companyprofile', 'employees', 'paintertraining', 'reports', 'import', 'settings'];
+    if (state.user.Role === 'Manager') return ['dashboard', 'sales', 'invoices', 'quotation', 'orderform', 'outstanding', 'customers', 'employees', 'reports', 'settings'];
+    return ['dashboard', 'sales', 'invoices', 'quotation', 'orderform', 'outstanding', 'inventory', 'customers', 'companyprofile', 'employees', 'paintertraining', 'reports', 'import', 'settings'];
   }
 
   function isTabAllowedForUser(tabName) {
@@ -135,6 +136,8 @@
     dispatchInvoice: { table: 'Invoices', key: 'InvoiceId', prop: 'invoices', isDispatchInvoice: true },
     saveQuotation: { table: 'Quotations', key: 'QuotationId', prefix: 'QT', prop: 'quotations' },
     deleteQuotation: { table: 'Quotations', key: 'QuotationId', prop: 'quotations' },
+    saveOrderForm: { table: 'OrderForms', key: 'OrderId', prefix: 'ORD', prop: 'orderForms' },
+    deleteOrderForm: { table: 'OrderForms', key: 'OrderId', prop: 'orderForms' },
     saveCreditor: { table: 'Creditors', key: 'CreditorId', prefix: 'CRED', prop: 'creditors' },
     deleteCreditor: { table: 'Creditors', key: 'CreditorId', prop: 'creditors' },
     savePettyCash: { table: 'PettyCash', key: 'PcId', prefix: 'PC', prop: 'pettyCash' },
@@ -244,7 +247,7 @@
       if (!this.isReady()) throw new Error('Supabase not configured');
       const tables = [
         'Settings', 'Users', 'Customers', 'Inventory', 'Invoices', 'InvoiceItems',
-        'CompanyProfiles', 'Quotations', 'Creditors', 'PettyCash', 'CallReports',
+        'CompanyProfiles', 'Quotations', 'OrderForms', 'Creditors', 'PettyCash', 'CallReports',
         'ProjectReports', 'PainterQuotations', 'PainterBillBalances', 'PainterParticipants',
         'Employees', 'CustomTabs', 'CustomTabRows', 'Transactions', 'Attendance',
         'Leaves', 'Tasks', 'SavedReports'
@@ -1023,6 +1026,7 @@
       invoices: 'InvoiceId',
       invoiceItems: 'LineId',
       quotations: 'QuotationId',
+      orderForms: 'OrderId',
       callReports: 'CallId',
       projectReports: 'ProjId',
       inventory: 'ItemId',
@@ -1261,6 +1265,7 @@
       sales: renderManagerSalesView,
       invoices: renderInvoicesView,
       quotation: renderQuotationView,
+      orderForm: renderOrderFormView,
       companyProfile: renderCompanyProfileView,
       outstanding: renderOutstandingView,
       callReport: renderCallReportsView,
@@ -2635,6 +2640,10 @@
     if (Array.isArray(data.quotations)) {
       data.quotations = dedupe(data.quotations, q => (q.QuotationId || q.QuoteNo || '').toString().trim().toLowerCase());
       data.quotations = data.quotations.filter(q => !isRecordDeleted(q.QuotationId) && !isRecordDeleted(q.QuoteNo));
+    }
+    if (Array.isArray(data.orderForms)) {
+      data.orderForms = dedupe(data.orderForms, o => (o.OrderId || o.OrderNo || '').toString().trim().toLowerCase());
+      data.orderForms = data.orderForms.filter(o => !isRecordDeleted(o.OrderId) && !isRecordDeleted(o.OrderNo));
     }
     if (Array.isArray(data.callReports)) {
       data.callReports = dedupe(data.callReports, r => (r.CallId || '').toString().trim().toLowerCase());
@@ -5579,6 +5588,649 @@
     }
     renderOutstandingView();
   }
+
+
+  /* ============================================================================
+   * Order Forms (Mobile App & Web Orders)
+   * ========================================================================== */
+
+  let _orderFilter = {
+    search: '',
+    status: '',
+    startDate: '',
+    endDate: ''
+  };
+  let _orderSortField = 'Date';
+  let _orderSortDir = 'desc';
+
+  function sortOrderTable(field) {
+    if (_orderSortField === field) {
+      _orderSortDir = _orderSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      _orderSortField = field;
+      _orderSortDir = 'asc';
+    }
+    renderOrderFormView();
+  }
+
+  function formatOrderItemsSummary(itemsJson) {
+    if (!itemsJson) return '';
+    try {
+      const items = typeof itemsJson === 'string' ? JSON.parse(itemsJson) : itemsJson;
+      if (Array.isArray(items)) {
+        return items.map(it => `${it.itemName || it.ItemName || 'Item'} (x${it.qty || it.Qty || 1})`).join(', ');
+      }
+    } catch (e) {}
+    return String(itemsJson);
+  }
+
+  function renderOrderFormView() {
+    ensureDataDefaults();
+    const orders = Array.isArray(state.data.orderForms) ? [...state.data.orderForms] : [];
+
+    // Filter
+    const filtered = orders.filter(o => {
+      if (!o) return false;
+      const s = (_orderFilter.search || '').trim().toLowerCase();
+      if (s) {
+        const matchCus = String(o.CustomerName || '').toLowerCase().includes(s);
+        const matchNo = String(o.OrderNo || '').toLowerCase().includes(s);
+        const matchSP = String(o.SalesOfficerName || '').toLowerCase().includes(s);
+        const matchItems = String(o.ItemsSummary || '').toLowerCase().includes(s);
+        if (!matchCus && !matchNo && !matchSP && !matchItems) return false;
+      }
+      if (_orderFilter.status && (o.Status || 'Pending').toLowerCase() !== _orderFilter.status.toLowerCase()) {
+        return false;
+      }
+      if (_orderFilter.startDate && o.Date && o.Date < _orderFilter.startDate) return false;
+      if (_orderFilter.endDate && o.Date && o.Date > _orderFilter.endDate) return false;
+      return true;
+    });
+
+    // Sort
+    filtered.sort((a, b) => {
+      let va = a[_orderSortField] || '';
+      let vb = b[_orderSortField] || '';
+      if (_orderSortField === 'TotalAmount' || _orderSortField === 'TotalQty') {
+        va = Number(va) || 0;
+        vb = Number(vb) || 0;
+      }
+      if (va < vb) return _orderSortDir === 'asc' ? -1 : 1;
+      if (va > vb) return _orderSortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    // Metrics
+    const totalCount = orders.length;
+    const pendingCount = orders.filter(o => (o.Status || 'Pending').toLowerCase() === 'pending').length;
+    const approvedCount = orders.filter(o => (o.Status || '').toLowerCase() === 'approved').length;
+    const totalVal = orders.reduce((acc, o) => acc + (Number(o.TotalAmount) || 0), 0);
+
+    const content = document.getElementById('mainContent');
+    content.innerHTML = `
+      <div class="content-header">
+        <div>
+          <h2>📦 Order Form</h2>
+          <p style="color:var(--muted); font-size:13px; margin-top:2px;">Orders submitted via Mobile App & Sales Officers</p>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-primary" onclick="openOrderFormModal()">+ New Order</button>
+          <button class="btn btn-secondary" onclick="exportOrderFormsExcel()">📤 Export Excel</button>
+        </div>
+      </div>
+
+      <!-- KPI Summary Cards -->
+      <div class="grid grid-4" style="margin-bottom:16px;">
+        <div class="card" style="padding:14px; border-left:4px solid var(--primary);">
+          <div style="font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase;">Total Orders</div>
+          <div style="font-size:24px; font-weight:700; margin-top:4px;">${totalCount}</div>
+        </div>
+        <div class="card" style="padding:14px; border-left:4px solid #f59e0b;">
+          <div style="font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase;">Pending Orders</div>
+          <div style="font-size:24px; font-weight:700; color:#d97706; margin-top:4px;">${pendingCount}</div>
+        </div>
+        <div class="card" style="padding:14px; border-left:4px solid #10b981;">
+          <div style="font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase;">Approved Orders</div>
+          <div style="font-size:24px; font-weight:700; color:#059669; margin-top:4px;">${approvedCount}</div>
+        </div>
+        <div class="card" style="padding:14px; border-left:4px solid #6366f1;">
+          <div style="font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase;">Total Order Value</div>
+          <div style="font-size:22px; font-weight:700; color:#4f46e5; margin-top:4px;">${fmtMoney(totalVal)}</div>
+        </div>
+      </div>
+
+      <!-- Filters Bar -->
+      <div class="card" style="padding:14px; margin-bottom:16px;">
+        <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+          <div style="flex:2; min-width:200px;">
+            <label style="font-size:11px; font-weight:600; color:var(--muted); margin-bottom:4px; display:block;">Search</label>
+            <input type="text" class="form-control" placeholder="Search customer, order no, sales officer, or item..."
+                   value="${esc(_orderFilter.search)}" oninput="_orderFilter.search = this.value; renderOrderFormView();">
+          </div>
+          <div style="flex:1; min-width:140px;">
+            <label style="font-size:11px; font-weight:600; color:var(--muted); margin-bottom:4px; display:block;">Status</label>
+            <select class="form-control" onchange="_orderFilter.status = this.value; renderOrderFormView();">
+              <option value="">All Statuses</option>
+              <option value="Pending" ${_orderFilter.status === 'Pending' ? 'selected' : ''}>Pending</option>
+              <option value="Approved" ${_orderFilter.status === 'Approved' ? 'selected' : ''}>Approved</option>
+              <option value="Processing" ${_orderFilter.status === 'Processing' ? 'selected' : ''}>Processing</option>
+              <option value="Completed" ${_orderFilter.status === 'Completed' ? 'selected' : ''}>Completed</option>
+              <option value="Cancelled" ${_orderFilter.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
+            </select>
+          </div>
+          <div style="flex:1; min-width:130px;">
+            <label style="font-size:11px; font-weight:600; color:var(--muted); margin-bottom:4px; display:block;">Start Date</label>
+            <input type="date" class="form-control" value="${esc(_orderFilter.startDate)}" onchange="_orderFilter.startDate = this.value; renderOrderFormView();">
+          </div>
+          <div style="flex:1; min-width:130px;">
+            <label style="font-size:11px; font-weight:600; color:var(--muted); margin-bottom:4px; display:block;">End Date</label>
+            <input type="date" class="form-control" value="${esc(_orderFilter.endDate)}" onchange="_orderFilter.endDate = this.value; renderOrderFormView();">
+          </div>
+          <div>
+            <button class="btn btn-sm btn-secondary" onclick="_orderFilter = {search:'', status:'', startDate:'', endDate:''}; renderOrderFormView();" style="height:36px;">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Orders Table -->
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div style="overflow-x:auto;">
+          <table class="table" style="width:100%; margin:0; border-collapse:collapse;">
+            <thead>
+              <tr style="background:var(--bg-subtle); border-bottom:1px solid var(--border);">
+                <th style="padding:10px 14px; text-align:left; font-size:12px; cursor:pointer;" onclick="sortOrderTable('OrderNo')">Order No</th>
+                <th style="padding:10px 14px; text-align:left; font-size:12px; cursor:pointer;" onclick="sortOrderTable('Date')">Date / Requested</th>
+                <th style="padding:10px 14px; text-align:left; font-size:12px; cursor:pointer;" onclick="sortOrderTable('CustomerName')">Customer Name</th>
+                <th style="padding:10px 14px; text-align:left; font-size:12px; cursor:pointer;" onclick="sortOrderTable('SalesOfficerName')">Sales Officer</th>
+                <th style="padding:10px 14px; text-align:left; font-size:12px;">Ordered Items</th>
+                <th style="padding:10px 14px; text-align:right; font-size:12px; cursor:pointer;" onclick="sortOrderTable('TotalQty')">Qty</th>
+                <th style="padding:10px 14px; text-align:right; font-size:12px; cursor:pointer;" onclick="sortOrderTable('TotalAmount')">Price / Amount</th>
+                <th style="padding:10px 14px; text-align:center; font-size:12px; cursor:pointer;" onclick="sortOrderTable('Status')">Status</th>
+                <th style="padding:10px 14px; text-align:center; font-size:12px; width:170px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filtered.length ? filtered.map(r => {
+                const status = r.Status || 'Pending';
+                let statusBadge = '<span class="badge" style="background:#fef3c7; color:#92400e; padding:3px 8px; border-radius:12px; font-weight:600; font-size:11px;">Pending</span>';
+                if (status.toLowerCase() === 'approved') {
+                  statusBadge = '<span class="badge" style="background:#d1fae5; color:#065f46; padding:3px 8px; border-radius:12px; font-weight:600; font-size:11px;">Approved</span>';
+                } else if (status.toLowerCase() === 'processing') {
+                  statusBadge = '<span class="badge" style="background:#e0f2fe; color:#0369a1; padding:3px 8px; border-radius:12px; font-weight:600; font-size:11px;">Processing</span>';
+                } else if (status.toLowerCase() === 'completed') {
+                  statusBadge = '<span class="badge" style="background:#dcfce7; color:#166534; padding:3px 8px; border-radius:12px; font-weight:600; font-size:11px;">Completed</span>';
+                } else if (status.toLowerCase() === 'cancelled') {
+                  statusBadge = '<span class="badge" style="background:#fee2e2; color:#991b1b; padding:3px 8px; border-radius:12px; font-weight:600; font-size:11px;">Cancelled</span>';
+                }
+
+                const itemsDesc = r.ItemsSummary || formatOrderItemsSummary(r.ItemsJson);
+
+                return `
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:10px 14px; font-weight:600; font-family:monospace; color:var(--primary); cursor:pointer;" onclick="openOrderFormModal('${esc(r.OrderId)}', true)">
+                      ${esc(r.OrderNo || r.OrderId)}
+                    </td>
+                    <td style="padding:10px 14px; font-size:13px;">
+                      <div>${esc(r.Date || '')}</div>
+                      ${r.RequestedDate ? `<div style="font-size:11px; color:var(--muted);">Req: ${esc(r.RequestedDate)}</div>` : ''}
+                    </td>
+                    <td style="padding:10px 14px;">
+                      <div style="font-weight:600; font-size:13px;">${esc(r.CustomerName || '-')}</div>
+                      ${r.CustomerPhone ? `<div style="font-size:11px; color:var(--muted);">${esc(r.CustomerPhone)}</div>` : ''}
+                    </td>
+                    <td style="padding:10px 14px; font-size:13px;">
+                      ${esc(r.SalesOfficerName || '-')}
+                    </td>
+                    <td style="padding:10px 14px; font-size:12px; max-width:240px; white-space:normal;">
+                      ${esc(itemsDesc || '-')}
+                    </td>
+                    <td style="padding:10px 14px; text-align:right; font-weight:600; font-size:13px;">
+                      ${Number(r.TotalQty || 0).toLocaleString()}
+                    </td>
+                    <td style="padding:10px 14px; text-align:right; font-weight:700; font-size:13px; color:var(--text);">
+                      ${fmtMoney(r.TotalAmount)}
+                    </td>
+                    <td style="padding:10px 14px; text-align:center;">
+                      ${statusBadge}
+                    </td>
+                    <td style="padding:10px 14px; text-align:center;">
+                      <div style="display:flex; gap:4px; justify-content:center;">
+                        <button class="btn btn-sm btn-secondary" style="padding:2px 6px; font-size:11px;" title="View Details" onclick="openOrderFormModal('${esc(r.OrderId)}', true)">View</button>
+                        <button class="btn btn-sm btn-secondary" style="padding:2px 6px; font-size:11px;" title="Edit" onclick="openOrderFormModal('${esc(r.OrderId)}', false)">Edit</button>
+                        <button class="btn btn-sm btn-primary" style="padding:2px 6px; font-size:11px;" title="Convert to Invoice" onclick="convertOrderToInvoice('${esc(r.OrderId)}')">Invoice</button>
+                        <button class="btn btn-sm btn-danger" style="padding:2px 6px; font-size:11px;" title="Delete" onclick="deleteOrderFormEntry('${esc(r.OrderId)}')">Del</button>
+                      </div>
+                    </td>
+                  </tr>
+                `;
+              }).join('') : `
+                <tr>
+                  <td colspan="9" style="text-align:center; padding:30px; color:var(--muted);">
+                    No orders found. Orders submitted from the Mobile App will appear here automatically.
+                  </td>
+                </tr>
+              `}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  function openOrderFormModal(id = '', isReadOnly = false) {
+    const existing = id ? (state.data.orderForms || []).find(o => o.OrderId === id) : null;
+    const customers = state.data.customers || [];
+    const employees = state.data.employees || [];
+    const inventory = state.data.inventory || [];
+
+    let parsedItems = [];
+    if (existing && existing.ItemsJson) {
+      try {
+        parsedItems = typeof existing.ItemsJson === 'string' ? JSON.parse(existing.ItemsJson) : existing.ItemsJson;
+      } catch (e) {}
+    }
+    if (!Array.isArray(parsedItems) || !parsedItems.length) {
+      parsedItems = [{ itemId: '', sku: '', itemName: '', unitPrice: 0, qty: 1, total: 0 }];
+    }
+
+    const title = existing ? (isReadOnly ? `📦 Order Details — ${existing.OrderNo || existing.OrderId}` : `✏️ Edit Order — ${existing.OrderNo || existing.OrderId}`) : '📦 + New Order';
+
+    const modalHtml = `
+      <form id="orderFormModalForm" onsubmit="submitOrderForm(event, '${esc(id)}')">
+        <div class="grid grid-2" style="gap:12px; margin-bottom:12px;">
+          <div>
+            <label class="form-label">Customer *</label>
+            <input type="text" id="ordCustomerName" class="form-control" list="ordCustomerList" value="${esc(existing ? existing.CustomerName : '')}" required ${isReadOnly ? 'disabled' : ''} onchange="onOrderCustomerSelect(this.value)">
+            <datalist id="ordCustomerList">
+              ${customers.map(c => `<option value="${esc(c.Name)}">${esc(c.Phone || '')}</option>`).join('')}
+            </datalist>
+          </div>
+          <div>
+            <label class="form-label">Sales Officer *</label>
+            <input type="text" id="ordSalesOfficerName" class="form-control" list="ordSalesOfficerList" value="${esc(existing ? existing.SalesOfficerName : (state.user ? state.user.Name : ''))}" required ${isReadOnly ? 'disabled' : ''}>
+            <datalist id="ordSalesOfficerList">
+              ${employees.map(e => `<option value="${esc(e.Name)}">${esc(e.Designation || '')}</option>`).join('')}
+            </datalist>
+          </div>
+        </div>
+
+        <div class="grid grid-4" style="gap:12px; margin-bottom:12px;">
+          <div>
+            <label class="form-label">Order Date *</label>
+            <input type="date" id="ordDate" class="form-control" value="${esc(existing ? existing.Date : (state.data.today || new Date().toISOString().slice(0, 10)))}" required ${isReadOnly ? 'disabled' : ''}>
+          </div>
+          <div>
+            <label class="form-label">Requested Delivery</label>
+            <input type="date" id="ordRequestedDate" class="form-control" value="${esc(existing ? existing.RequestedDate : '')}" ${isReadOnly ? 'disabled' : ''}>
+          </div>
+          <div>
+            <label class="form-label">Phone</label>
+            <input type="text" id="ordCustomerPhone" class="form-control" value="${esc(existing ? existing.CustomerPhone : '')}" ${isReadOnly ? 'disabled' : ''}>
+          </div>
+          <div>
+            <label class="form-label">Status</label>
+            <select id="ordStatus" class="form-control" ${isReadOnly ? 'disabled' : ''}>
+              <option value="Pending" ${!existing || existing.Status === 'Pending' ? 'selected' : ''}>Pending</option>
+              <option value="Approved" ${existing && existing.Status === 'Approved' ? 'selected' : ''}>Approved</option>
+              <option value="Processing" ${existing && existing.Status === 'Processing' ? 'selected' : ''}>Processing</option>
+              <option value="Completed" ${existing && existing.Status === 'Completed' ? 'selected' : ''}>Completed</option>
+              <option value="Cancelled" ${existing && existing.Status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label class="form-label">Delivery Address / Site</label>
+          <input type="text" id="ordCustomerAddress" class="form-control" value="${esc(existing ? existing.CustomerAddress : '')}" ${isReadOnly ? 'disabled' : ''}>
+        </div>
+
+        <!-- Line Items -->
+        <div style="margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <label class="form-label" style="margin:0;">Ordered Items</label>
+            ${!isReadOnly ? `<button type="button" class="btn btn-sm btn-secondary" onclick="addOrderItemRow()">+ Add Item</button>` : ''}
+          </div>
+          <div style="border:1px solid var(--border); border-radius:6px; overflow:hidden;">
+            <table class="table" style="width:100%; margin:0;" id="ordItemsTable">
+              <thead>
+                <tr style="background:var(--bg-subtle);">
+                  <th style="padding:8px 10px; font-size:12px;">Product / Item</th>
+                  <th style="padding:8px 10px; font-size:12px; width:120px;">Unit Price</th>
+                  <th style="padding:8px 10px; font-size:12px; width:80px;">Qty</th>
+                  <th style="padding:8px 10px; font-size:12px; width:120px; text-align:right;">Total</th>
+                  ${!isReadOnly ? `<th style="padding:8px 10px; width:40px;"></th>` : ''}
+                </tr>
+              </thead>
+              <tbody id="ordItemsBody">
+                ${parsedItems.map((it, idx) => `
+                  <tr class="ord-item-row" data-idx="${idx}">
+                    <td style="padding:6px 10px;">
+                      <input type="text" class="form-control ord-item-name" list="ordInvList" value="${esc(it.itemName || it.ItemName || '')}" ${isReadOnly ? 'disabled' : ''} onchange="onOrderItemSelect(this)">
+                    </td>
+                    <td style="padding:6px 10px;">
+                      <input type="number" step="0.01" class="form-control ord-item-price" value="${Number(it.unitPrice || it.UnitPrice || 0)}" ${isReadOnly ? 'disabled' : ''} oninput="recalcOrderTotals()">
+                    </td>
+                    <td style="padding:6px 10px;">
+                      <input type="number" step="1" min="1" class="form-control ord-item-qty" value="${Number(it.qty || it.Qty || 1)}" ${isReadOnly ? 'disabled' : ''} oninput="recalcOrderTotals()">
+                    </td>
+                    <td style="padding:6px 10px; text-align:right; font-weight:600; font-size:13px;" class="ord-item-total">
+                      ${fmtMoney((Number(it.unitPrice || it.UnitPrice || 0)) * (Number(it.qty || it.Qty || 1)))}
+                    </td>
+                    ${!isReadOnly ? `
+                      <td style="padding:6px 10px; text-align:center;">
+                        <button type="button" class="btn btn-sm btn-danger" style="padding:2px 6px;" onclick="this.closest('tr').remove(); recalcOrderTotals();">×</button>
+                      </td>
+                    ` : ''}
+                  </tr>
+                `).join('')}
+              </tbody>
+              <tfoot>
+                <tr style="background:var(--bg-subtle); font-weight:700;">
+                  <td colspan="2" style="padding:8px 10px; text-align:right;">Totals:</td>
+                  <td style="padding:8px 10px;" id="ordTotalQtyDisplay">${Number(existing ? existing.TotalQty : 0)}</td>
+                  <td style="padding:8px 10px; text-align:right;" id="ordTotalPriceDisplay">${fmtMoney(existing ? existing.TotalAmount : 0)}</td>
+                  ${!isReadOnly ? `<td></td>` : ''}
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <datalist id="ordInvList">
+            ${inventory.map(item => `<option value="${esc(item.Name)}">${esc(item.SKU)} — Price: ${esc(item.UnitPrice)}</option>`).join('')}
+          </datalist>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <label class="form-label">Notes / Remarks</label>
+          <textarea id="ordNotes" class="form-control" rows="2" ${isReadOnly ? 'disabled' : ''}>${esc(existing ? existing.Notes : '')}</textarea>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            ${existing ? `<button type="button" class="btn btn-primary" onclick="closeModal(); convertOrderToInvoice('${esc(existing.OrderId)}')">🧾 Convert to Sales Invoice</button>` : ''}
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal()">Close</button>
+            ${!isReadOnly ? `<button type="submit" class="btn btn-primary">Save Order</button>` : ''}
+          </div>
+        </div>
+      </form>
+    `;
+
+    openModal(title, modalHtml);
+    setTimeout(recalcOrderTotals, 50);
+  }
+
+  function onOrderCustomerSelect(name) {
+    if (!name) return;
+    const cus = (state.data.customers || []).find(c => c.Name.toLowerCase() === name.trim().toLowerCase());
+    if (cus) {
+      if (cus.Phone && document.getElementById('ordCustomerPhone')) document.getElementById('ordCustomerPhone').value = cus.Phone;
+      if (cus.DeliveryAddress && document.getElementById('ordCustomerAddress')) document.getElementById('ordCustomerAddress').value = cus.DeliveryAddress;
+      if (cus.SalesOfficerName && document.getElementById('ordSalesOfficerName') && !document.getElementById('ordSalesOfficerName').value) {
+        document.getElementById('ordSalesOfficerName').value = cus.SalesOfficerName;
+      }
+    }
+  }
+
+  function onOrderItemSelect(input) {
+    const tr = input.closest('tr');
+    if (!tr) return;
+    const val = input.value.trim().toLowerCase();
+    const item = (state.data.inventory || []).find(it => it.Name.toLowerCase() === val || it.SKU.toLowerCase() === val);
+    if (item) {
+      input.value = item.Name;
+      const priceInput = tr.querySelector('.ord-item-price');
+      if (priceInput) priceInput.value = Number(item.UnitPrice || 0);
+    }
+    recalcOrderTotals();
+  }
+
+  function addOrderItemRow() {
+    const tbody = document.getElementById('ordItemsBody');
+    if (!tbody) return;
+    const tr = document.createElement('tr');
+    tr.className = 'ord-item-row';
+    tr.innerHTML = `
+      <td style="padding:6px 10px;">
+        <input type="text" class="form-control ord-item-name" list="ordInvList" placeholder="Select or type item name..." onchange="onOrderItemSelect(this)">
+      </td>
+      <td style="padding:6px 10px;">
+        <input type="number" step="0.01" class="form-control ord-item-price" value="0" oninput="recalcOrderTotals()">
+      </td>
+      <td style="padding:6px 10px;">
+        <input type="number" step="1" min="1" class="form-control ord-item-qty" value="1" oninput="recalcOrderTotals()">
+      </td>
+      <td style="padding:6px 10px; text-align:right; font-weight:600; font-size:13px;" class="ord-item-total">
+        ${fmtMoney(0)}
+      </td>
+      <td style="padding:6px 10px; text-align:center;">
+        <button type="button" class="btn btn-sm btn-danger" style="padding:2px 6px;" onclick="this.closest('tr').remove(); recalcOrderTotals();">×</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  function recalcOrderTotals() {
+    const rows = document.querySelectorAll('.ord-item-row');
+    let totalQty = 0;
+    let totalPrice = 0;
+    rows.forEach(tr => {
+      const price = parseFloat(tr.querySelector('.ord-item-price')?.value || '0') || 0;
+      const qty = parseFloat(tr.querySelector('.ord-item-qty')?.value || '0') || 0;
+      const lineTotal = price * qty;
+      totalQty += qty;
+      totalPrice += lineTotal;
+      const totalCell = tr.querySelector('.ord-item-total');
+      if (totalCell) totalCell.textContent = fmtMoney(lineTotal);
+    });
+    const qtyDisplay = document.getElementById('ordTotalQtyDisplay');
+    if (qtyDisplay) qtyDisplay.textContent = totalQty.toLocaleString();
+    const priceDisplay = document.getElementById('ordTotalPriceDisplay');
+    if (priceDisplay) priceDisplay.textContent = fmtMoney(totalPrice);
+  }
+
+  async function submitOrderForm(e, existingId = '') {
+    e.preventDefault();
+    const rows = document.querySelectorAll('.ord-item-row');
+    const items = [];
+    let totalQty = 0;
+    let totalPrice = 0;
+
+    rows.forEach(tr => {
+      const name = tr.querySelector('.ord-item-name')?.value.trim() || '';
+      if (!name) return;
+      const price = parseFloat(tr.querySelector('.ord-item-price')?.value || '0') || 0;
+      const qty = parseFloat(tr.querySelector('.ord-item-qty')?.value || '0') || 0;
+      const lineTotal = price * qty;
+      totalQty += qty;
+      totalPrice += lineTotal;
+      const invItem = (state.data.inventory || []).find(it => it.Name.toLowerCase() === name.toLowerCase());
+      items.push({
+        itemId: invItem ? invItem.ItemId : '',
+        sku: invItem ? invItem.SKU : '',
+        itemName: name,
+        unitPrice: price,
+        qty: qty,
+        total: lineTotal
+      });
+    });
+
+    if (!items.length) {
+      showToast('Please add at least one item.');
+      return;
+    }
+
+    const cusName = document.getElementById('ordCustomerName')?.value.trim() || '';
+    const spName = document.getElementById('ordSalesOfficerName')?.value.trim() || '';
+    const cus = (state.data.customers || []).find(c => c.Name.toLowerCase() === cusName.toLowerCase());
+    const sp = (state.data.employees || []).find(e => e.Name.toLowerCase() === spName.toLowerCase());
+
+    const orderId = existingId || ('ORD-' + Date.now() + '-' + Math.floor(Math.random() * 1000));
+    const existing = existingId ? (state.data.orderForms || []).find(o => o.OrderId === existingId) : null;
+
+    const payload = {
+      OrderId: orderId,
+      OrderNo: existing ? existing.OrderNo : ('ORD-' + String((state.data.orderForms || []).length + 101).padStart(4, '0')),
+      Date: document.getElementById('ordDate')?.value || (state.data.today || new Date().toISOString().slice(0, 10)),
+      CustomerId: cus ? cus.CustomerId : (existing ? existing.CustomerId : ''),
+      CustomerName: cusName,
+      CustomerPhone: document.getElementById('ordCustomerPhone')?.value.trim() || (cus ? cus.Phone : ''),
+      CustomerAddress: document.getElementById('ordCustomerAddress')?.value.trim() || (cus ? cus.DeliveryAddress : ''),
+      SalesOfficerId: sp ? sp.EmpId : (existing ? existing.SalesOfficerId : ''),
+      SalesOfficerName: spName,
+      RequestedDate: document.getElementById('ordRequestedDate')?.value || '',
+      Status: document.getElementById('ordStatus')?.value || 'Pending',
+      ItemsSummary: items.map(it => `${it.itemName} (x${it.qty})`).join(', '),
+      TotalQty: totalQty,
+      TotalAmount: totalPrice,
+      ItemsJson: JSON.stringify(items),
+      Notes: document.getElementById('ordNotes')?.value.trim() || '',
+      CreatedBy: existing ? existing.CreatedBy : (state.user ? state.user.Name : 'App User'),
+      CreatedAt: existing ? existing.CreatedAt : new Date().toISOString().slice(0, 10)
+    };
+
+    if (!state.data.orderForms) state.data.orderForms = [];
+    const idx = state.data.orderForms.findIndex(o => o.OrderId === orderId);
+    if (idx !== -1) {
+      state.data.orderForms[idx] = payload;
+    } else {
+      state.data.orderForms.unshift(payload);
+    }
+
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+    closeModal();
+    renderOrderFormView();
+    showToast('Order saved successfully!');
+
+    try {
+      await gas('saveOrderForm', payload);
+    } catch (err) {
+      console.warn('saveOrderForm error:', err);
+    }
+  }
+
+  async function deleteOrderFormEntry(id) {
+    verifyPinAndExecute('delete this Order Form entry', async () => {
+      markRecordAsDeleted(id);
+      if (state.data.orderForms) {
+        state.data.orderForms = state.data.orderForms.filter(o => String(o.OrderId).trim().toLowerCase() !== String(id).trim().toLowerCase());
+      }
+      try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+      renderOrderFormView();
+      showToast('Deleted order entry.');
+      try {
+        await gas('deleteOrderForm', id);
+      } catch (err) {
+        console.warn('deleteOrderForm error:', err);
+      }
+      await refreshData();
+    });
+  }
+
+  async function convertOrderToInvoice(orderId) {
+    const order = (state.data.orderForms || []).find(o => o.OrderId === orderId);
+    if (!order) {
+      showToast('Order not found.');
+      return;
+    }
+
+    let items = [];
+    try {
+      items = typeof order.ItemsJson === 'string' ? JSON.parse(order.ItemsJson) : (order.ItemsJson || []);
+    } catch (e) {}
+
+    // Prepare draft invoice
+    const invId = 'INV-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+    const defComp = (state.data.companyProfiles || []).find(c => c.IsDefault === 'Yes') || (state.data.companyProfiles || [])[0];
+
+    const newInvoice = {
+      InvoiceId: invId,
+      InvoiceNo: 'INV-' + String((state.data.invoices || []).length + 1001),
+      CustomerId: order.CustomerId || '',
+      CustomerName: order.CustomerName || '',
+      CustomerPhone: order.CustomerPhone || '',
+      CustomerAddress: order.CustomerAddress || '',
+      SalesPerson: order.SalesOfficerName || '',
+      Date: state.data.today || new Date().toISOString().slice(0, 10),
+      DueDate: state.data.today || new Date().toISOString().slice(0, 10),
+      Status: 'Unpaid',
+      Subtotal: order.TotalAmount || 0,
+      Discount: 0,
+      TaxAmount: 0,
+      Total: order.TotalAmount || 0,
+      PaidAmount: 0,
+      DispatchStatus: 'Pending',
+      CompanyId: defComp ? defComp.CompanyId : '',
+      Notes: `Converted from Order #${order.OrderNo || order.OrderId}. ${order.Notes || ''}`,
+      CreatedBy: state.user ? state.user.Name : 'System',
+      QuoteNo: order.OrderNo || order.OrderId
+    };
+
+    const newInvoiceItems = items.map((it, i) => ({
+      LineId: 'LN-' + Date.now() + '-' + (i + 1),
+      InvoiceId: invId,
+      ItemId: it.itemId || '',
+      ItemCode: it.sku || '',
+      ItemName: it.itemName || 'Item',
+      Qty: it.qty || 1,
+      UnitPrice: it.unitPrice || 0,
+      DiscountPercent: 0,
+      LineTotal: it.total || (it.unitPrice * it.qty)
+    }));
+
+    if (!state.data.invoices) state.data.invoices = [];
+    if (!state.data.invoiceItems) state.data.invoiceItems = [];
+    state.data.invoices.unshift(newInvoice);
+    state.data.invoiceItems.push(...newInvoiceItems);
+
+    // Update order status to Approved / Processing
+    order.Status = 'Approved';
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+
+    showToast('Order converted to Sales Invoice!');
+    navigate('invoices');
+
+    // Background sync
+    try {
+      await gas('saveInvoice', newInvoice);
+      await gas('saveOrderForm', order);
+    } catch (e) {
+      console.warn('Convert order background sync warning:', e);
+    }
+  }
+
+  function exportOrderFormsExcel() {
+    if (typeof XLSX === 'undefined') {
+      showToast('Excel exporter not loaded.');
+      return;
+    }
+    const orders = state.data.orderForms || [];
+    if (!orders.length) {
+      showToast('No orders to export.');
+      return;
+    }
+    const rows = orders.map(o => ({
+      'Order No': o.OrderNo || o.OrderId,
+      'Date': o.Date,
+      'Requested Delivery Date': o.RequestedDate,
+      'Customer Name': o.CustomerName,
+      'Customer Phone': o.CustomerPhone,
+      'Customer Address': o.CustomerAddress,
+      'Sales Officer': o.SalesOfficerName,
+      'Ordered Items': o.ItemsSummary || formatOrderItemsSummary(o.ItemsJson),
+      'Total Qty': o.TotalQty,
+      'Total Price': o.TotalAmount,
+      'Status': o.Status,
+      'Notes': o.Notes,
+      'Created By': o.CreatedBy
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'OrderForms');
+    XLSX.writeFile(wb, `Order_Forms_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
+
 
   function renderOutstandingView() {
     ensureDataDefaults();
@@ -13003,6 +13655,27 @@ CREATE TABLE IF NOT EXISTS "Quotations" (
   "CompanyId" TEXT DEFAULT '',
   "BillingAddress" TEXT DEFAULT '',
   "DataJson" TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS "OrderForms" (
+  "OrderId" TEXT PRIMARY KEY,
+  "OrderNo" TEXT DEFAULT '',
+  "Date" TEXT DEFAULT '',
+  "CustomerId" TEXT DEFAULT '',
+  "CustomerName" TEXT DEFAULT '',
+  "CustomerPhone" TEXT DEFAULT '',
+  "CustomerAddress" TEXT DEFAULT '',
+  "SalesOfficerId" TEXT DEFAULT '',
+  "SalesOfficerName" TEXT DEFAULT '',
+  "RequestedDate" TEXT DEFAULT '',
+  "Status" TEXT DEFAULT 'Pending',
+  "ItemsSummary" TEXT DEFAULT '',
+  "TotalQty" NUMERIC DEFAULT 0,
+  "TotalAmount" NUMERIC DEFAULT 0,
+  "ItemsJson" TEXT DEFAULT '[]',
+  "Notes" TEXT DEFAULT '',
+  "CreatedBy" TEXT DEFAULT '',
+  "CreatedAt" TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS "Inventory" (

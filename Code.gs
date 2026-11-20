@@ -15,6 +15,7 @@ const SCHEMA = {
   InvoiceItems: ['LineId', 'InvoiceId', 'ItemId', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal', 'ItemCode', 'DiscountPercent'],
   CompanyProfiles: ['CompanyId', 'CompanyName', 'Address', 'Phone', 'Email', 'Website', 'BankName', 'Branch', 'AccountNo', 'Logo', 'IsDefault', 'InvoicePrefix', 'NextInvoiceNo', 'QuotePrefix', 'NextQuoteNo', 'CreatedAt'],
   Quotations: ['QuotationId', 'QuotationNo', 'Date', 'CustomerId', 'CustomerName', 'BillingAddress', 'Description', 'TotalAmount', 'Status', 'DataJson', 'CompanyId', 'CreatedBy', 'CreatedAt'],
+  OrderForms: ['OrderId', 'OrderNo', 'Date', 'CustomerId', 'CustomerName', 'CustomerPhone', 'CustomerAddress', 'SalesOfficerId', 'SalesOfficerName', 'RequestedDate', 'Status', 'ItemsSummary', 'TotalQty', 'TotalAmount', 'ItemsJson', 'Notes', 'CreatedBy', 'CreatedAt'],
   Creditors: ['CreditorId', 'SupplierName', 'BillNo', 'Date', 'DueDate', 'TotalAmount', 'PaidAmount', 'Status', 'Notes'],
   PettyCash: ['PcId', 'VoucherNo', 'Date', 'Type', 'Category', 'Description', 'PaidTo', 'ReceiptNo', 'Amount', 'RecordedBy'],
   CallReports: ['CallId', 'ReportType', 'DataJson', 'CreatedBy', 'CreatedAt'],
@@ -62,6 +63,7 @@ function doPost(e) {
       saveCustomer, deleteCustomer,
       saveCompanyProfile, deleteCompanyProfile,
       saveQuotation, deleteQuotation,
+      saveOrderForm, deleteOrderForm,
       saveInventoryItem, deleteInventoryItem,
       saveInvoice, deleteInvoice, updateInvoicePayment, dispatchInvoice,
       saveCreditor, deleteCreditor,
@@ -535,6 +537,7 @@ function getAppData() {
     savedReports: readFromSheet('SavedReports'),
     companyProfiles: dedupeRows_(readFromSheet('CompanyProfiles'), 'CompanyId'),
     quotations: dedupeRows_(readFromSheet('Quotations'), 'QuotationId'),
+    orderForms: dedupeRows_(readFromSheet('OrderForms'), 'OrderId'),
     today: todayStr_()
   };
 }
@@ -1304,6 +1307,30 @@ function saveQuotation(q) {
 function deleteQuotation(id) {
   return withLock_(() => {
     return deleteRowByKey_('Quotations', 'QuotationId', id);
+  });
+}
+
+function saveOrderForm(order) {
+  return withLock_(() => {
+    order.Date = order.Date || todayStr_();
+    order.Status = order.Status || 'Pending';
+    order.CreatedAt = order.CreatedAt || todayStr_();
+    if (!order.OrderNo) {
+      const existing = readSheetObjects_('OrderForms');
+      const nums = existing.map(x => {
+        const m = String(x.OrderNo || '').match(/\d+/);
+        return m ? parseInt(m[0], 10) : 0;
+      }).filter(n => !isNaN(n) && n > 0);
+      const nextNum = nums.length ? Math.max(...nums) + 1 : (existing.length + 101);
+      order.OrderNo = 'ORD-' + String(nextNum).padStart(4, '0');
+    }
+    return upsertRowByKey_('OrderForms', 'OrderId', order.OrderId, order, 'ORD');
+  });
+}
+
+function deleteOrderForm(id) {
+  return withLock_(() => {
+    return deleteRowByKey_('OrderForms', 'OrderId', id);
   });
 }
 

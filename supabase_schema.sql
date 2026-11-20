@@ -152,6 +152,29 @@ CREATE TABLE IF NOT EXISTS "Quotations" (
 );
 ALTER TABLE "Quotations" DISABLE ROW LEVEL SECURITY;
 
+-- Table: "OrderForms"
+CREATE TABLE IF NOT EXISTS "OrderForms" (
+  "OrderId" TEXT PRIMARY KEY,
+  "OrderNo" TEXT DEFAULT '',
+  "Date" TEXT DEFAULT '',
+  "CustomerId" TEXT DEFAULT '',
+  "CustomerName" TEXT DEFAULT '',
+  "CustomerPhone" TEXT DEFAULT '',
+  "CustomerAddress" TEXT DEFAULT '',
+  "SalesOfficerId" TEXT DEFAULT '',
+  "SalesOfficerName" TEXT DEFAULT '',
+  "RequestedDate" TEXT DEFAULT '',
+  "Status" TEXT DEFAULT 'Pending',
+  "ItemsSummary" TEXT DEFAULT '',
+  "TotalQty" NUMERIC DEFAULT 0,
+  "TotalAmount" NUMERIC DEFAULT 0,
+  "ItemsJson" TEXT DEFAULT '[]',
+  "Notes" TEXT DEFAULT '',
+  "CreatedBy" TEXT DEFAULT '',
+  "CreatedAt" TEXT DEFAULT ''
+);
+ALTER TABLE "OrderForms" DISABLE ROW LEVEL SECURITY;
+
 -- Table: "Creditors"
 CREATE TABLE IF NOT EXISTS "Creditors" (
   "CreditorId" TEXT PRIMARY KEY,
