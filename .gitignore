@@ -2,6 +2,16 @@
 preview.html
 .clasprc.json
 node_modules/
+**/node_modules/
 
 # Local Netlify folder
 .netlify
+
+# Desktop Client & Server build artifacts
+server/node.exe
+server/data/
+client-desktop/dist/
+installers/
+*.zip
+write_bats.py
+
