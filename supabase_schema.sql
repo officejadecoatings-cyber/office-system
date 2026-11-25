@@ -42,6 +42,18 @@ CREATE TABLE IF NOT EXISTS "Customers" (
 );
 ALTER TABLE "Customers" DISABLE ROW LEVEL SECURITY;
 
+-- Table: "Suppliers"
+CREATE TABLE IF NOT EXISTS "Suppliers" (
+  "SupplierId" TEXT PRIMARY KEY,
+  "Name" TEXT DEFAULT '',
+  "BrNumber" TEXT DEFAULT '',
+  "Address" TEXT DEFAULT '',
+  "Phone" TEXT DEFAULT '',
+  "Email" TEXT DEFAULT '',
+  "CreatedAt" TEXT DEFAULT ''
+);
+ALTER TABLE "Suppliers" DISABLE ROW LEVEL SECURITY;
+
 -- Table: "Inventory"
 CREATE TABLE IF NOT EXISTS "Inventory" (
   "ItemId" TEXT PRIMARY KEY,

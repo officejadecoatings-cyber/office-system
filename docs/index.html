@@ -810,6 +810,7 @@
         <button class="nav-item" data-view="projectReport" onclick="navigate('projectReport')">🏗️ Project Report</button>
         <button class="nav-item" data-view="pettyCash" onclick="navigate('pettyCash')">💵 Petty Cash</button>
         <button class="nav-item" data-view="customers" onclick="navigate('customers')">👥 Customers</button>
+        <button class="nav-item" data-view="suppliers" onclick="navigate('suppliers')">🏭 Suppliers</button>
         <button class="nav-item" data-view="companyProfile" onclick="navigate('companyProfile')">🏢 Company Profile</button>
         <button class="nav-item" data-view="employees" onclick="navigate('employees')">🧑‍💼 Employees</button>
         <button class="nav-item" data-view="painterTraining" onclick="navigate('painterTraining')">🎨 Painter Training</button>
@@ -875,6 +876,7 @@
       settings: {},
       users: [],
       customers: [],
+      suppliers: [],
       inventory: [],
       invoices: [],
       invoiceItems: [],
@@ -936,9 +938,9 @@
       return tabs;
     }
     if (isRashiniFernando()) return ['callreport', 'projectreport', 'pettycash', 'settings'];
-    if (isShihaniNuwanthi()) return ['dashboard', 'sales', 'invoices', 'quotation', 'orderform', 'outstanding', 'inventory', 'callreport', 'projectreport', 'pettycash', 'customers', 'companyprofile', 'employees', 'paintertraining', 'reports', 'import', 'settings'];
-    if (state.user.Role === 'Manager') return ['dashboard', 'sales', 'invoices', 'quotation', 'orderform', 'outstanding', 'customers', 'employees', 'reports', 'settings'];
-    return ['dashboard', 'sales', 'invoices', 'quotation', 'orderform', 'outstanding', 'inventory', 'customers', 'companyprofile', 'employees', 'paintertraining', 'reports', 'import', 'settings'];
+    if (isShihaniNuwanthi()) return ['dashboard', 'sales', 'invoices', 'quotation', 'orderform', 'outstanding', 'inventory', 'callreport', 'projectreport', 'pettycash', 'customers', 'suppliers', 'companyprofile', 'employees', 'paintertraining', 'reports', 'import', 'settings'];
+    if (state.user.Role === 'Manager') return ['dashboard', 'sales', 'invoices', 'quotation', 'orderform', 'outstanding', 'customers', 'suppliers', 'employees', 'reports', 'settings'];
+    return ['dashboard', 'sales', 'invoices', 'quotation', 'orderform', 'outstanding', 'inventory', 'customers', 'suppliers', 'companyprofile', 'employees', 'paintertraining', 'reports', 'import', 'settings'];
   }
 
   function isTabAllowedForUser(tabName) {
@@ -993,6 +995,8 @@
   const ACTION_TABLE_MAP = {
     saveCustomer: { table: 'Customers', key: 'CustomerId', prefix: 'CUST', prop: 'customers' },
     deleteCustomer: { table: 'Customers', key: 'CustomerId', prop: 'customers' },
+    saveSupplier: { table: 'Suppliers', key: 'SupplierId', prefix: 'SUP', prop: 'suppliers' },
+    deleteSupplier: { table: 'Suppliers', key: 'SupplierId', prop: 'suppliers' },
     saveInventoryItem: { table: 'Inventory', key: 'ItemId', prefix: 'ITEM', prop: 'inventory' },
     deleteInventoryItem: { table: 'Inventory', key: 'ItemId', prop: 'inventory' },
     saveInvoice: { table: 'Invoices', key: 'InvoiceId', prefix: 'INV', prop: 'invoices', isInvoice: true },
@@ -1112,7 +1116,7 @@
       if (!this.isReady()) throw new Error('Supabase not configured');
       const tables = [
         'Settings', 'Users', 'Customers', 'Inventory', 'Invoices', 'InvoiceItems',
-        'CompanyProfiles', 'Quotations', 'OrderForms', 'OrderFormItems', 'Creditors', 'PettyCash', 'CallReports',
+        'CompanyProfiles', 'Quotations', 'OrderForms', 'OrderFormItems', 'Creditors', 'Suppliers', 'PettyCash', 'CallReports',
         'ProjectReports', 'PainterQuotations', 'PainterBillBalances', 'PainterParticipants',
         'Employees', 'CustomTabs', 'CustomTabRows', 'Transactions', 'Attendance',
         'Leaves', 'Tasks', 'SavedReports'
@@ -1388,6 +1392,7 @@
         { t: 'CompanyProfiles', d: stateData.companyProfiles || [] },
         { t: 'Quotations', d: stateData.quotations || [] },
         { t: 'Creditors', d: stateData.creditors || [] },
+        { t: 'Suppliers', d: stateData.suppliers || [] },
         { t: 'PettyCash', d: stateData.pettyCash || [] },
         { t: 'CallReports', d: stateData.callReports || [] },
         { t: 'ProjectReports', d: stateData.projectReports || [] },
@@ -2145,6 +2150,7 @@
       projectReport: 'Project Report',
       pettyCash: 'Petty Cash Book',
       customers: 'Customers',
+      suppliers: 'Suppliers',
       employees: 'Employees, Attendance & Leave',
       painterTraining: 'Painter Training',
       inventory: 'Stock Management',
@@ -2167,6 +2173,7 @@
       projectReport: renderProjectReportsView,
       pettyCash: renderPettyCashView,
       customers: renderCustomersView,
+      suppliers: renderSuppliersView,
       employees: renderEmployeesView,
       painterTraining: renderPainterTrainingView,
       inventory: renderInventoryView,
@@ -3784,7 +3791,11 @@
     if (!state.data.quotations || !Array.isArray(state.data.quotations)) {
       state.data.quotations = [];
     }
+    if (!state.data.suppliers || !Array.isArray(state.data.suppliers)) {
+      state.data.suppliers = [];
+    }
     if (!state.data.settings) state.data.settings = {};
+    if (!state.data.settings.NextSupplierSeq) state.data.settings.NextSupplierSeq = '1';
     if (!state.data.settings.NextInvoiceNo) state.data.settings.NextInvoiceNo = '1001';
     if (!state.data.settings.InvoicePrefix) state.data.settings.InvoicePrefix = 'INV-';
     if (!state.data.settings.NextQuoteNo) state.data.settings.NextQuoteNo = '754';
@@ -12894,6 +12905,610 @@
   }
 
   /* ==========================================================================
+   * 4B. Suppliers (Vendors)
+   * ======================================================================== */
+
+  let _supSearch = '';
+  let _supFilter = { search: '', status: 'all', startDate: '', endDate: '' };
+  let _supSortField = 'Name'; // 'Name' or 'SupplierId'
+  let _supSortDir = 'asc';    // 'asc' or 'desc'
+
+  function generateNextSupplierId() {
+    ensureDataDefaults();
+    let nextSeq = parseInt(state.data.settings.NextSupplierSeq, 10) || 1;
+    const suppliers = state.data.suppliers || [];
+    suppliers.forEach(s => {
+      const m = String(s.SupplierId || '').match(/^SUP-(\d+)$/i);
+      if (m) {
+        const num = parseInt(m[1], 10);
+        if (num >= nextSeq) nextSeq = num + 1;
+      }
+    });
+    return 'SUP-' + String(nextSeq).padStart(4, '0');
+  }
+
+  function getSupplierPayableInfo(supplier) {
+    if (!supplier) return { totalBills: 0, totalAmount: 0, totalPaid: 0, balance: 0, pendingBillsCount: 0, bills: [] };
+    const creditors = state.data.creditors || [];
+    const sName = (supplier.Name || '').trim().toLowerCase();
+    const sId = (supplier.SupplierId || '').trim().toLowerCase();
+
+    const matchedBills = creditors.filter(c => {
+      const cSup = (c.SupplierName || '').trim().toLowerCase();
+      const cId = (c.SupplierId || '').trim().toLowerCase();
+      return (sId && cId === sId) || (sName && cSup === sName);
+    });
+
+    let totalAmount = 0;
+    let totalPaid = 0;
+    let pendingBillsCount = 0;
+
+    matchedBills.forEach(b => {
+      const tot = Number(b.TotalAmount) || 0;
+      const paid = Number(b.PaidAmount) || 0;
+      totalAmount += tot;
+      totalPaid += paid;
+      if (tot - paid > 0.01) {
+        pendingBillsCount++;
+      }
+    });
+
+    const balance = Math.max(0, Math.round((totalAmount - totalPaid) * 100) / 100);
+    return {
+      totalBills: matchedBills.length,
+      totalAmount,
+      totalPaid,
+      balance,
+      pendingBillsCount,
+      bills: matchedBills
+    };
+  }
+
+  function onSupplierSearchInput(val) {
+    _supFilter.search = val;
+    renderSuppliersTableBody();
+  }
+
+  function setSupplierFilterStatus(val) {
+    _supFilter.status = val;
+    renderSuppliersTableBody();
+  }
+
+  function setSupplierDateFilter(key, val) {
+    _supFilter[key] = val;
+    renderSuppliersTableBody();
+  }
+
+  function resetSupplierFilters() {
+    _supFilter = { search: '', status: 'all', startDate: '', endDate: '' };
+    _supSortField = 'Name';
+    _supSortDir = 'asc';
+    renderSuppliersView();
+  }
+
+  function setSupplierSort(val) {
+    if (!val) return;
+    const parts = val.split('_');
+    _supSortField = parts[0] || 'Name';
+    _supSortDir = parts[1] || 'asc';
+    renderSuppliersTableBody();
+  }
+
+  function sortSupplierTable(field) {
+    if (_supSortField === field) {
+      _supSortDir = _supSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      _supSortField = field;
+      _supSortDir = 'asc';
+    }
+    renderSuppliersTableBody();
+  }
+
+  function renderSuppliersTableBody() {
+    const tbody = document.querySelector('#supTable tbody');
+    if (!tbody) {
+      renderSuppliersView();
+      return;
+    }
+    let sups = Array.isArray(state.data.suppliers) ? [...state.data.suppliers] : [];
+
+    // Filter by text search
+    if (_supFilter.search) {
+      const q = _supFilter.search.toLowerCase().trim();
+      sups = sups.filter(s =>
+        (s.Name || '').toLowerCase().includes(q) ||
+        (s.SupplierId || '').toLowerCase().includes(q) ||
+        (s.BrNumber || '').toLowerCase().includes(q) ||
+        (s.Phone || '').toLowerCase().includes(q) ||
+        (s.Email || '').toLowerCase().includes(q) ||
+        (s.Address || '').toLowerCase().includes(q)
+      );
+    }
+
+    // Filter by selective Start Date
+    if (_supFilter.startDate) {
+      sups = sups.filter(s => {
+        const d = (s.CreatedAt || '').slice(0, 10);
+        return !d || d >= _supFilter.startDate;
+      });
+    }
+
+    // Filter by selective End Date
+    if (_supFilter.endDate) {
+      sups = sups.filter(s => {
+        const d = (s.CreatedAt || '').slice(0, 10);
+        return !d || d <= _supFilter.endDate;
+      });
+    }
+
+    // Filter by Status (outstanding / settled)
+    if (_supFilter.status === 'with_outstanding') {
+      sups = sups.filter(s => getSupplierPayableInfo(s).balance > 0.01);
+    } else if (_supFilter.status === 'settled') {
+      sups = sups.filter(s => getSupplierPayableInfo(s).balance <= 0.01);
+    }
+
+    // Sort by field and direction
+    sups.sort((a, b) => {
+      let va = '';
+      let vb = '';
+      if (_supSortField === 'SupplierId') {
+        va = String(a.SupplierId || '').trim();
+        vb = String(b.SupplierId || '').trim();
+      } else {
+        va = String(a.Name || '').trim();
+        vb = String(b.Name || '').trim();
+      }
+      const comp = va.localeCompare(vb, undefined, { numeric: true, sensitivity: 'base' });
+      return _supSortDir === 'asc' ? comp : -comp;
+    });
+
+    tbody.innerHTML = sups.map(s => {
+      const info = getSupplierPayableInfo(s);
+      const hasBalance = info.balance > 0.01;
+      return `
+        <tr>
+          <td><b>${esc(s.SupplierId || '-')}</b></td>
+          <td>
+            <b style="font-size:13.5px; color:var(--text);">${esc(s.Name)}</b>
+            ${s.Address ? `<div style="font-size:11px; color:var(--muted); margin-top:2px;">📍 ${esc(s.Address)}</div>` : ''}
+          </td>
+          <td>
+            <span style="font-family:monospace; font-weight:600; color:#475569; background:#f1f5f9; padding:2px 6px; border-radius:4px; font-size:11.5px;">
+              ${esc(s.BrNumber || '-')}
+            </span>
+          </td>
+          <td>${esc(s.Address || '-')}</td>
+          <td>
+            ${s.Phone ? `<div>📞 <b>${esc(s.Phone)}</b></div>` : ''}
+            ${s.Email ? `<div style="font-size:11px; color:var(--muted);">✉️ ${esc(s.Email)}</div>` : ''}
+            ${!s.Phone && !s.Email ? '-' : ''}
+          </td>
+          <td>
+            <div><b>${fmtMoney(info.balance)}</b></div>
+            ${hasBalance 
+              ? `<span class="badge badge-warning" style="font-size:10px;">Pending (${info.pendingBillsCount} bills)</span>` 
+              : `<span class="badge badge-success" style="font-size:10px;">Settled</span>`}
+          </td>
+          <td style="font-size:12px; color:var(--muted);">${esc(s.CreatedAt || '-')}</td>
+          <td>
+            <div style="display:flex; gap:4px; flex-wrap:wrap;">
+              <button class="btn btn-sm btn-secondary" onclick="openSupplierModal('${esc(s.SupplierId)}')">Edit</button>
+              <button class="btn btn-sm btn-info" onclick="openSupplierBillsModal('${esc(s.SupplierId)}')">Bills (${info.totalBills})</button>
+              <button class="btn btn-sm btn-danger" onclick="removeSupplier('${esc(s.SupplierId)}')">Del</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('') || '<tr><td colspan="8" style="color:var(--muted); text-align:center; padding:24px;">No suppliers found matching your filter criteria.</td></tr>';
+
+    // Update table header sort indicators
+    const idHeader = document.getElementById('thSupId');
+    const nameHeader = document.getElementById('thSupName');
+    const sortSelect = document.getElementById('selSupSort');
+
+    if (idHeader) {
+      idHeader.innerHTML = `Supplier ID <span style="font-size:11px; color:var(--primary);">${_supSortField === 'SupplierId' ? (_supSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕'}</span>`;
+    }
+    if (nameHeader) {
+      nameHeader.innerHTML = `Supplier Name <span style="font-size:11px; color:var(--primary);">${_supSortField === 'Name' ? (_supSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕'}</span>`;
+    }
+    if (sortSelect) {
+      sortSelect.value = `${_supSortField}_${_supSortDir}`;
+    }
+  }
+
+  function renderSuppliersView() {
+    ensureDataDefaults();
+    const sortVal = `${_supSortField}_${_supSortDir}`;
+    const sups = state.data.suppliers || [];
+
+    // Calculate metrics
+    const totalSuppliersCount = sups.length;
+    let suppliersWithOutstanding = 0;
+    let totalPayableAmount = 0;
+
+    sups.forEach(s => {
+      const info = getSupplierPayableInfo(s);
+      if (info.balance > 0.01) {
+        suppliersWithOutstanding++;
+      }
+      totalPayableAmount += info.balance;
+    });
+
+    const content = document.getElementById('mainContent');
+    content.innerHTML = `
+      <div class="content-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+        <div>
+          <h2>🏭 Suppliers</h2>
+          <p style="color:var(--muted); font-size:13px; margin-top:2px;">Manage registered suppliers, business registration records and payable balances</p>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-primary" onclick="openSupplierModal()">+ Add Supplier</button>
+          <button class="btn btn-secondary" onclick="exportSuppliersExcel()">⬇ Export Excel</button>
+        </div>
+      </div>
+
+      <!-- Top KPI Summary Cards -->
+      <div class="grid grid-3" style="margin-bottom:16px; display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px;">
+        <div class="card" style="padding:16px; border-left:4px solid var(--primary); background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+          <div style="font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Total Suppliers</div>
+          <div style="font-size:26px; font-weight:800; color:var(--primary); margin-top:4px;">${totalSuppliersCount}</div>
+          <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">Active registered vendors</div>
+        </div>
+
+        <div class="card" style="padding:16px; border-left:4px solid #f59e0b; background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+          <div style="font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Suppliers with Outstanding</div>
+          <div style="font-size:26px; font-weight:800; color:#d97706; margin-top:4px;">${suppliersWithOutstanding}</div>
+          <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">Vendors with pending payable bills</div>
+        </div>
+
+        <div class="card" style="padding:16px; border-left:4px solid #ef4444; background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+          <div style="font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Total Outstanding Payable</div>
+          <div style="font-size:24px; font-weight:800; color:#dc2626; margin-top:4px;">${fmtMoney(totalPayableAmount)}</div>
+          <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">Cumulative pending supplier dues</div>
+        </div>
+      </div>
+
+      <!-- Filters Bar -->
+      <div class="card" style="padding:14px; margin-bottom:16px; background:#fff; border-radius:8px;">
+        <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+          <div style="flex:2; min-width:220px;">
+            <label style="font-size:11px; font-weight:700; color:var(--muted); margin-bottom:4px; display:block;">Search</label>
+            <input type="text" class="form-control" id="supSearchInput" placeholder="Search by name, supplier ID, BR number, phone..."
+                   value="${esc(_supFilter.search)}" oninput="onSupplierSearchInput(this.value)">
+          </div>
+
+          <div style="flex:1; min-width:140px;">
+            <label style="font-size:11px; font-weight:700; color:var(--muted); margin-bottom:4px; display:block;">Payment Status</label>
+            <select class="form-control" onchange="setSupplierFilterStatus(this.value)">
+              <option value="all" ${_supFilter.status === 'all' ? 'selected' : ''}>All Suppliers</option>
+              <option value="with_outstanding" ${_supFilter.status === 'with_outstanding' ? 'selected' : ''}>With Outstanding Only</option>
+              <option value="settled" ${_supFilter.status === 'settled' ? 'selected' : ''}>Fully Settled</option>
+            </select>
+          </div>
+
+          <div style="flex:1; min-width:130px;">
+            <label style="font-size:11px; font-weight:700; color:var(--muted); margin-bottom:4px; display:block;">Start Date</label>
+            <input type="date" class="form-control" id="supStartDate" value="${esc(_supFilter.startDate)}" 
+                   onchange="setSupplierDateFilter('startDate', this.value)">
+          </div>
+
+          <div style="flex:1; min-width:130px;">
+            <label style="font-size:11px; font-weight:700; color:var(--muted); margin-bottom:4px; display:block;">End Date</label>
+            <input type="date" class="form-control" id="supEndDate" value="${esc(_supFilter.endDate)}" 
+                   onchange="setSupplierDateFilter('endDate', this.value)">
+          </div>
+
+          <div style="display:inline-flex; flex-direction:column; min-width:170px;">
+            <label style="font-size:11px; font-weight:700; color:var(--muted); margin-bottom:4px; display:block;">Sort By</label>
+            <select id="selSupSort" class="form-control" onchange="setSupplierSort(this.value)">
+              <option value="Name_asc" ${sortVal === 'Name_asc' ? 'selected' : ''}>Name (A → Z)</option>
+              <option value="Name_desc" ${sortVal === 'Name_desc' ? 'selected' : ''}>Name (Z → A)</option>
+              <option value="SupplierId_asc" ${sortVal === 'SupplierId_asc' ? 'selected' : ''}>Supplier ID (Ascending)</option>
+              <option value="SupplierId_desc" ${sortVal === 'SupplierId_desc' ? 'selected' : ''}>Supplier ID (Descending)</option>
+            </select>
+          </div>
+
+          <div>
+            <button class="btn btn-sm btn-secondary" onclick="resetSupplierFilters()" style="height:36px; padding:0 14px;">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Suppliers Table -->
+      <div class="card table-wrap" style="padding:0; overflow:hidden; border-radius:8px;">
+        <table id="supTable">
+          <thead>
+            <tr>
+              <th id="thSupId" style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="sortSupplierTable('SupplierId')" title="Click to sort by Supplier ID">
+                Supplier ID <span style="font-size:11px; color:var(--primary);">${_supSortField === 'SupplierId' ? (_supSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕'}</span>
+              </th>
+              <th id="thSupName" style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="sortSupplierTable('Name')" title="Click to sort by Name">
+                Supplier Name <span style="font-size:11px; color:var(--primary);">${_supSortField === 'Name' ? (_supSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕'}</span>
+              </th>
+              <th>BR Number</th>
+              <th>Address</th>
+              <th>Phone / Email</th>
+              <th>Payable Balance</th>
+              <th>Registered Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    `;
+
+    renderSuppliersTableBody();
+  }
+
+  function openSupplierModal(supplierId) {
+    ensureDataDefaults();
+    const isEdit = !!supplierId;
+    const s = isEdit 
+      ? ((state.data.suppliers || []).find(x => x.SupplierId === supplierId) || {})
+      : {
+          SupplierId: generateNextSupplierId(),
+          Name: '',
+          BrNumber: '',
+          Address: '',
+          Phone: '',
+          Email: '',
+          CreatedAt: state.data.today || new Date().toISOString().slice(0, 10)
+        };
+
+    const assignedId = s.SupplierId || generateNextSupplierId();
+
+    openModal(
+      isEdit ? `Edit Supplier (${esc(assignedId)})` : 'Add New Supplier',
+      `
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-weight:700; color:var(--text); margin-bottom:4px; display:block;">
+            Supplier ID (Primary Key)
+            <span style="font-size:11px; font-weight:normal; color:#059669; margin-left:6px;">✓ Auto-Generated & Permanent</span>
+          </label>
+          <input id="fSupId" value="${esc(assignedId)}" disabled 
+                 style="background:#f1f5f9; font-weight:700; color:#0f766e; cursor:not-allowed; border:1px solid #cbd5e1;">
+          <div style="font-size:11px; color:var(--muted); margin-top:3px;">
+            System-generated unique primary key. This ID cannot be reused even if this supplier is later deleted.
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-weight:700; color:var(--text); margin-bottom:4px; display:block;">
+            Supplier Name <span style="color:var(--danger);">*</span>
+          </label>
+          <input id="fSupName" value="${esc(s.Name || '')}" placeholder="e.g. Lanka Chemical Industries (Pvt) Ltd" autocomplete="off">
+        </div>
+
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-weight:700; color:var(--text); margin-bottom:4px; display:block;">
+            Business Registration Number (BR No) <span style="color:var(--danger);">*</span>
+          </label>
+          <input id="fSupBr" value="${esc(s.BrNumber || '')}" placeholder="e.g. PV-12345 / W-65432" autocomplete="off">
+        </div>
+
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-weight:700; color:var(--text); margin-bottom:4px; display:block;">
+            Address <span style="color:var(--danger);">*</span>
+          </label>
+          <textarea id="fSupAddress" rows="2" placeholder="e.g. No. 45, Industrial Zone, Biyagama">${esc(s.Address || '')}</textarea>
+        </div>
+
+        <div class="form-row" style="display:flex; gap:12px; margin-bottom:12px;">
+          <div class="form-group" style="flex:1;">
+            <label style="font-weight:700; color:var(--text); margin-bottom:4px; display:block;">
+              Phone / Contact Number <span style="color:var(--danger);">*</span>
+            </label>
+            <input id="fSupPhone" value="${esc(s.Phone || '')}" placeholder="e.g. 011 234 5678 / 077 123 4567">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label style="font-weight:700; color:var(--text); margin-bottom:4px; display:block;">
+              Email Address <span style="font-size:11px; font-weight:normal; color:var(--muted);">(Optional)</span>
+            </label>
+            <input type="email" id="fSupEmail" value="${esc(s.Email || '')}" placeholder="e.g. accounts@supplier.com">
+          </div>
+        </div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" onclick="submitSupplierModal('${esc(supplierId || '')}')">${isEdit ? 'Update Supplier' : 'Save Supplier'}</button>`
+    );
+  }
+
+  async function submitSupplierModal(existingId) {
+    const name = document.getElementById('fSupName')?.value.trim();
+    const brNumber = document.getElementById('fSupBr')?.value.trim();
+    const address = document.getElementById('fSupAddress')?.value.trim();
+    const phone = document.getElementById('fSupPhone')?.value.trim();
+    const email = document.getElementById('fSupEmail')?.value.trim();
+
+    if (!name) {
+      showToast('Please enter Supplier Name.');
+      return;
+    }
+    if (!brNumber) {
+      showToast('Please enter Business Registration Number.');
+      return;
+    }
+    if (!address) {
+      showToast('Please enter Address.');
+      return;
+    }
+    if (!phone) {
+      showToast('Please enter Phone / Contact Number.');
+      return;
+    }
+
+    const isNew = !existingId;
+    let assignedId = existingId;
+
+    if (isNew) {
+      assignedId = generateNextSupplierId();
+      // Advance NextSupplierSeq immediately so even if deleted, it is never generated again!
+      const m = assignedId.match(/^SUP-(\d+)$/i);
+      const num = m ? parseInt(m[1], 10) : 1;
+      const futureSeq = String(num + 1);
+      state.data.settings.NextSupplierSeq = futureSeq;
+      try {
+        localStorage.setItem('office_system_next_supplier_seq', futureSeq);
+      } catch (e) {}
+      // Sync NextSupplierSeq to Settings
+      gas('saveSettings', { Key: 'NextSupplierSeq', Value: futureSeq }).catch(err => console.warn(err));
+    }
+
+    const payload = {
+      SupplierId: assignedId,
+      Name: name,
+      BrNumber: brNumber,
+      Address: address,
+      Phone: phone,
+      Email: email,
+      CreatedAt: isNew ? (state.data.today || new Date().toISOString().slice(0, 10)) : undefined
+    };
+
+    // Optimistic local update
+    if (!Array.isArray(state.data.suppliers)) state.data.suppliers = [];
+    const idx = state.data.suppliers.findIndex(s => s.SupplierId === assignedId);
+    if (idx >= 0) {
+      state.data.suppliers[idx] = Object.assign({}, state.data.suppliers[idx], payload);
+    } else {
+      state.data.suppliers.push(payload);
+    }
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+
+    closeModal();
+    renderSuppliersView();
+    showToast(isNew ? 'Supplier added successfully!' : 'Supplier updated successfully!');
+
+    try {
+      await gas('saveSupplier', payload);
+    } catch (e) {
+      console.error('Save supplier error:', e);
+      showToast('Supplier saved locally. Background sync will retry.');
+    }
+  }
+
+  async function removeSupplier(id) {
+    if (!id) return;
+    verifyPinAndExecute('delete this supplier (' + id + ')', async () => {
+      markRecordAsDeleted(id);
+      if (state.data.suppliers) {
+        state.data.suppliers = state.data.suppliers.filter(s => String(s.SupplierId).trim() !== String(id).trim());
+      }
+      try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+      renderSuppliersView();
+      showToast('Supplier deleted. ID ' + id + ' retired permanently.');
+      try {
+        await gas('deleteSupplier', id);
+      } catch (e) {
+        console.error('Delete supplier error:', e);
+      }
+    });
+  }
+
+  function openSupplierBillsModal(supplierId) {
+    const s = (state.data.suppliers || []).find(x => x.SupplierId === supplierId);
+    if (!s) return;
+    const info = getSupplierPayableInfo(s);
+
+    const billsHtml = info.bills.map((b, idx) => {
+      const tot = Number(b.TotalAmount) || 0;
+      const paid = Number(b.PaidAmount) || 0;
+      const bal = Math.max(0, tot - paid);
+      return `
+        <tr>
+          <td>${idx + 1}</td>
+          <td><b>${esc(b.BillNo || '-')}</b></td>
+          <td>${esc(b.Date || '-')}</td>
+          <td>${esc(b.DueDate || '-')}</td>
+          <td style="text-align:right;">${fmtMoney(tot)}</td>
+          <td style="text-align:right; color:#059669;">${fmtMoney(paid)}</td>
+          <td style="text-align:right; font-weight:700; color:${bal > 0 ? '#dc2626' : '#059669'};">${fmtMoney(bal)}</td>
+          <td><span class="badge ${bal > 0 ? 'badge-warning' : 'badge-success'}">${bal > 0 ? 'Pending' : 'Paid'}</span></td>
+        </tr>
+      `;
+    }).join('') || '<tr><td colspan="8" style="text-align:center; color:var(--muted); padding:20px;">No bills recorded yet for this supplier.</td></tr>';
+
+    openModal(
+      `Payable Bills: ${esc(s.Name)} (${esc(s.SupplierId)})`,
+      `
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px; background:#f8fafc; padding:12px; border-radius:6px; border:1px solid #e2e8f0;">
+          <div>
+            <div style="font-size:12px; color:var(--muted);">Total Bills: <b>${info.totalBills}</b></div>
+            <div style="font-size:12px; color:var(--muted);">Total Bill Value: <b>${fmtMoney(info.totalAmount)}</b></div>
+          </div>
+          <div>
+            <div style="font-size:12px; color:#059669;">Total Paid: <b>${fmtMoney(info.totalPaid)}</b></div>
+            <div style="font-size:14px; font-weight:800; color:${info.balance > 0 ? '#dc2626' : '#059669'};">
+              Outstanding Balance: ${fmtMoney(info.balance)}
+            </div>
+          </div>
+        </div>
+
+        <div style="max-height:300px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:14px;">
+          <table class="table" style="width:100%; margin:0; font-size:12.5px;">
+            <thead>
+              <tr style="background:#f1f5f9;">
+                <th>#</th>
+                <th>Bill No</th>
+                <th>Bill Date</th>
+                <th>Due Date</th>
+                <th style="text-align:right;">Total</th>
+                <th style="text-align:right;">Paid</th>
+                <th style="text-align:right;">Balance</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${billsHtml}
+            </tbody>
+          </table>
+        </div>
+      `,
+      `<button class="btn btn-secondary" onclick="closeModal()">Close</button>
+       <button class="btn btn-primary" onclick="closeModal(); openCreditorModalForSupplier('${esc(s.Name)}', '${esc(s.SupplierId)}')">+ Record New Bill</button>`
+    );
+  }
+
+  function openCreditorModalForSupplier(supplierName, supplierId) {
+    navigate('outstanding');
+    setTimeout(() => {
+      openCreditorModal();
+      setTimeout(() => {
+        const inp = document.getElementById('fCrSup');
+        if (inp) inp.value = supplierName;
+      }, 50);
+    }, 100);
+  }
+
+  function exportSuppliersExcel() {
+    if (typeof XLSX === 'undefined') return;
+    const sups = state.data.suppliers || [];
+    const rows = sups.map(s => {
+      const info = getSupplierPayableInfo(s);
+      return {
+        'Supplier ID': s.SupplierId || '',
+        'Name': s.Name || '',
+        'BR Number': s.BrNumber || '',
+        'Address': s.Address || '',
+        'Phone': s.Phone || '',
+        'Email': s.Email || '',
+        'Total Bills': info.totalBills,
+        'Total Amount': info.totalAmount,
+        'Total Paid': info.totalPaid,
+        'Outstanding Balance': info.balance,
+        'Status': info.balance > 0 ? 'Pending' : 'Settled',
+        'Registered Date': s.CreatedAt || ''
+      };
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Suppliers');
+    XLSX.writeFile(wb, `Suppliers_${state.data.today || new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
+
+  /* ==========================================================================
    * 5. Employees, Attendance & Leave
    * ======================================================================== */
 
@@ -15179,6 +15794,7 @@
     { id: 'projectReport', label: '🏗️ Project Report' },
     { id: 'pettyCash', label: '💵 Petty Cash' },
     { id: 'customers', label: '👥 Customers' },
+    { id: 'suppliers', label: '🏭 Suppliers' },
     { id: 'companyProfile', label: '🏢 Company Profile' },
     { id: 'employees', label: '🧑‍💼 Employees' },
     { id: 'painterTraining', label: '🎨 Painter Training' },

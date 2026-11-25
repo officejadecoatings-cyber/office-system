@@ -10,6 +10,7 @@ const SCHEMA = {
   Settings: ['Key', 'Value'],
   Users: ['UserId', 'Name', 'Email', 'Role', 'Pin', 'Status', 'AllowedTabs', 'Avatar', 'NIC'],
   Customers: ['CustomerId', 'CustomerCode', 'Name', 'BusinessIdentifier', 'BillingAddress', 'DeliveryAddress', 'Email', 'Phone', 'CreditLimit', 'SalesOfficerId', 'SalesOfficerName', 'Notes', 'CreatedAt'],
+  Suppliers: ['SupplierId', 'Name', 'BrNumber', 'Address', 'Phone', 'Email', 'CreatedAt'],
   Inventory: ['ItemId', 'SKU', 'Name', 'Category', 'UnitPrice', 'StockQty', 'ReorderLevel', 'Unit', 'UpdatedAt'],
   Invoices: ['InvoiceId', 'InvoiceNo', 'CustomerId', 'CustomerName', 'Date', 'DueDate', 'Status', 'Subtotal', 'Discount', 'TaxAmount', 'Total', 'PaidAmount', 'Notes', 'CreatedBy', 'QuoteNo', 'SalesPerson', 'CustomerAddress', 'CustomerPhone', 'BankDetails', 'CompanyId', 'ChequeNo', 'ChequeBank', 'ChequeDate', 'ChequeAmount', 'RealisedDate', 'RealizedMonth', 'ReceiptNo', 'PaymentStatus', 'TokenAmount', 'ReturnAmount', 'DispatchStatus', 'DispatchedDate', 'DispatchedBy', 'PaymentsJson'],
   InvoiceItems: ['LineId', 'InvoiceId', 'ItemId', 'ItemName', 'Qty', 'UnitPrice', 'LineTotal', 'ItemCode', 'DiscountPercent'],
@@ -61,6 +62,7 @@ function doPost(e) {
     const allowed = {
       getLoginUsers, authenticateUser, getAppData,
       saveCustomer, deleteCustomer,
+      saveSupplier, deleteSupplier,
       saveCompanyProfile, deleteCompanyProfile,
       saveQuotation, deleteQuotation,
       saveOrderForm, deleteOrderForm,
@@ -538,6 +540,7 @@ function getAppData() {
     companyProfiles: dedupeRows_(readFromSheet('CompanyProfiles'), 'CompanyId'),
     quotations: dedupeRows_(readFromSheet('Quotations'), 'QuotationId'),
     orderForms: dedupeRows_(readFromSheet('OrderForms'), 'OrderId'),
+    suppliers: dedupeRows_(readFromSheet('Suppliers'), 'SupplierId'),
     today: todayStr_()
   };
 }
@@ -805,6 +808,81 @@ function deleteInvoice(invoiceId) {
     }
     return deleteRowByKey_('Invoices', 'InvoiceId', invoiceId);
   });
+}
+
+/* ============================================================================
+ * Suppliers (Vendors)
+ * ========================================================================== */
+
+function getNextSupplierId_() {
+  const ss = getSpreadsheet_();
+  const settingsSheet = ss.getSheetByName('Settings');
+  let nextSeq = 1;
+  let foundRow = -1;
+  if (settingsSheet) {
+    const data = settingsSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === 'NextSupplierSeq') {
+        nextSeq = parseInt(data[i][1], 10) || 1;
+        foundRow = i + 1;
+        break;
+      }
+    }
+  }
+
+  const supSheet = ss.getSheetByName('Suppliers');
+  if (supSheet && supSheet.getLastRow() > 1) {
+    const values = supSheet.getDataRange().getValues();
+    for (let i = 1; i < values.length; i++) {
+      const idStr = String(values[i][0] || '').trim();
+      const m = idStr.match(/^SUP-(\d+)$/i);
+      if (m) {
+        const num = parseInt(m[1], 10);
+        if (num >= nextSeq) {
+          nextSeq = num + 1;
+        }
+      }
+    }
+  }
+
+  const assignedId = 'SUP-' + String(nextSeq).padStart(4, '0');
+  const futureSeq = nextSeq + 1;
+  if (settingsSheet) {
+    if (foundRow > 0) {
+      settingsSheet.getRange(foundRow, 2).setValue(futureSeq);
+    } else {
+      settingsSheet.appendRow(['NextSupplierSeq', futureSeq]);
+    }
+  }
+  return assignedId;
+}
+
+function saveSupplier(supplier) {
+  return withLock_(() => {
+    supplier.Name = (supplier.Name || '').trim();
+    supplier.BrNumber = (supplier.BrNumber || '').trim();
+    supplier.Address = (supplier.Address || '').trim();
+    supplier.Phone = (supplier.Phone || '').trim();
+    supplier.Email = (supplier.Email || '').trim();
+    supplier.CreatedAt = supplier.CreatedAt || todayStr_();
+
+    const existing = readSheetObjects_('Suppliers');
+    const isExisting = supplier.SupplierId && existing.some(s => String(s.SupplierId).trim() === String(supplier.SupplierId).trim());
+    if (isExisting) {
+      updateRowByKey_('Suppliers', 'SupplierId', supplier.SupplierId, supplier);
+      return supplier;
+    }
+
+    if (!supplier.SupplierId) {
+      supplier.SupplierId = getNextSupplierId_();
+    }
+    appendRowObject_('Suppliers', supplier);
+    return supplier;
+  });
+}
+
+function deleteSupplier(id) {
+  return withLock_(() => deleteRowByKey_('Suppliers', 'SupplierId', id));
 }
 
 /* ============================================================================
@@ -1188,6 +1266,7 @@ function saveUser(user) {
 function importRecords(tableName, rows) {
   const allowed = {
     Customers: { prefix: 'CUS', dateField: 'CreatedAt' },
+    Suppliers: { prefix: 'SUP', dateField: 'CreatedAt' },
     Inventory: { prefix: 'ITM', dateField: 'UpdatedAt' },
     Employees: { prefix: 'EMP', dateField: 'JoinDate' },
     Transactions: { prefix: 'TX', dateField: null },
