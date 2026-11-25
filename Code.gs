@@ -549,12 +549,69 @@ function getAppData() {
  * Customers (CRM)
  * ========================================================================== */
 
+function getNextCustomerId_() {
+  const ss = getSpreadsheet_();
+  const settingsSheet = ss.getSheetByName('Settings');
+  let nextSeq = 1;
+  let foundRow = -1;
+  if (settingsSheet) {
+    const data = settingsSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === 'NextCustomerSeq') {
+        nextSeq = parseInt(data[i][1], 10) || 1;
+        foundRow = i + 1;
+        break;
+      }
+    }
+  }
+
+  const custSheet = ss.getSheetByName('Customers');
+  if (custSheet && custSheet.getLastRow() > 1) {
+    const values = custSheet.getDataRange().getValues();
+    for (let i = 1; i < values.length; i++) {
+      const idStr = String(values[i][0] || '').trim();
+      const m = idStr.match(/^CUS-(\d+)$/i);
+      if (m) {
+        const num = parseInt(m[1], 10);
+        if (num >= nextSeq) {
+          nextSeq = num + 1;
+        }
+      }
+    }
+  }
+
+  const assignedId = 'CUS-' + String(nextSeq).padStart(4, '0');
+  const futureSeq = nextSeq + 1;
+  if (settingsSheet) {
+    if (foundRow > 0) {
+      settingsSheet.getRange(foundRow, 2).setValue(futureSeq);
+    } else {
+      settingsSheet.appendRow(['NextCustomerSeq', futureSeq]);
+    }
+  }
+  return assignedId;
+}
+
 function saveCustomer(customer) {
   return withLock_(() => {
+    customer.Name = (customer.Name || '').trim();
     customer.CreditLimit = Number(customer.CreditLimit) || 0;
-    customer.CustomerCode = customer.CustomerCode || ('C-' + Math.floor(1000 + Math.random() * 9000));
     customer.CreatedAt = customer.CreatedAt || todayStr_();
-    return upsertRowByKey_('Customers', 'CustomerId', customer.CustomerId, customer, 'CUS');
+
+    const existing = readSheetObjects_('Customers');
+    const isExisting = customer.CustomerId && existing.some(c => String(c.CustomerId).trim() === String(customer.CustomerId).trim());
+    if (isExisting) {
+      customer.CustomerCode = customer.CustomerCode || customer.CustomerId;
+      updateRowByKey_('Customers', 'CustomerId', customer.CustomerId, customer);
+      return customer;
+    }
+
+    if (!customer.CustomerId) {
+      customer.CustomerId = getNextCustomerId_();
+    }
+    customer.CustomerCode = customer.CustomerId;
+    appendRowObject_('Customers', customer);
+    return customer;
   });
 }
 

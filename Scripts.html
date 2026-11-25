@@ -127,7 +127,7 @@
    * ======================================================================== */
 
   const ACTION_TABLE_MAP = {
-    saveCustomer: { table: 'Customers', key: 'CustomerId', prefix: 'CUST', prop: 'customers' },
+    saveCustomer: { table: 'Customers', key: 'CustomerId', prefix: 'CUS', prop: 'customers' },
     deleteCustomer: { table: 'Customers', key: 'CustomerId', prop: 'customers' },
     saveSupplier: { table: 'Suppliers', key: 'SupplierId', prefix: 'SUP', prop: 'suppliers' },
     deleteSupplier: { table: 'Suppliers', key: 'SupplierId', prop: 'suppliers' },
@@ -2930,6 +2930,7 @@
     }
     if (!state.data.settings) state.data.settings = {};
     if (!state.data.settings.NextSupplierSeq) state.data.settings.NextSupplierSeq = '1';
+    if (!state.data.settings.NextCustomerSeq) state.data.settings.NextCustomerSeq = '1';
     if (!state.data.settings.NextInvoiceNo) state.data.settings.NextInvoiceNo = '1001';
     if (!state.data.settings.InvoicePrefix) state.data.settings.InvoicePrefix = 'INV-';
     if (!state.data.settings.NextQuoteNo) state.data.settings.NextQuoteNo = '754';
@@ -3367,7 +3368,7 @@
 
     const existingCust = (state.data.customers || []).find(c => c.CustomerId === inv.CustomerId);
     const initialCustName = existingCust
-      ? `${existingCust.CustomerCode ? existingCust.CustomerCode + ' ' : ''}${existingCust.Name}`
+      ? `${(existingCust.CustomerId || existingCust.CustomerCode) ? (existingCust.CustomerId || existingCust.CustomerCode) + ' ' : ''}${existingCust.Name}`
       : (inv.CustomerName || '');
 
     const isNotDispatched = inv.DispatchStatus === 'Not Dispatched' || (inv.Notes && inv.Notes.includes('[DISPATCH:Not Dispatched]'));
@@ -3568,7 +3569,7 @@
     const lower = filterText.toLowerCase().trim();
     const list = (state.data.customers || []).filter(c => {
       if (!lower) return true;
-      const text = `${c.CustomerCode || ''} ${c.Name || ''} ${c.Company || ''} ${c.Phone || ''}`.toLowerCase();
+      const text = `${c.CustomerId || ''} ${c.CustomerCode || ''} ${c.Name || ''} ${c.Company || ''} ${c.Phone || ''}`.toLowerCase();
       return text.includes(lower);
     });
 
@@ -3578,7 +3579,7 @@
     }
 
     menu.innerHTML = list.map(c => {
-      const codeStr = c.CustomerCode ? `<span style="font-weight:700; color:#0f766e; margin-right:6px;">${esc(c.CustomerCode)}</span>` : '';
+      const codeStr = (c.CustomerId || c.CustomerCode) ? `<span style="font-weight:700; color:#0f766e; margin-right:6px;">${esc(c.CustomerId || c.CustomerCode)}</span>` : '';
       const compStr = c.Company ? ` <span style="color:#64748b; font-size:12px;">(${esc(c.Company)})</span>` : '';
       return `
         <div onclick="selectInvCust('${esc(c.CustomerId)}')" style="padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
@@ -3631,7 +3632,7 @@
       const idEl = document.getElementById('fInvCustId');
       const addrEl = document.getElementById('fInvCustAddr');
       const phoneEl = document.getElementById('fInvCustPhone');
-      const displayName = `${cust.CustomerCode ? cust.CustomerCode + ' ' : ''}${cust.Name}`;
+      const displayName = `${(cust.CustomerId || cust.CustomerCode) ? (cust.CustomerId || cust.CustomerCode) + ' ' : ''}${cust.Name}`;
       if (inputEl) inputEl.value = displayName;
       if (idEl) idEl.value = cust.CustomerId;
       if (addrEl) {
@@ -4871,24 +4872,22 @@
     return candidate;
   }
 
-  function generateNextCustomerCode() {
+  function generateNextCustomerId() {
+    ensureDataDefaults();
+    let nextSeq = parseInt(state.data.settings.NextCustomerSeq, 10) || 1;
     const custs = state.data.customers || [];
-    let maxNum = 680;
     custs.forEach(c => {
-      const s = String(c.CustomerCode || '').trim();
-      const m = s.match(/(\d+)/);
+      const m = String(c.CustomerId || '').match(/^CUS-(\d+)$/i);
       if (m) {
-        const n = parseInt(m[1], 10);
-        if (!isNaN(n) && n > maxNum) maxNum = n;
+        const num = parseInt(m[1], 10);
+        if (num >= nextSeq) nextSeq = num + 1;
       }
     });
-    let nextNum = maxNum + 1;
-    let candidate = String(nextNum);
-    while (custs.some(c => String(c.CustomerCode || '').trim().toLowerCase() === candidate.toLowerCase())) {
-      nextNum++;
-      candidate = String(nextNum);
-    }
-    return candidate;
+    return 'CUS-' + String(nextSeq).padStart(4, '0');
+  }
+
+  function generateNextCustomerCode() {
+    return generateNextCustomerId();
   }
 
   function generateNextEmployeeCode() {
@@ -5269,7 +5268,7 @@
     const lower = filterText.toLowerCase().trim();
     const list = (state.data.customers || []).filter(c => {
       if (!lower) return true;
-      const text = `${c.CustomerCode || ''} ${c.Name || ''} ${c.Company || ''} ${c.Phone || ''}`.toLowerCase();
+      const text = `${c.CustomerId || ''} ${c.CustomerCode || ''} ${c.Name || ''} ${c.Company || ''} ${c.Phone || ''}`.toLowerCase();
       return text.includes(lower);
     });
 
@@ -5279,7 +5278,7 @@
     }
 
     menu.innerHTML = list.map(c => {
-      const codeStr = c.CustomerCode ? `<span style="font-weight:700; color:#0f766e; margin-right:6px;">${esc(c.CustomerCode)}</span>` : '';
+      const codeStr = (c.CustomerId || c.CustomerCode) ? `<span style="font-weight:700; color:#0f766e; margin-right:6px;">${esc(c.CustomerId || c.CustomerCode)}</span>` : '';
       const compStr = c.Company ? ` <span style="color:#64748b; font-size:12px;">(${esc(c.Company)})</span>` : '';
       return `
         <div onclick="selectQuotCust('${esc(c.CustomerId)}')" style="padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
@@ -5331,7 +5330,7 @@
       const inputEl = document.getElementById('fQuotCustInput');
       const idEl = document.getElementById('fQuotCustId');
       const addrEl = document.getElementById('fQuotAddr');
-      const displayName = `${cust.CustomerCode ? cust.CustomerCode + ' ' : ''}${cust.Name}`;
+      const displayName = `${(cust.CustomerId || cust.CustomerCode) ? (cust.CustomerId || cust.CustomerCode) + ' ' : ''}${cust.Name}`;
       if (inputEl) inputEl.value = displayName;
       if (idEl) idEl.value = cust.CustomerId;
       if (addrEl) {
@@ -11744,8 +11743,8 @@
    * 4. Customers (CRM)
    * ======================================================================== */
 
-  let _custSortField = 'Name';
-  let _custSortDir = 'asc';
+  let _custSortField = 'Name'; // 'Name' or 'CustomerId'
+  let _custSortDir = 'asc';    // 'asc' or 'desc'
   let _custSearch = '';
 
   function sortCustomerTable(field) {
@@ -11784,6 +11783,7 @@
       const q = _custSearch.toLowerCase().trim();
       custs = custs.filter(c =>
         (c.Name || '').toLowerCase().includes(q) ||
+        (c.CustomerId || '').toLowerCase().includes(q) ||
         (c.CustomerCode || '').toLowerCase().includes(q) ||
         (c.BusinessIdentifier || '').toLowerCase().includes(q) ||
         (c.SalesOfficerName || '').toLowerCase().includes(q) ||
@@ -11796,9 +11796,9 @@
     custs.sort((a, b) => {
       let va = '';
       let vb = '';
-      if (_custSortField === 'CustomerCode') {
-        va = String(a.CustomerCode || a.CustomerId || '').trim();
-        vb = String(b.CustomerCode || b.CustomerId || '').trim();
+      if (_custSortField === 'CustomerId' || _custSortField === 'CustomerCode') {
+        va = String(a.CustomerId || a.CustomerCode || '').trim();
+        vb = String(b.CustomerId || b.CustomerCode || '').trim();
       } else {
         va = String(a.Name || '').trim();
         vb = String(b.Name || '').trim();
@@ -11811,7 +11811,7 @@
       const info = getCustomerOverdueInfo(c.CustomerId);
       return `
         <tr class="${info.blocked ? 'row-overdue' : ''}">
-          <td><b>${esc(c.CustomerCode || '-')}</b></td>
+          <td><b>${esc(c.CustomerId || c.CustomerCode || '-')}</b></td>
           <td>
             <b>${esc(c.Name)}</b>
             ${c.BillingAddress ? `<div style="font-size:11px; color:var(--muted);">${esc(c.BillingAddress)}</div>` : ''}
@@ -11834,11 +11834,11 @@
     }).join('') || '<tr><td colspan="9" style="color:var(--muted); text-align:center; padding:20px;">No customers found.</td></tr>';
 
     // Update header indicator arrows and select dropdown without re-rendering search input
-    const codeHeader = document.getElementById('thCustCode');
+    const idHeader = document.getElementById('thCustId') || document.getElementById('thCustCode');
     const nameHeader = document.getElementById('thCustName');
     const sortSelect = document.getElementById('selCustSort');
-    if (codeHeader) {
-      codeHeader.innerHTML = `Code <span style="font-size:11px; color:var(--primary);">${_custSortField === 'CustomerCode' ? (_custSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕'}</span>`;
+    if (idHeader) {
+      idHeader.innerHTML = `Customer ID <span style="font-size:11px; color:var(--primary);">${(_custSortField === 'CustomerId' || _custSortField === 'CustomerCode') ? (_custSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕'}</span>`;
     }
     if (nameHeader) {
       nameHeader.innerHTML = `Customer Name <span style="font-size:11px; color:var(--primary);">${_custSortField === 'Name' ? (_custSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕'}</span>`;
@@ -11851,11 +11851,57 @@
   function renderCustomersView() {
     ensureDataDefaults();
     const sortVal = `${_custSortField}_${_custSortDir}`;
+    const custs = state.data.customers || [];
+
+    // Calculate Top KPI Metrics
+    const totalCustomersCount = custs.length;
+    let totalDebtorsCount = 0;
+    let totalReceivablesAmount = 0;
+
+    custs.forEach(c => {
+      const info = getCustomerOverdueInfo(c.CustomerId);
+      if (info.balance > 0.01) {
+        totalDebtorsCount++;
+      }
+      totalReceivablesAmount += info.balance;
+    });
 
     document.getElementById('mainContent').innerHTML = `
-      <div class="section-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+      <div class="content-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+        <div>
+          <h2>👥 Customers</h2>
+          <p style="color:var(--muted); font-size:13px; margin-top:2px;">Manage client directory, credit limits and receivables</p>
+        </div>
+        <div class="section-actions" style="display:flex; gap:8px;">
+          <button class="btn btn-primary" onclick="openCustomerModal()">+ Add Customer</button>
+          <button class="btn btn-secondary" onclick="exportCustomersExcel()">⬇ Export Excel</button>
+        </div>
+      </div>
+
+      <!-- Top KPI Summary Cards -->
+      <div class="grid grid-3" style="margin-bottom:16px; display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px;">
+        <div class="card" style="padding:16px; border-left:4px solid var(--primary); background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+          <div style="font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Total Customers</div>
+          <div style="font-size:26px; font-weight:800; color:var(--primary); margin-top:4px;">${totalCustomersCount}</div>
+          <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">Active registered clients</div>
+        </div>
+
+        <div class="card" style="padding:16px; border-left:4px solid #f59e0b; background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+          <div style="font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Total Debtors</div>
+          <div style="font-size:26px; font-weight:800; color:#d97706; margin-top:4px;">${totalDebtorsCount}</div>
+          <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">Clients with pending receivables</div>
+        </div>
+
+        <div class="card" style="padding:16px; border-left:4px solid #ef4444; background:#fff; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+          <div style="font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Total Receivables</div>
+          <div style="font-size:24px; font-weight:800; color:#dc2626; margin-top:4px;">${fmtMoney(totalReceivablesAmount)}</div>
+          <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">Cumulative pending client balance</div>
+        </div>
+      </div>
+
+      <div class="section-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
         <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:280px;">
-          <input class="search-input" id="custSearchInput" placeholder="Search customers by name, code, business ID, sales officer..." 
+          <input class="search-input" id="custSearchInput" placeholder="Search customers by name, customer ID, business ID, sales officer..." 
                  value="${esc(_custSearch)}" 
                  oninput="onCustomerSearchInput(this.value)"
                  style="flex:1;">
@@ -11865,22 +11911,19 @@
                     onchange="setCustomerSort(this.value)">
               <option value="Name_asc" ${sortVal === 'Name_asc' ? 'selected' : ''}>Name (A → Z)</option>
               <option value="Name_desc" ${sortVal === 'Name_desc' ? 'selected' : ''}>Name (Z → A)</option>
-              <option value="CustomerCode_asc" ${sortVal === 'CustomerCode_asc' ? 'selected' : ''}>Code (Ascending)</option>
-              <option value="CustomerCode_desc" ${sortVal === 'CustomerCode_desc' ? 'selected' : ''}>Code (Descending)</option>
+              <option value="CustomerId_asc" ${sortVal === 'CustomerId_asc' ? 'selected' : ''}>Customer ID (Ascending)</option>
+              <option value="CustomerId_desc" ${sortVal === 'CustomerId_desc' ? 'selected' : ''}>Customer ID (Descending)</option>
             </select>
           </div>
         </div>
-        <div class="section-actions" style="display:flex; gap:8px;">
-          <button class="btn btn-secondary" onclick="exportCustomersExcel()">⬇ Export Excel</button>
-          <button class="btn btn-primary" onclick="openCustomerModal()">+ Add Customer</button>
-        </div>
       </div>
-      <div class="card table-wrap">
+
+      <div class="card table-wrap" style="padding:0; overflow:hidden; border-radius:8px;">
         <table id="custTable">
           <thead>
             <tr>
-              <th id="thCustCode" style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="sortCustomerTable('CustomerCode')" title="Click to sort by Code">
-                Code <span style="font-size:11px; color:var(--primary);">${_custSortField === 'CustomerCode' ? (_custSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕'}</span>
+              <th id="thCustId" style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="sortCustomerTable('CustomerId')" title="Click to sort by Customer ID">
+                Customer ID <span style="font-size:11px; color:var(--primary);">${(_custSortField === 'CustomerId' || _custSortField === 'CustomerCode') ? (_custSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕'}</span>
               </th>
               <th id="thCustName" style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="sortCustomerTable('Name')" title="Click to sort by Name">
                 Customer Name <span style="font-size:11px; color:var(--primary);">${_custSortField === 'Name' ? (_custSortDir === 'asc' ? ' ▲' : ' ▼') : ' ↕'}</span>
@@ -11903,9 +11946,11 @@
   }
 
   function openCustomerModal(custId) {
-    const autoCustCode = generateNextCustomerCode();
-    const c = custId ? (state.data.customers || []).find(x => x.CustomerId === custId) : {
-      CustomerCode: autoCustCode,
+    ensureDataDefaults();
+    const isEdit = !!custId;
+    const autoCustId = generateNextCustomerId();
+    const c = isEdit ? ((state.data.customers || []).find(x => x.CustomerId === custId) || {}) : {
+      CustomerId: autoCustId,
       Name: '',
       BusinessIdentifier: '',
       BillingAddress: '',
@@ -11918,6 +11963,8 @@
       Notes: ''
     };
 
+    const assignedId = c.CustomerId || autoCustId;
+
     // Filter employees whose Position is 'Sales Officer'
     const salesOfficers = (state.data.employees || []).filter(e =>
       String(e.Position || '').trim().toLowerCase() === 'sales officer' && e.Status !== 'Inactive'
@@ -11928,27 +11975,35 @@
     ).join('');
 
     openModal(
-      custId ? 'Edit Customer' : 'Add New Customer',
+      isEdit ? `Edit Customer (${esc(assignedId)})` : 'Add New Customer',
       `
-        <div class="form-row">
-          <div class="form-group" style="flex:2;">
-            <label>Name *</label>
-            <input id="fCuName" value="${esc(c.Name)}" placeholder="Customer / Company Name" required>
-          </div>
-          <div class="form-group" style="flex:1;">
-            <label>Code</label>
-            <input id="fCuCode" value="${esc(c.CustomerCode)}" placeholder="Optional (e.g. C-101)">
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-weight:700; color:var(--text); margin-bottom:4px; display:block;">
+            Customer ID (Primary Key)
+            <span style="font-size:11px; font-weight:normal; color:#059669; margin-left:6px;">✓ Auto-Generated & Permanent</span>
+          </label>
+          <input id="fCuId" value="${esc(assignedId)}" disabled 
+                 style="background:#f1f5f9; font-weight:700; color:#0f766e; cursor:not-allowed; border:1px solid #cbd5e1;">
+          <div style="font-size:11px; color:var(--muted); margin-top:3px;">
+            System-generated unique primary key. This ID cannot be reused even if this customer is later deleted.
           </div>
         </div>
 
-        <div class="form-group">
-          <label>Business Identifier</label>
-          <input id="fCuBisId" value="${esc(c.BusinessIdentifier)}" placeholder="VAT XXX XXX XXX, TIN XXX XXX XXX, ABN XXX XXX XXX etc.">
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-weight:700; color:var(--text); margin-bottom:4px; display:block;">
+            Customer Name <span style="color:var(--danger);">*</span>
+          </label>
+          <input id="fCuName" value="${esc(c.Name || '')}" placeholder="Customer / Company Name" required autocomplete="off">
+        </div>
+
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-weight:700; color:var(--text); margin-bottom:4px; display:block;">Business Identifier</label>
+          <input id="fCuBisId" value="${esc(c.BusinessIdentifier || '')}" placeholder="VAT XXX XXX XXX, TIN XXX XXX XXX, ABN XXX XXX XXX etc.">
           <span style="font-size:11px; color:var(--muted);">VAT XXX XXX XXX, TIN XXX XXX XXX, ABN XXX XXX XXX etc.</span>
         </div>
 
-        <div class="form-group">
-          <label>Sales Officer (Assigned Rep) *</label>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-weight:700; color:var(--text); margin-bottom:4px; display:block;">Sales Officer (Assigned Rep)</label>
           <select id="fCuSalesOfficer">
             <option value="">-- Select Sales Officer --</option>
             ${salesOfficerOptions}
@@ -11956,69 +12011,104 @@
           ${!salesOfficers.length ? '<span style="font-size:11px; color:var(--warning);">Note: No Employees found with Position "Sales Officer". Add one in Employees tab first.</span>' : ''}
         </div>
 
-        <div class="form-group">
-          <label>Billing address</label>
-          <textarea id="fCuBillAddr" rows="3" placeholder="Enter billing address...">${esc(c.BillingAddress || c.Address || '')}</textarea>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-weight:700; color:var(--text); margin-bottom:4px; display:block;">Billing address</label>
+          <textarea id="fCuBillAddr" rows="2" placeholder="Enter billing address...">${esc(c.BillingAddress || c.Address || '')}</textarea>
         </div>
 
-        <div class="form-group">
-          <label>Delivery address</label>
-          <textarea id="fCuDelivAddr" rows="3" placeholder="Enter delivery address...">${esc(c.DeliveryAddress || '')}</textarea>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-weight:700; color:var(--text); margin-bottom:4px; display:block;">Delivery address</label>
+          <textarea id="fCuDelivAddr" rows="2" placeholder="Enter delivery address...">${esc(c.DeliveryAddress || '')}</textarea>
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label>Email address</label>
-            <input type="email" id="fCuEmail" value="${esc(c.Email)}" placeholder="e.g. contact@client.com">
+        <div class="form-row" style="display:flex; gap:12px; margin-bottom:12px;">
+          <div class="form-group" style="flex:1;">
+            <label style="font-weight:700; color:var(--text); margin-bottom:4px; display:block;">Email address</label>
+            <input type="email" id="fCuEmail" value="${esc(c.Email || '')}" placeholder="e.g. contact@client.com">
           </div>
-          <div class="form-group">
-            <label>Phone number</label>
-            <input id="fCuPhone" value="${esc(c.Phone)}" placeholder="e.g. 011 234 5678 / 077 123 4567">
+          <div class="form-group" style="flex:1;">
+            <label style="font-weight:700; color:var(--text); margin-bottom:4px; display:block;">Phone number</label>
+            <input id="fCuPhone" value="${esc(c.Phone || '')}" placeholder="e.g. 011 234 5678 / 077 123 4567">
           </div>
         </div>
 
-        <div class="form-group">
-          <label>Credit limit</label>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-weight:700; color:var(--text); margin-bottom:4px; display:block;">Credit limit</label>
           <input type="number" step="0.01" id="fCuLimit" value="${c.CreditLimit !== '' && c.CreditLimit !== undefined ? c.CreditLimit : ''}" placeholder="Optional">
         </div>
 
-        <div class="form-group">
-          <label>Notes / Terms</label>
-          <textarea id="fCuNotes" rows="2" placeholder="Internal notes...">${esc(c.Notes)}</textarea>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-weight:700; color:var(--text); margin-bottom:4px; display:block;">Notes / Terms</label>
+          <textarea id="fCuNotes" rows="2" placeholder="Internal notes...">${esc(c.Notes || '')}</textarea>
         </div>
       `,
       `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-       <button class="btn btn-primary" onclick="submitCustomer('${esc(custId || '')}')">Save Customer</button>`
+       <button class="btn btn-primary" onclick="submitCustomer('${esc(custId || '')}')">${isEdit ? 'Update Customer' : 'Save Customer'}</button>`
     );
   }
 
-  async function submitCustomer(custId) {
-    const name = document.getElementById('fCuName').value.trim();
+  async function submitCustomer(existingId) {
+    const name = document.getElementById('fCuName')?.value.trim();
     if (!name) {
       showToast('Please enter Customer Name.');
       return;
     }
     const soSelect = document.getElementById('fCuSalesOfficer');
-    const soId = soSelect.value;
-    const soName = soId ? soSelect.options[soSelect.selectedIndex].text : '';
+    const soId = soSelect ? soSelect.value : '';
+    const soName = (soId && soSelect.options[soSelect.selectedIndex]) ? soSelect.options[soSelect.selectedIndex].text : '';
 
-    await gas('saveCustomer', {
-      CustomerId: custId,
-      CustomerCode: document.getElementById('fCuCode').value.trim(),
+    const isNew = !existingId;
+    let assignedId = existingId;
+
+    if (isNew) {
+      assignedId = generateNextCustomerId();
+      // Advance NextCustomerSeq immediately so even if deleted, it is never generated again!
+      const m = assignedId.match(/^CUS-(\d+)$/i);
+      const num = m ? parseInt(m[1], 10) : 1;
+      const futureSeq = String(num + 1);
+      state.data.settings.NextCustomerSeq = futureSeq;
+      try {
+        localStorage.setItem('office_system_next_customer_seq', futureSeq);
+      } catch (e) {}
+      gas('saveSettings', { Key: 'NextCustomerSeq', Value: futureSeq }).catch(err => console.warn(err));
+    }
+
+    const payload = {
+      CustomerId: assignedId,
+      CustomerCode: assignedId,
       Name: name,
-      BusinessIdentifier: document.getElementById('fCuBisId').value.trim(),
+      BusinessIdentifier: document.getElementById('fCuBisId')?.value.trim() || '',
       SalesOfficerId: soId,
       SalesOfficerName: soName,
-      BillingAddress: document.getElementById('fCuBillAddr').value.trim(),
-      DeliveryAddress: document.getElementById('fCuDelivAddr').value.trim(),
-      Email: document.getElementById('fCuEmail').value.trim(),
-      Phone: document.getElementById('fCuPhone').value.trim(),
-      CreditLimit: document.getElementById('fCuLimit').value,
-      Notes: document.getElementById('fCuNotes').value.trim()
-    });
+      BillingAddress: document.getElementById('fCuBillAddr')?.value.trim() || '',
+      DeliveryAddress: document.getElementById('fCuDelivAddr')?.value.trim() || '',
+      Email: document.getElementById('fCuEmail')?.value.trim() || '',
+      Phone: document.getElementById('fCuPhone')?.value.trim() || '',
+      CreditLimit: document.getElementById('fCuLimit')?.value || '0',
+      Notes: document.getElementById('fCuNotes')?.value.trim() || '',
+      CreatedAt: isNew ? (state.data.today || new Date().toISOString().slice(0, 10)) : undefined
+    };
+
+    // Optimistic local update
+    if (!Array.isArray(state.data.customers)) state.data.customers = [];
+    const idx = state.data.customers.findIndex(c => c.CustomerId === assignedId);
+    if (idx >= 0) {
+      state.data.customers[idx] = Object.assign({}, state.data.customers[idx], payload);
+    } else {
+      state.data.customers.push(payload);
+    }
+    try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+
     closeModal();
-    showToast('Customer saved successfully!');
-    await refreshData();
+    renderCustomersView();
+    showToast(isNew ? 'Customer saved successfully!' : 'Customer updated successfully!');
+
+    try {
+      await gas('saveCustomer', payload);
+    } catch (e) {
+      console.error('Save customer error:', e);
+      showToast('Customer saved locally. Background sync will retry.');
+    }
   }
 
   function exportCustomersExcel() {
@@ -12031,10 +12121,20 @@
   }
 
   async function removeCustomer(id) {
-    verifyPinAndExecute('delete this customer', async () => {
-      await gas('deleteCustomer', id);
-      showToast('Customer deleted.');
-      await refreshData();
+    if (!id) return;
+    verifyPinAndExecute('delete this customer (' + id + ')', async () => {
+      markRecordAsDeleted(id);
+      if (state.data.customers) {
+        state.data.customers = state.data.customers.filter(c => String(c.CustomerId).trim() !== String(id).trim());
+      }
+      try { localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data)); } catch (e) {}
+      renderCustomersView();
+      showToast('Customer deleted. ID ' + id + ' retired permanently.');
+      try {
+        await gas('deleteCustomer', id);
+      } catch (e) {
+        console.error('Delete customer error:', e);
+      }
     });
   }
 
