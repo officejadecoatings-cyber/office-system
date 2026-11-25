@@ -974,6 +974,7 @@
 
       try {
         const res = await gas('authenticateUser', userId, pin);
+        if (!res) throw new Error('Invalid PIN or inactive user account.');
         state.user = res.user || res;
         try { localStorage.setItem(CACHE_KEY_USER, JSON.stringify(state.user)); } catch (e) {}
 
@@ -990,8 +991,8 @@
 
         document.getElementById('loginView').classList.add('hidden');
         document.getElementById('appShell').classList.remove('hidden');
-        document.getElementById('sidebarUser').textContent = state.user.Name;
-        document.getElementById('sidebarRole').textContent = state.user.Role;
+        document.getElementById('sidebarUser').textContent = state.user?.Name || 'User';
+        document.getElementById('sidebarRole').textContent = state.user?.Role || 'Staff';
         updateRestrictedTabsVisibility();
         startAutoSync();
       } catch (err) {

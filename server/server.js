@@ -96,9 +96,40 @@ const RPC_HANDLERS = {
     return db.prepare("SELECT UserId, Name, Email, Role, Pin, Status, AllowedTabs, Avatar FROM Users WHERE Status != 'Inactive'").all();
   },
 
-  authenticateUser: (pin) => {
-    const user = db.prepare("SELECT * FROM Users WHERE Pin = ? AND Status != 'Inactive'").get(String(pin || '').trim());
-    return user || null;
+  authenticateUser: (userId, pin) => {
+    let user;
+    if (pin === undefined) {
+      user = db.prepare("SELECT * FROM Users WHERE Pin = ? AND Status != 'Inactive'").get(String(userId || '').trim());
+      if (!user) throw new Error('Invalid PIN.');
+    } else {
+      user = db.prepare("SELECT * FROM Users WHERE (UserId = ? OR Email = ?) AND Status != 'Inactive'").get(String(userId || '').trim(), String(userId || '').trim());
+      if (!user) throw new Error('User not found or inactive.');
+      if (String(user.Pin).trim() !== String(pin).trim()) throw new Error('Invalid PIN.');
+    }
+
+    let name = user.Name;
+    if ((user.Email === 'staff2@office.local' || user.UserId === 'U-003') && (!name || name === 'Staff Member 2')) {
+      name = 'Rashini Fernando';
+    }
+    let allowed = user.AllowedTabs || '';
+    if (user.Email === 'staff2@office.local' && !allowed) {
+      allowed = 'callreport,projectreport,pettycash,settings';
+    } else if (allowed && !allowed.toLowerCase().includes('settings')) {
+      allowed += ',settings';
+    }
+
+    return {
+      user: {
+        UserId: user.UserId,
+        Name: name,
+        Email: user.Email,
+        Role: user.Role,
+        AllowedTabs: allowed,
+        Avatar: user.Avatar || '',
+        NIC: user.NIC || ''
+      },
+      data: fetchAllAppData()
+    };
   },
 
   saveCustomer: (customer) => {
