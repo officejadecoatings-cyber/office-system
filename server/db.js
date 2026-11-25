@@ -217,13 +217,17 @@ function initSchema() {
 
     CREATE TABLE IF NOT EXISTS PettyCash (
       PcId TEXT PRIMARY KEY,
-      VoucherNo TEXT NOT NULL,
-      Date TEXT NOT NULL,
-      Payee TEXT NOT NULL,
+      VoucherNo TEXT,
+      Date TEXT,
+      Payee TEXT,
+      PaidTo TEXT,
       Description TEXT,
-      Category TEXT NOT NULL,
-      Amount NUMERIC NOT NULL DEFAULT 0,
+      Category TEXT,
+      Type TEXT,
+      Amount NUMERIC DEFAULT 0,
+      ReceiptNo TEXT,
       ApprovedBy TEXT,
+      RecordedBy TEXT,
       Status TEXT DEFAULT 'Approved',
       Notes TEXT,
       CreatedAt TEXT
@@ -231,8 +235,10 @@ function initSchema() {
 
     CREATE TABLE IF NOT EXISTS CallReports (
       CallId TEXT PRIMARY KEY,
-      Date TEXT NOT NULL,
-      CustomerName TEXT NOT NULL,
+      ReportType TEXT DEFAULT '',
+      DataJson TEXT DEFAULT '',
+      Date TEXT,
+      CustomerName TEXT,
       ContactPerson TEXT,
       Phone TEXT,
       Purpose TEXT,
@@ -242,13 +248,15 @@ function initSchema() {
       Status TEXT DEFAULT 'Open',
       SalesOfficerId TEXT,
       SalesOfficerName TEXT,
+      CreatedBy TEXT,
       CreatedAt TEXT
     );
 
     CREATE TABLE IF NOT EXISTS ProjectReports (
       ProjId TEXT PRIMARY KEY,
-      Date TEXT NOT NULL,
-      ProjectName TEXT NOT NULL,
+      DataJson TEXT DEFAULT '',
+      Date TEXT,
+      ProjectName TEXT,
       Location TEXT,
       ClientName TEXT,
       ContactPerson TEXT,
@@ -260,6 +268,7 @@ function initSchema() {
       SalesOfficerId TEXT,
       SalesOfficerName TEXT,
       Notes TEXT,
+      CreatedBy TEXT,
       CreatedAt TEXT
     );
 
@@ -313,18 +322,26 @@ function initSchema() {
 
     CREATE TABLE IF NOT EXISTS Employees (
       EmpId TEXT PRIMARY KEY,
-      EmpNo TEXT NOT NULL,
-      Name TEXT NOT NULL,
+      EmpNo TEXT,
+      Name TEXT,
+      UserName TEXT,
       NIC TEXT,
+      EpfEtfNo TEXT,
       Designation TEXT,
       Position TEXT,
       Department TEXT,
+      Address TEXT,
+      DOB TEXT,
+      Gender TEXT,
       Phone TEXT,
       Email TEXT,
       BasicSalary NUMERIC DEFAULT 0,
       SalesTarget NUMERIC DEFAULT 0,
       Status TEXT DEFAULT 'Active',
       JoinDate TEXT,
+      BankName TEXT,
+      BankBranch TEXT,
+      BankAccountNo TEXT,
       Notes TEXT
     );
 
@@ -345,10 +362,11 @@ function initSchema() {
 
     CREATE TABLE IF NOT EXISTS Transactions (
       TxId TEXT PRIMARY KEY,
-      Date TEXT NOT NULL,
-      Type TEXT NOT NULL,
-      Category TEXT NOT NULL,
-      Amount NUMERIC NOT NULL DEFAULT 0,
+      RefId TEXT,
+      Date TEXT,
+      Type TEXT,
+      Category TEXT,
+      Amount NUMERIC DEFAULT 0,
       ReferenceNo TEXT,
       Description TEXT,
       Account TEXT,
@@ -358,9 +376,9 @@ function initSchema() {
 
     CREATE TABLE IF NOT EXISTS Attendance (
       AttId TEXT PRIMARY KEY,
-      Date TEXT NOT NULL,
-      UserId TEXT NOT NULL,
-      UserName TEXT NOT NULL,
+      Date TEXT,
+      UserId TEXT,
+      UserName TEXT,
       ClockIn TEXT,
       ClockOut TEXT,
       TotalHours NUMERIC DEFAULT 0,
@@ -370,12 +388,14 @@ function initSchema() {
 
     CREATE TABLE IF NOT EXISTS Leaves (
       LeaveId TEXT PRIMARY KEY,
-      UserId TEXT NOT NULL,
-      UserName TEXT NOT NULL,
-      LeaveType TEXT NOT NULL,
-      StartDate TEXT NOT NULL,
-      EndDate TEXT NOT NULL,
+      UserId TEXT,
+      UserName TEXT,
+      LeaveType TEXT,
+      Type TEXT,
+      StartDate TEXT,
+      EndDate TEXT,
       DaysCount NUMERIC DEFAULT 1,
+      Days NUMERIC DEFAULT 1,
       Reason TEXT,
       Status TEXT DEFAULT 'Pending',
       ApprovedBy TEXT,
@@ -384,8 +404,10 @@ function initSchema() {
 
     CREATE TABLE IF NOT EXISTS Tasks (
       TaskId TEXT PRIMARY KEY,
-      Title TEXT NOT NULL,
+      Title TEXT,
+      Task TEXT,
       Description TEXT,
+      Project TEXT,
       AssignedTo TEXT,
       AssignedToName TEXT,
       DueDate TEXT,
@@ -522,13 +544,50 @@ function fetchAllAppData() {
   return data;
 }
 
-// Generic Upsert Helper
+// Generic Upsert Helper with Schema Column Sanitization & Field Aliases
 function upsert(table, rowOrRows, primaryKey) {
-  const rows = Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows];
-  if (rows.length === 0) return true;
+  const rawRows = Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows];
+  if (rawRows.length === 0) return true;
 
-  const sample = rows[0];
+  // Retrieve valid column names for this table
+  const colInfo = db.prepare(`PRAGMA table_info("${table}")`).all();
+  const tableCols = new Set(colInfo.map(c => c.name));
+
+  // Sanitize & map row aliases
+  const sanitizedRows = rawRows.map(raw => {
+    const row = { ...raw };
+    // Field aliases
+    if (!row.Title && row.Task) row.Title = row.Task;
+    if (!row.Name && row.UserName) row.Name = row.UserName;
+    if (!row.Name && row.EmployeeName) row.Name = row.EmployeeName;
+    if (!row.Category && row.Type) row.Category = row.Type;
+    if (!row.ReferenceNo && row.RefId) row.ReferenceNo = row.RefId;
+    if (!row.InvoiceNo && row.InvoiceId) row.InvoiceNo = row.InvoiceId;
+    if (!row.Pin) row.Pin = '1234';
+    if (!row.Email && row.UserId) row.Email = `${String(row.UserId).toLowerCase()}@office.local`;
+    if (!row.Email && row.EmpId) row.Email = `${String(row.EmpId).toLowerCase()}@office.local`;
+    if (!row.Role) row.Role = 'Staff';
+    if (!row.Status) row.Status = 'Active';
+    if (!row.Date && row.CreatedAt) row.Date = String(row.CreatedAt).slice(0, 10);
+    if (!row.Date) row.Date = new Date().toISOString().slice(0, 10);
+    if (!row.SKU && row.ItemId) row.SKU = row.ItemId;
+
+    // Filter to only columns that actually exist in the table schema
+    const clean = {};
+    for (const [k, v] of Object.entries(row)) {
+      if (tableCols.has(k)) {
+        clean[k] = v;
+      }
+    }
+    return clean;
+  }).filter(r => r[primaryKey] !== undefined && r[primaryKey] !== null && String(r[primaryKey]).trim() !== '');
+
+  if (sanitizedRows.length === 0) return true;
+
+  const sample = sanitizedRows[0];
   const keys = Object.keys(sample);
+  if (keys.length === 0) return true;
+
   const placeholders = keys.map(() => '?').join(', ');
   const updateCols = keys
     .filter(k => k !== primaryKey)
@@ -555,7 +614,7 @@ function upsert(table, rowOrRows, primaryKey) {
     }
   });
 
-  runBatch(rows);
+  runBatch(sanitizedRows);
   return true;
 }
 

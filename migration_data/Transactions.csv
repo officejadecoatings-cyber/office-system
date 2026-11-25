@@ -1,0 +1,18 @@
+TxId,Date,Type,Category,Description,Amount,RefId,RecordedBy
+TX-1794913265619,2026-11-17,Stock In,Factory Supply,Factory Inward: Received 45 0.5L of JD-001-80 - INT & EXT Stains - Larch Teak. ,96975,ITEM-1794912293591-267,Admin User
+TX-1794913274106,2026-11-17,Stock In,Factory Supply,Factory Inward: Received 45 0.5L of JD-001-81 - INT & EXT Stains - Burma Teak. ,96975,ITEM-1794912376119-456,Admin User
+TX-1794913311135,2026-11-17,Stock In,Factory Supply,Factory Inward: Received 25 0.5L of JD-001-80 - INT & EXT Stains - Larch Teak. ,53875,ITEM-1794912293591-267,Admin User
+TX-1794970154353-537,2026-11-18,Income,Sales / Invoice Payment,Payment installment for PZI1000 (680 Prasad Hardware),5000,INV-1794912492568-195,Admin User
+TX-1794970259772-505,2026-11-18,Income,Sales / Invoice Payment,Payment installment for PZI1000 (680 Prasad Hardware),4000,INV-1794912492568-195,R.K. Shihani Nuwanthi
+TX-1794970319229-784,2026-11-18,Income,Sales / Invoice Payment,Payment installment for PZI1000 (680 Prasad Hardware),17240,INV-1794912492568-195,R.K. Shihani Nuwanthi
+TX-1794971787490-549,2026-11-18,Income,Sales / Invoice Payment,Payment installment for CMI-5700 (680 Prasad Hardware),6465,INV-1794971694877-764,Admin User
+TX-1794971851670-724,2026-11-18,Income,Sales / Invoice Payment,Payment installment for CMI-5700 (680 Prasad Hardware),1000,INV-1794971694877-764,Admin User
+TX-1794973488599-75,2026-11-18,Income,Sales / Invoice Payment,Payment installment for PZI1000 (680 Prasad Hardware),5000,INV-1794912492568-195,Admin User
+TX-1794973828113-465,2026-11-18,Income,Sales / Invoice Payment,Payment installment for PZI1000 (680 Prasad Hardware),5000,INV-1794912492568-195,Admin User
+TX-1794976612661-29,2026-11-18,Income,Sales / Invoice Payment,Payment installment for PZI1000 (680 Prasad Hardware),5000,INV-1794912492568-195,Admin User
+TX-1794982743662-487,2026-11-18,Income,Sales / Invoice Payment,Payment installment for CMI-5700 (680 Prasad Hardware),150000,INV-1794982217221-758,Admin User
+TX-1794982899198-757,2026-11-18,Income,Sales / Invoice Payment,Payment installment for CMI-5700 (680 Prasad Hardware),350000,INV-1794982217221-758,Admin User
+TX-1794995588928,2026-11-18,Stock In,Factory Supply,Factory Inward: Received 100 20 L of JD-017 - Metashield Primer - 20L. ,17005000,ITEM-1794982041651-201,Admin User
+TX-1795000466141,2026-11-18,Stock In,Factory Supply,Factory Inward: Received 10 500 ML of CUSTOM-999 - Custom Varnish Test. ,15000,ITEM-1795000276635-991,Admin User
+TX-261118202433-666,2026-11-18,Income,Sales / Invoice,Payment for PZI1002 (680 Prasad Hardware),18000,INV-1795013654620-665,Admin User
+TX-1795057593885,2026-11-19,Stock In,Factory Supply,Factory Inward: Received 1000 20 L of JD-020 - Water Based Universal Cleaner - 20L. ,34650000,ITEM-1794981603921-127,Admin User

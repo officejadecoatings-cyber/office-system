@@ -1,0 +1,8 @@
+InvoiceId,InvoiceNo,CustomerId,CustomerName,Date,DueDate,Status,Subtotal,Discount,TaxAmount,Total,PaidAmount,Notes,CreatedBy,QuoteNo,SalesPerson,CustomerAddress,CustomerPhone,BankDetails,CompanyId,ChequeNo,ChequeBank,ChequeDate,ChequeAmount,RealisedDate,RealizedMonth,ReceiptNo,PaymentStatus,TokenAmount,ReturnAmount,DispatchStatus,DispatchedDate,DispatchedBy,PaymentsJson
+INV-1795163452047-293,,,,,,Pending,,,,,15000,,,,,,,,,,,,,,,,Unpaid,2500,0,,,,
+INV-1795155898578-107,PZI5000,CUS-0003,0003 Apparel Technologies (pvt) Ltd,2026-11-19,2026-11-19,Paid,29100,0,0,29100,29100,Order Ref: ORD-8679,Admin User,JDQ800,R.D.N.I. Rajapaksha,"No. 543
+Galle Road,
+Mount Lavinia
+M - +94 076 359 0918
+P - +94 11 273 5391-6 (Ext 223)
+F - + 94 11 273 5390",076 359 0918,AC NAME :PAINT ZONE (PVT) LTD/ AC NO : 1000982266 /COMMERCIAL BANK / BATTARAMULLA,COMP-261117105805-570,,,,0,2026-11-19,2026-10-31,,Paid,0,0,Dispatched,2026-11-19,,"[{""PaymentId"":""PAY-1795156085730-894"",""InvoiceId"":""INV-1795155898578-107"",""InvoiceNo"":""PZI5000"",""Method"":""Cash"",""Date"":""2026-11-20"",""RecordedBy"":""Admin User"",""RecordedAt"":""2026-11-20T06:28:05.730Z"",""Amount"":29100,""ReceiptNo"":"""",""Status"":""Paid"",""Notes"":"""",""RealisedDate"":""2026-11-20""}]"

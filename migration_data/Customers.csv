@@ -1,0 +1,2223 @@
+CustomerId,CustomerCode,Name,BusinessIdentifier,BillingAddress,DeliveryAddress,Email,Phone,CreditLimit,SalesOfficerId,SalesOfficerName,Notes,CreatedAt
+CUST-1795148295995-955,0001,A H M Hardware,,"Hameedia Building,
+Dambulla Road,
+Galewela.
+071 705 8589","Hameedia Building,
+Dambulla Road,
+Galewela.
+071 705 8589",,071 705 8589,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795148468329-555,0002,Akrams Hardware,,"No. 17,
+Old Matara Road,
+Galle.
+077 970 0188","No. 17,
+Old Matara Road,
+Galle.
+077 970 0188",,077 970 0188,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795148843426-647,0003,Apparel Technologies (pvt) Ltd,,"No. 543
+Galle Road,
+Mount Lavinia
+M - +94 076 359 0918
+P - +94 11 273 5391-6 (Ext 223)
+F - + 94 11 273 5390","No. 543
+Galle Road,
+Mount Lavinia
+M - +94 076 359 0918
+P - +94 11 273 5391-6 (Ext 223)
+F - + 94 11 273 5390",,076 359 0918,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795149043785-417,0004,Auto Paint Center,,"Main Street,
+Kaduruwela,
+Polonnaruwa
+077 887 8732
+077 220 8868","Main Street,
+Kaduruwela,
+Polonnaruwa
+077 887 8732
+077 220 8868",,077 887 8732,500000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795149240690-67,0005,Autogroup International (pvt) Ltd,,"No. 308,
+Awissawella,
+Colombo Road,
+Hewagama,
+Kaduwela,
+077 960 7773","No. 308,
+Awissawella,
+Colombo Road,
+Hewagama,
+Kaduwela,
+077 960 7773",,077 960 7773,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795149493946-321,0006,Buddhika Hardware,,"No. 122/5,
+Indolamulla,
+Dompe.
+077 963 6967","No. 122/5,
+Indolamulla,
+Dompe.
+077 963 6967",,077 963 6967,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795149687034-820,0007,Chaminda Construction,,"No. 76/B
+Alubovila,
+Piliyandala.
+077 770 0266","No. 76/B
+Alubovila,
+Piliyandala.
+077 770 0266",,077 770 0266,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795149813466-916,0008,Colombo Colour Center,,"No. 68,
+Galle Road,
+Dehiwala (south)
+077 778 6017","No. 68,
+Galle Road,
+Dehiwala (south)
+077 778 6017",,077 778 6017,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795149905170-788,0009,Dammika Hardware,,"No. 93/C,
+Udupilawaththa,
+Meegahawaththa,
+Delgoda.
+077 962 4003","No. 93/C,
+Udupilawaththa,
+Meegahawaththa,
+Delgoda.
+077 962 4003",,077 962 4003,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795149980515-865,0010,Deepthi Colour House,,"Kuliyapitiya Road,
+Narammala.
+076 568 2908","Kuliyapitiya Road,
+Narammala.
+076 568 2908",,076 568 2908,500000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795150386411-53,0011,D K Construction,,"No. 163/1,
+Siridhamma Mawatha,
+Colombo 10","No. 163/1,
+Siridhamma Mawatha,
+Colombo 10",,,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795150529099-790,0012,DL Wasantha,,"Sadhdhathissa Road,
+Rajagawaththa,
+Walgama,
+Mathara.
+071 358 0105","Sadhdhathissa Road,
+Rajagawaththa,
+Walgama,
+Mathara.
+071 358 0105",,071 358 0105,1000000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795150986315-582,0013,Dr. Sachi De Silva,,"Dr. Sachi De Silva
+Athulkotte","Dr. Sachi De Silva
+Athulkotte",,,,EMP-1795150895114-998,L.S.C. De Silva,,
+CUST-1795151148731-646,0014,Eagle Hardware,,"No. 11,
+Cemetery Road,
+Kudapaduwa,
+Negambo.
+077 225 2063","No. 11,
+Cemetery Road,
+Kudapaduwa,
+Negambo.
+077 225 2063",,077 225 2063,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795152245934-826,0016,Eshana colour lab,,"Pitawala Road, 
+Elpitiya.
+071 825 0344","Pitawala Road, 
+Elpitiya.
+071 825 0344",,071 825 0344,1500000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795151926020-104,0015,El Toro Roofing Products Ltd.,,"No:752 Baseline Rd, Colombo 09.
+077-9215075
+011-2674212
+011-2674214","No:752 Baseline Rd, Colombo 09.
+077-9215075
+011-2674212
+011-2674214",,077-9215075,500000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795152397005-25,0017,Furnicraft Manufacting (pvt) Ltd,,"No. 73/B ,
+Negambo Road,
+Wattala,
+011 294 1604","No. 73/B ,
+Negambo Road,
+Wattala,
+011 294 1604",,011 294 1604,300000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795152526780-891,0018,Gonawala Hardware,,"No. 203/3,
+Kohawila Road ,
+Gonawala, Kelaniya.
+011 291 0458","No. 203/3,
+Kohawila Road ,
+Gonawala, Kelaniya.
+011 291 0458",,011 291 0458,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795152623349-822,0019,Gunasiri Hardware Stores,,"No.188 , 
+Galahitiyawa , 
+Ganemulla .
+033 226 0303
+077 317 9219","No.188 , 
+Galahitiyawa , 
+Ganemulla .
+033 226 0303
+077 317 9219",,033 226 0303,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795152986845-180,0020,Isali Traders,,"Makubura Road, 
+Imaduwa 
+077 665 7303","Makubura Road, 
+Imaduwa 
+077 665 7303",,077 665 7303,500000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795153108181-429,0021,J.N.Construction,,"No. 69/1/B, 
+Kahalwila Road,, 
+Kelaniya.","No. 69/1/B, 
+Kahalwila Road,, 
+Kelaniya.",,,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795153238973-592,0022,Jaya Sri Hardware,,"No 80,
+Galle Road ,
+Balapitiya
+091 225 3759","No 80,
+Galle Road ,
+Balapitiya
+091 225 3759",,091 225 3759,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795153421381-469,0023,Jayarathna Hardware,,"Nebada Road,
+Thebuwana
+077 327 9078","Nebada Road,
+Thebuwana
+077 327 9078",,077 327 9078,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795153515653-556,0024,K.L.J Enterprices,,"No.467/F, 
+Highlevel Road, 
+Pannipitiya.
+076 375 2011
+011 283 7478
+077 262 2710","No.467/F, 
+Highlevel Road, 
+Pannipitiya.
+076 375 2011
+011 283 7478
+077 262 2710",,076 375 2011,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795153610333-410,0026,Jade Coatings (pvt) Ltd,,"No. 424/1/B
+Kottunna Road,
+Biyagama.
+076 867 9500","No. 424/1/B
+Kottunna Road,
+Biyagama.
+076 867 9500",,076 867 9500,,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795154050285-12,0027,Karunanayaka Hardware,,"No, 218,
+Thalapathpitiya Road, 
+Nugegoda.
+011 279 9792","No, 218,
+Thalapathpitiya Road, 
+Nugegoda.
+011 279 9792",,011 279 9792,500000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795154149054-190,0028,M K B Hardware,,"Kurunegala Road , 
+Katupotha. 
+037 224 7112","Kurunegala Road , 
+Katupotha. 
+037 224 7112",,037 224 7112,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795154222958-615,0029,M M G S Architects,,"26/A, 
+Alwis Place, 
+Colombo","26/A, 
+Alwis Place, 
+Colombo",,,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795154382886-778,0030,Mahajana Hardware & Electricals Dematagoda,,"No.114, 
+Kolonnawa Road, 
+Dematagoda.
+Colombo - 09.","No.114, 
+Kolonnawa Road, 
+Dematagoda.
+Colombo - 09.",,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795154628782-60,0031,Mawathagama Hardware,,"No. 08,
+Kandy Road,
+Mawathagama
+037 229 9592 
+076 655 0425","No. 08,
+Kandy Road,
+Mawathagama
+037 229 9592 
+076 655 0425",,037 229 9592,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795154798766-864,0032,Mr.Imesh Yasintha,,"Aluthwegedara
+Polpithigama
+071 039 1277","Aluthwegedara
+Polpithigama
+071 039 1277",,071 039 1277,750000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795154897926-514,0033,Mr.Nishan Rajapaksha,,,,,,,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795155035798-506,0034,Nesitha Hardware,,"No. 12/1A,
+Horana Road,
+Polgasowita
+077 967 5617
+077 940 5617","No. 12/1A,
+Horana Road,
+Polgasowita
+077 967 5617
+077 940 5617",,077 967 5617,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795155118526-84,0035,New City Hardware,,"No. 88,
+S.D.S. Jayasinghe Road,
+Kohuwala","No. 88,
+S.D.S. Jayasinghe Road,
+Kohuwala",,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795155489223-822,0025,Kamal Hardware,,"No. 68/1/D,
+Main Street,
+Malwana.
+011 257 0230
+076 772 2789","No. 68/1/D,
+Main Street,
+Malwana.
+011 257 0230
+076 772 2789",,011 257 0230,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795155631079-92,0036,New Customer,,,,,,,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795155804743-919,0037,New M K B Hardware,,"Katupotha Road ,
+Bamunukotuwa .
+075 677 2250","Katupotha Road ,
+Bamunukotuwa .
+075 677 2250",,075 677 2250,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795155891127-515,0038,New Mahajana Hardware & Electricals,,"No. 65/3,
+Nawla Road, 
+Nugegoda.","No. 65/3,
+Nawla Road, 
+Nugegoda.",,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795156021535-385,0039,New Shakthi Hardware,,"Kalugamuwa Road,
+Imiyanngoda.
+077 967 9267 
+076 666 9306","Kalugamuwa Road,
+Imiyanngoda.
+077 967 9267 
+076 666 9306",,077 967 9267,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795156220880-26,0040,New Wayamba Hardware,,"No 495,
+Dambulla Road,
+Melsiripura
+077 885 5533","No 495,
+Dambulla Road,
+Melsiripura
+077 885 5533",,077 885 5533,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795156317335-42,0041,Nimal Hardware,,"No.67/4
+Main Street, Malwana.
+011 247 6416","No.67/4
+Main Street, Malwana.
+011 247 6416",,011 247 6416,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795156749560-520,0042,Nimro Paint Industries (Pvt) Ltd,,"Heraliyawala Industrial Park, Kurunegala.
+077 728 1290
+037 469 0517","Heraliyawala Industrial Park, Kurunegala.
+077 728 1290
+037 469 0517",,037 469 0517,1000000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795156874560-963,0043,P J S Electric & Hardware,,"No, 324/5
+Kottunna Road,
+Biyagama
+077 163 1767","No, 324/5
+Kottunna Road,
+Biyagama
+077 163 1767",,077 163 1767,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795156980257-750,0044,Pabora Paint,,"No.51,
+Siriwardana Road,
+Ragama,
+011 295 8441","No.51,
+Siriwardana Road,
+Ragama,
+011 295 8441",,011 295 8441,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795158845265-171,0045,Prasanna Paint Center,,"No,127,
+Main Road,
+Attidiya,
+Dehiwala.
+011 465 5563 
+075 376 0655","No,127,
+Main Road,
+Attidiya,
+Dehiwala.
+011 465 5563 
+075 376 0655",,011 465 5563,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795158916683-612,0046,Priyantha Enterprices,,"149/3,A,
+Ulukade Junction, 
+Ganemulla.
+077 726 0461","149/3,A,
+Ulukade Junction, 
+Ganemulla.
+077 726 0461",,077 726 0461,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795159021073-537,0047,R.A.M Suppliers,,,,,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795159216537-597,0048,Rangel (PVT) Ltd,,"No. 801/2, 
+New Kandy Road,
+Malabe,
+071 528 5555","No. 801/2, 
+New Kandy Road,
+Malabe,
+071 528 5555",,071 528 5555,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795159964482-113,0049,Rathna Lime Store,,"No.160,
+Temple Road, 
+Galkissa.
+011 271 8567","No.160,
+Temple Road, 
+Galkissa.
+011 271 8567",,011 271 8567,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795160115578-891,0050,Rathnayaka Paint Center,,"No. 149,
+Udawela,
+Ibbagamuwa.
+076 663 9155","No. 149,
+Udawela,
+Ibbagamuwa.
+076 663 9155",,076 663 9155,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795160245699-47,0051,Rhino Roofing,,"Rhino Roofing 
+070 313 3060","Rhino Roofing 
+070 313 3060",,070 313 3060,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795160364427-695,0052,Rohana Hardware,,"No. 9 Mail Post,
+Meewewa,
+Kalugamuwa.
+071 942 8191","No. 9 Mail Post,
+Meewewa,
+Kalugamuwa.
+071 942 8191",,071 942 8191,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795160604035-737,0054,Samarakoon Hardware,,"No. 347/A,
+Colombo Road,
+bokundara,
+Piliyandala.
+077 765 3907","No. 347/A,
+Colombo Road,
+bokundara,
+Piliyandala.
+077 765 3907",,077 765 3907,500000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795160679163-44,0055,Sameera hardware,,"Kalugamuwa, 
+Ginipenda.","Kalugamuwa, 
+Ginipenda.",,,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795163018738-171,0056,Sevenray Paint Shop & Hardware,,"Four way junction,
+Gonapinuwala 
+077 959 4737","Four way junction,
+Gonapinuwala 
+077 959 4737",,077 959 4737,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795167422102-582,0057,Shangri - La Hotel,,"Shangri - La hotel
+Hambanthota","Shangri - La hotel
+Hambanthota",,,500000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795167501253-130,0058,263	Siyara Soliwood,,"No. 509/5,
+Hokandara Road,
+Arangala,
+077 254 3319","No. 509/5,
+Hokandara Road,
+Arangala,
+077 254 3319",,077 254 3319,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795167583621-305,0059,Southern Wood Fashion,,"No. 662/E,
+Athurugiriya Road,
+Kaduwela
+011 254 8148","No. 662/E,
+Athurugiriya Road,
+Kaduwela
+011 254 8148",,011 254 8148,500000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795167680125-677,0060,Sri Shine Colour House and Hardware,,"No. 28/2/A,
+Godagama Road,
+Athurugiriya,
+011 205 4051","No. 28/2/A,
+Godagama Road,
+Athurugiriya,
+011 205 4051",,011 205 4051,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795167774758-496,0061,St.Mary's Color Center,,"No.150,
+Old Negombo Road ,
+Kanuwana , 
+Ja Ela .
+077 727 3609
+077 197 5821","No.150,
+Old Negombo Road ,
+Kanuwana , 
+Ja Ela .
+077 727 3609
+077 197 5821",,077 727 3609,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795167855734-129,0062,Sudilana Hardware,,"No. 125 B, 
+Old Road, 
+Nawala,
+Rajagiriya","No. 125 B, 
+Old Road, 
+Nawala,
+Rajagiriya",,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795167965638-95,0063,Surangi Paint Center,,"No. 86 / 6 / A,
+Negambo Road, 
+Kandana.
+ 077 771 4633","No. 86 / 6 / A,
+Negambo Road, 
+Kandana.
+ 077 771 4633",,077 771 4633,1000000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795168075286-38,0064,Thimbiri Hardware,,"No. 156,
+Havelock Road,
+Thimbirigasyaya, Junction,
+Colombo-05
+072 028 8330","No. 156,
+Havelock Road,
+Thimbirigasyaya, Junction,
+Colombo-05
+072 028 8330",,072 028 8330,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795168178726-286,0065,Thurusiri pvt ltd,,"366/3A
+Waikkiya watta,
+Ihala Bomiriya, 
+Kaduwela
+077 345 7722,
+076 885 1436","366/3A
+Waikkiya watta,
+Ihala Bomiriya, 
+Kaduwela
+077 345 7722,
+076 885 1436",,077 345 7722,300000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795168593407-852,0066,Wadduwa Paint Center,,"No.44 
+Walekade Junction,
+Galle Rd,Wadduwa.
+075 221 8823","No.44 
+Walekade Junction,
+Galle Rd,Wadduwa.
+075 221 8823",,075 221 8823,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795168715414-219,0067,Weerakkodi Suppliers,,"No.504,
+Pilapitiya, 
+Kelaniya.
+011 291 4436","No.504,
+Pilapitiya, 
+Kelaniya.
+011 291 4436",,011 291 4436,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795168795678-327,0068,Welarathna Hardware,,"Babaralla,
+Meegahathanna.
+076 452 6801","Babaralla,
+Meegahathanna.
+076 452 6801",,076 452 6801,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795168994391-19,0069,Wijitha Hardware - Hikkaduwa,,"No-118 , 
+Baddegama Road , 
+Hikkaduwa,
+077 585 8853","No-118 , 
+Baddegama Road , 
+Hikkaduwa,
+077 585 8853",,077 585 8853,500000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795169416975-367,0070,Wimalarathna Hardware,,"No. 213/1/D 
+Oppasite the Hospital ,
+Dompe .
+077 868 3489","No. 213/1/D 
+Oppasite the Hospital ,
+Dompe .
+077 868 3489",,077 863 3489,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795169655775-518,0071,Sawsiri Hardware,,"No. 515,
+Waragoda, 
+Kelaniya.
+077 064 1862","No. 515,
+Waragoda, 
+Kelaniya.
+077 064 1862",,077 064 1862,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795169717119-212,0072,Unique Paint House,,"No. 166/A,
+Makola Road,
+Kiribathgoda.
+077 793 3829","No. 166/A,
+Makola Road,
+Kiribathgoda.
+077 793 3829",,077 793 3829,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795169827672-805,0073,Gayan Agro Chemical,,"Athkandura Junction, 
+Athkandura.
+077 748 9841
+077 531 2558
+091 229 0927","Athkandura Junction, 
+Athkandura.
+077 748 9841
+077 531 2558
+091 229 0927",,077 748 9841,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795170434016-924,0074,Pansilu Paint,,"No. 18 / C,
+Horana Road, 
+Polgasowita.
+077 531 7085 
+077 007 0868","No. 18 / C,
+Horana Road, 
+Polgasowita.
+077 531 7085 
+077 007 0868",,077 531 7085,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795170520168-629,0075,Sevana Hardware,,"No. 81, 
+Kurunegala Road, 
+Rambukkana.
+071 814 0224","No. 81, 
+Kurunegala Road, 
+Rambukkana.
+071 814 0224",,071 814 0224,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795170585120-369,0076,U.B. Traders,,"Torawathura, 
+Kohilagedara, 
+Kurunegala. 
+071 809 5531","Torawathura, 
+Kohilagedara, 
+Kurunegala. 
+071 809 5531",,071 809 5531,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795170730784-964,0077,HD Hardware,,"Kurunegala Road
+School junction
+Uhumeeya
+077 706 6104","Kurunegala Road
+School junction
+Uhumeeya
+077 706 6104",,077 706 6104,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795170786552-156,0078,Soliwood enterprises,,Athurugiriya,Athurugiriya,,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795170866553-768,0079,Sunila Wooden Arts,,"Hokandara 
+075 165 4198","Hokandara 
+075 165 4198",,075 165 4198,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795170928248-631,0080,Mallikarachci itimber,,"Malabe
+077 734 3274","Malabe
+077 734 3274",,077 734 3274,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795160448619-747,0053,Sandaruwan Construction,,"Wellampitiya
+Warakapola
+076 427 3231","Wellampitiya
+Warakapola
+076 427 3231",,076 427 3231,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795231482545-210,0081,ApexEx Trading,,"No:01/A, 
+M.D.H.Yayawardana Mawatha, 
+Padukka.
+077 235 5274 
+011 218 4082","No:01/A, 
+M.D.H.Yayawardana Mawatha, 
+Padukka.
+077 235 5274 
+011 218 4082",,077 235 5274,300000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795231642473-361,0082,Chandana Hardware,,"Galtanwawa,
+Polpithigama. 
+071 804 1645","Galtanwawa,
+Polpithigama. 
+071 804 1645",,071 804 1645,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795232157617-327,0083,Saman Hardware,,"Kellmune, 
+Mahakeliya.
+076 006 5561","Kellmune, 
+Mahakeliya.
+076 006 5561",,076 006 5561,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795233945792-799,0084,Mr. Sampath,,,,,,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795234041784-488,0085,K.B Stores,,,,,,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795234093168-598,0086,Lakjaya Enterprises,,,,,,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795234244768-728,0087,Pepiliyana Timber Dealers,,"No. 406 C, 
+Sunethradevi Road, 
+Pepiliyana, 
+Nugegoda.
+011 282 9323 
+077 772 4724","No. 406 C, 
+Sunethradevi Road, 
+Pepiliyana, 
+Nugegoda.
+011 282 9323 
+077 772 4724",,011 282 9323,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795234336592-815,0088,S & N Holding Pvt Ltd,,"Wattala
+077 359 5329 
+Mr. Sampath","Wattala
+077 359 5329 
+Mr. Sampath",,077 359 5329,300000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795234420201-829,0089,Aruna Furniture,,"No. 260,
+Weligampitiya
+Ja-Ela,
+071 413 4955","No. 260,
+Weligampitiya
+Ja-Ela,
+071 413 4955",,071 413 4955,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795234537816-290,0090,Country Floors,,"No. 151,
+Kaduwela Road,
+Battaramulla","No. 151,
+Kaduwela Road,
+Battaramulla",,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795234701888-621,0091,Madushanka Hardware,,"No. 434/D, 
+Nilpanagoda Minuwangoda.
+077 910 7639","No. 434/D, 
+Nilpanagoda Minuwangoda.
+077 910 7639",,077 910 7639,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795235661192-503,0092,Kodikara Distributor,,"No. 372, 
+Borakanda, 
+Karandeniya.","No. 372, 
+Borakanda, 
+Karandeniya.",,,500000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795235742679-768,0093,M.K Hardware,,"Pamburana, 
+Matara 
+041 223 3668","Pamburana, 
+Matara 
+041 223 3668",,041 223 3668,300000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795235942247-352,0094,Nippon Hardware,,"No:32 
+Main Street,
+Giriulla.
+077 767 5733","No:32 
+Main Street,
+Giriulla.
+077 767 5733",,077 767 5733,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795236011943-285,0095,Mr. Sunanda,,,,,,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795236142671-347,0096,DM Colour House (PVT) Ltd.,,"No - 20/7, 
+Ganemulla Road, 
+Surigama,
+Kadawatha.
+077 866 7725
+071 866 7725","No - 20/7, 
+Ganemulla Road, 
+Surigama,
+Kadawatha.
+077 866 7725
+071 866 7725",,077 866 7725,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795236211175-640,0098,Mr. Nilantha Karunarathna,,,,,,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795236309127-948,0098,New H.D. Hardware,,"Keppitigala Road, 
+Hunugalkadulla 
+076 058 7166
+070 172 0400","Keppitigala Road, 
+Hunugalkadulla 
+076 058 7166
+070 172 0400",,076 0587166,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795236428463-161,0099,Manel Trade Center,,"Abathena, 
+Katugasthota.","Abathena, 
+Katugasthota.",,,500000,EMP-261113162312-332,W.K.Y. Pamuditha Karunarathna,,
+CUST-1795236498671-441,0100,Rajarathna Hardware,,"Colombo Road,
+Bulugolla, 
+Pothuhara 
+077 251 2605","Colombo Road,
+Bulugolla, 
+Pothuhara 
+077 251 2605",,077 251 2605,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795236598239-716,0101,Pannala AR Hardware,,,,,,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795236692735-344,0102,Muthugala Enterprises,,"No. 476/1,
+Eriyawatiya, 
+Kelaniya.
+072 214 3355","No. 476/1,
+Eriyawatiya, 
+Kelaniya.
+072 214 3355",,072 214 3355,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795237272279-45,0103,Paramount Hardware,,"N0-03 
+Sri Piyarathna Road,
+Thumman Handiye,
+Kaluthara Road, 
+Bandaragama.
+077 332 2566","N0-03 
+Sri Piyarathna Road,
+Thumman Handiye,
+Kaluthara Road, 
+Bandaragama.
+077 332 2566",,077 332 2566,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795237599807-887,0104,Dambokka Timber Stores,,"Dambokka Road,
+Boyagane, 
+Kurunagala 
+071 567 4546","Dambokka Road,
+Boyagane, 
+Kurunagala 
+071 567 4546",,071 567 4546,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795237665679-575,0105,Wevlanda Hardware,,"Colombo Road,
+Malpitiya,
+Boyagane 
+037 223 2362","Colombo Road,
+Malpitiya,
+Boyagane 
+037 223 2362",,037 223 2362,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795408945191-251,0106,New Kalaniwali Hardware,,"No. 16 
+New Kandy Road, 
+Waliweriya.
+076 337 0032","No. 16 
+New Kandy Road, 
+Waliweriya.
+076 337 0032",,076 337 0032,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795409021455-554,0107,Manamperi Hardware,,,,,,300000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795409075974-967,0108,New Shan Enterprises,,"No. 293/4,
+Makola North, 
+Makola","No. 293/4,
+Makola North, 
+Makola",,,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795409125623-631,0109,Dadugama Hardware,,"No. 238, 
+Dadugama","No. 238, 
+Dadugama",,,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795409184319-645,0110,Mr. Amila,,"Devipahala,
+Kuruwita
+076 582 2549","Devipahala,
+Kuruwita
+076 582 2549",,076 582 2549,250000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795409259190-25,0111,Iduwara Furniture,,"No. 24/C, 
+Kurunagala Road,
+Thalakiriyagama
+071 062 8865","No. 24/C, 
+Kurunagala Road,
+Thalakiriyagama
+071 062 8865",,071 062 8865,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795409320726-292,0112,Palawatta Paint Shop,,,,,,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795409373351-16,0113,Rathnayaka Paint Shop,,Maggona,Maggona,,,1000000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795409789287-491,0114,Big Win Holdings,,"No. 457,
+Tewatta Road,
+Ragama 
+071 810 1856","No. 457,
+Tewatta Road,
+Ragama 
+071 810 1856",,071 810 1856,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795409870935-323,0115,A.S. International,,"No. 4/5/2
+Ragama Road, 
+Kadwatha","No. 4/5/2
+Ragama Road, 
+Kadwatha",,,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795409955471-882,0116,Sakyas (Pvt) Ltd.,,Mulleriya,Mulleriya,,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795410006591-281,0117,Sri Sheelawantha Dharma Vidyalaya,,Suriyagama,Suriyagama,,,250000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795410097327-983,0118,New Lucky Trade Center,,"No,8/1 B 
+Sathsara Uyana ,
+Ballapitiya,
+077 735 0866","No,8/1 B 
+Sathsara Uyana ,
+Ballapitiya,
+077 735 0866",,077 735 0866,2000000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795410170776-709,0119,Central Hardware - Yatiyanthota,,Yatiyanthota,Yatiyanthota,,,1000000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795410281607-518,0120,Crystal Glass,,Eheliyagoda,Eheliyagoda,,,1000000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795410378311-973,0121,Central Hardware - Dalupotha,,"No 119/A, 
+Prisan Road,
+Dalupotha,
+Negombo, 
+077 712 2245.","No 119/A, 
+Prisan Road,
+Dalupotha,
+Negombo, 
+077 712 2245.",,077 712 2245,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795410453399-828,0122,Madusadi Furniture,,"No. 50/A,
+Mile Post,
+Batawala, Padukka.
+077 077 5325","No. 50/A,
+Mile Post,
+Batawala, Padukka.
+077 077 5325",,077 077 5325,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795410497855-195,0123,Mr. Mahesh Premarathna,,"Galahitiyawa, 
+Gsnemulla.","Galahitiyawa, 
+Gsnemulla.",,,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795410610799-216,0124,Crescent Hardware Stores,,"No 108,
+Gall Road,
+Mount leveniya,
+077 453 0189.","No 108,
+Gall Road,
+Mount leveniya,
+077 453 0189.",,077 453 0189,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795411512330-337,0125,Saman Traders,,"No.35, Negombo Road, Yakkala
+0332223722","No.35, Negombo Road, Yakkala
+0332223722",,0332223722,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795411884300-382,0126,Siyara Gardens,,"Ambalammulla, Seeduwa
+0774137040","Ambalammulla, Seeduwa
+0774137040",,0774137040,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795412041727-95,0186,Madusha Wood Works,,"Makilangamuwa, 
+Ganemulla","Makilangamuwa, 
+Ganemulla",,,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795412072614-226,0127,Rose Hardware,,"Seeduwa
+0727111123","Seeduwa
+0727111123",,0727111123,,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795412098511-228,0187,Lanka Trading Enterprises,,"No.355, 
+Main Street 
+Negambo 
+077 280 7965 
+071 272 1685","No.355, 
+Main Street 
+Negambo 
+077 280 7965 
+071 272 1685",,077 280 7965,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795412149071-821,0188,J M C  Floorning,,"Hanwella 
+071 122 2679",,,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795412222221-685,0128,Mr.Sanjeewa,,,,,,250000,,,,
+CUST-1795412275015-646,0189,D Max Enterprises,,"N0-31/C 
+T.B, Junction,
+Minuwangoda Road, 
+Ekala.
+077 830 7818","N0-31/C 
+T.B, Junction,
+Minuwangoda Road, 
+Ekala.
+077 830 7818",,077 830 7818,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795412347079-58,0190,Isuru Paint Shop,,"Negambo Road,
+Maradaghamula.
+031 224 8802","Negambo Road,
+Maradaghamula.
+031 224 8802",,031 224 8802,500000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795412459064-129,0191,Mahanama Paint Center - Nawinna,,"N0. 181/1 
+Old Kottawa Road, 
+Nawinna.
+011 284 5456","N0. 181/1 
+Old Kottawa Road, 
+Nawinna.
+011 284 5456",,011 284 5456,500000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795412543527-110,0192,Vipul Paint & Hire Center,,"No. 531/A, 
+Polpitimookalane, 
+Kadana.
+011 493 3524 
+077 751 2185 
+075 794 3943","No. 531/A, 
+Polpitimookalane, 
+Kadana.
+011 493 3524 
+077 751 2185 
+075 794 3943",,011 493 3524,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795412901603-111,0130,A.B.C. Hardware,,"Madugahawela Waththa, Indolamulla, Dompe
+0760051564","Madugahawela Waththa, Indolamulla, Dompe
+0760051564",,0760051564,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795413225600-229,0193,Senanayaka Traders,,"No. 366
+Wigoda Road,
+Daranagoda,
+Demmulla
+071 752 9625","No. 366
+Wigoda Road,
+Daranagoda,
+Demmulla
+071 752 9625",,071 752 9625,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795412404923-20,0129,City Glass,,Kuruwita,Kuruwita,,,1000000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795413328775-689,0194,Fox Resort,,"No. 257, KKS Road,
+Kokkuvil, 
+Jaffna.","No. 257, KKS Road,
+Kokkuvil, 
+Jaffna.",,,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,
+CUST-1795413502023-105,0195,COTTA PAINTS & HARDWARE (PVT) LTD,,"No. 135, 
+Cotta Road, 
+Borella, 
+Colombo - 08.
+077 714 4977","No. 135, 
+Cotta Road, 
+Borella, 
+Colombo - 08.
+077 714 4977",,077 714 4977,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795413608633-148,0132,Hameediya Hardware,,"No.30, Dambulla Road, Galewala
+0776014190
+0778426005","No.30, Dambulla Road, Galewala
+0776014190
+0778426005",,0776014190/0778426005,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795413620191-761,0196,Brightway International,,"Director/Consultant,
+Brightway International,
+Business Solution & Consultant (pvt) Ltd
+No. 698/3, 
+Panagoda,
+Homagama,
+077 720 2901","Director/Consultant,
+Brightway International,
+Business Solution & Consultant (pvt) Ltd
+No. 698/3, 
+Panagoda,
+Homagama,
+077 720 2901",,077 720 2901,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795413345490-296,0131,Chethana Stores,,"Chethana Stores, Katapala, Ganegoda
+0912290754
+0767978158","Chethana Stores, Katapala, Ganegoda
+0912290754
+0767978158",,0767978158,500000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795413724403-833,0133,Wishwa Enterprises,,Avissawella,Avissawella,,,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795413853870-988,0134,Palanda Hardware,,Kuruwita,Kuruwita,,,250000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795413996820-354,0135,Popular Stores,,"X637+373, Avissawella - Hatton - Nuwara Eliya Hwy, Avissawella
+0362 230 470","X637+373, Avissawella - Hatton - Nuwara Eliya Hwy, Avissawella
+0362 230 470",,0362 230 470,,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795414306724-152,0136,Nirvi Interior (pvt) Ltd,,"No.120, Nadurupitiya, Kadana","No.120, Nadurupitiya, Kadana",,,,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795414663336-773,0197,Dalumurugama Hardware,,"Dematagedara, 
+Kolambage Ara. 
+076 709 2814
+071 066 4410","Dematagedara, 
+Kolambage Ara. 
+076 709 2814
+071 066 4410",,076 709 2814,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795415301344-736,0198,U.G STORES,,"Camp Road, 
+Udawalawa. 
+047 223 3335","Camp Road, 
+Udawalawa. 
+047 223 3335",,047 223 3335,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795415386416-476,0199,Mahanama Paint Center,,"Hospitel Road , 
+Dehiwala,
+Mount - Lavinia.
+011 276 6474","Hospitel Road , 
+Dehiwala,
+Mount - Lavinia.
+011 276 6474",,011 276 6474,1500000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795415483888-917,0200,Widu Hardware,,"Mapitigama, 
+Malwana. 
+074 133 1954","Mapitigama, 
+Malwana. 
+074 133 1954",,074 133 1954,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795415552872-692,0201,Lanka Hardware,,"No. 118/A,
+Sri Sumanathissa Mawatha, 
+Colombo 12.
+077 766 6572","No. 118/A,
+Sri Sumanathissa Mawatha, 
+Colombo 12.
+077 766 6572",,077 766 6572,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795415643768-470,0202,KANDY STEEL PAINT HOUSE,,"No. 150/2, 
+Kurunagala Road,
+Katugastota
+077 100 1066","No. 150/2, 
+Kurunagala Road,
+Katugastota
+077 100 1066",,077 100 1066,500000,EMP-261113162312-332,W.K.Y. Pamuditha Karunarathna,,
+CUST-1795416484760-545,0203,Kumarathunga Hardware,,Pallebadda.,Pallebadda.,,,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795416569360-671,0204,Multy Trade Center,,"Kumbukgete Road,
+Hiripitiya 
+077 006 2726","Kumbukgete Road,
+Hiripitiya 
+077 006 2726",,077 006 2726,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795417044921-315,0137,J.I.L Hardware,,"Hunugalkadulla, Moraththa
+0725411873","Hunugalkadulla, Moraththa
+0725411873",,0725411873,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795421396685-686,0205,ORIENT TRADING,,Eheliyagoda,Eheliyagoda,,,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795421630773-549,0206,Induka Hardware,,"Higgashena, 
+Kuruwita,
+071 278 7878  
+045 226 1278","Higgashena, 
+Kuruwita,
+071 278 7878  
+045 226 1278",,071 278 7878,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795421696381-215,0207,Gamini Enterprises,,,,,,300000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795421780429-541,0208,Gamage Hardware,,"Deniyaya Road, 
+Morawaka. 
+076 843 1078.","Deniyaya Road, 
+Morawaka. 
+076 843 1078.",,076 843 1078,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795421846965-22,0209,Gamage Enterpricess,,"No.10/2, 
+St Michel Road, 
+Suwarapola,
+Piliyandala.","No.10/2, 
+St Michel Road, 
+Suwarapola,
+Piliyandala.",,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795421867828-195,0138,Amarajeewa Home Hardware,,"Keppetigala Road, Mahiella, Kurunegala
+0760584008
+0716174920","Keppetigala Road, Mahiella, Kurunegala
+0760584008
+0716174920",,0760584008/0716174920,,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795421922533-533,0210,L.T.L PAINT CENTER NEW,,"No. 124, 
+Agalawatta Road, 
+Mathugama.
+034 224 1231","No. 124, 
+Agalawatta Road, 
+Mathugama.
+034 224 1231",,034 224 1231,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795421997221-527,0211,Happy Hardware.,,"Balangoda Road, 
+Udawela.
+070 608 0538","Balangoda Road, 
+Udawela.
+070 608 0538",,070 608 0538,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795422004366-417,0139,Mahajan Hardaware Dambulla,,"Dambulla Road, Thalgodapitiya","Dambulla Road, Thalgodapitiya",,,,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUST-1795422142431-73,0140,Suduwella Concreate,,Kosgama,Kosgama,,,,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795422205077-965,0212,Ranlihini Hardware.,,"N0-69, 
+Kegalle Road, 
+Ruwanwella.
+077 168 2068 
+077 345 2068","N0-69, 
+Kegalle Road, 
+Ruwanwella.
+077 168 2068 
+077 345 2068",,077 168 2068,300000,EMP-261113162312-332,W.K.Y. Pamuditha Karunarathna,,
+CUST-1795422405667-673,0141,W.C Homes,,"No 68/86, Suramaya Sewana, Putupagala, Mandawala
+0112192953","No 68/86, Suramaya Sewana, Putupagala, Mandawala
+0112192953",,0112192953,,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795422721013-204,0213,Ruthra Hardware & Electricals,,"No.26 
+Old Negambo Road, 
+Wattala.
+077 265 6433 
+077 603 4293","No.26 
+Old Negambo Road, 
+Wattala.
+077 265 6433 
+077 603 4293",,077 265 6433,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795422817439-13,0142,Lakmini Hardware,,"38/B , Kirindawita Road, Udugampola
+0332232956","38/B , Kirindawita Road, Udugampola
+0332232956",,03332232956,,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795424535948-463,0143,Wickrama Enterprises,,"No.14/A,1, Horana Road, Kesbawa
+0112702454
+0716449340","No.14/A,1, Horana Road, Kesbawa
+0112702454
+0716449340",,0112702454/0716449340,,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795425383473-493,0144,Madusha Hardware,,"No.665, Mankada Road, Mawaramandiya, Kadawatha
+0727657724","No.665, Mankada Road, Mawaramandiya, Kadawatha
+0727657724",,0727657724,,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUS-0098,CUS-0098,Mr. Nilantha Karunarathna,,,,,,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-20
+CUST-1795425644353-454,0145,Colombo Trade Center,,"No.164, Beliatta Road, Dikwella
+0777944575","No.164, Beliatta Road, Dikwella
+0777944575",,0777944575,,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795425881183-448,0146,Sadik & Sons,,"No.81, Old Tangalle Road, Kottuwegoda, Matara
+0432234622","No.81, Old Tangalle Road, Kottuwegoda, Matara
+0432234622",,0432234622,,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795429322747-862,0147,Ajantha Hardware Stores,,"No.31, Rambukkana Road, Mawanella
+0777574656","No.31, Rambukkana Road, Mawanella
+0777574656",,0777574656,,EMP-261113162312-332,W.K.Y. Pamuditha Karunarathna,,
+CUST-1795429500937-47,0148,Akurugoda Paint House,,,,,,,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795429673505-7,0149,Jayamini Hardware,,"No.32, Akurassa Road, Matara
+0718185269","No.32, Akurassa Road, Matara
+0718185269",,0718185269,,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795429839053-639,0150,Ahamed Hardware,,"Main Street, Kannaththota
+0362269129","Main Street, Kannaththota
+0362269129",,0362269129,,EMP-261113162312-332,W.K.Y. Pamuditha Karunarathna,,
+CUST-1795430453866-378,0151,Global Hardware,,"Neluwa Road, Kodikaragoda, Morawaka
+0774068033","Neluwa Road, Kodikaragoda, Morawaka
+0774068033",,0774068033,,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795430600123-874,0152,Al Faaz Hardware,,"Balangoda Road, Pelmadulla
+0718946545","Balangoda Road, Pelmadulla
+0718946545",,0718946545,,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795430767346-29,0153,Vishwa Hardware,,"No.369, Main Street, Panadura
+0707963100","No.369, Main Street, Panadura
+0707963100",,0707963100,,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795430946589-680,0154,Watex Lanka Engineering (Pvt) Ltd,,"No.269, Tangalle Road, Kotuwegoda, Matara","No.269, Tangalle Road, Kotuwegoda, Matara",,,,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795431015499-746,0155,Dissanayaka Hardware,,,,,,,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUST-1795431111891-792,0156,New Mahanama Paint Center,,"119, Main Street, Moratuwa
+0759772009","119, Main Street, Moratuwa
+0759772009",,0759772009,,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795431218038-471,0157,AS International,,"A.S, 78/8, Kumudu Mawatha, Nampamunuwa, Piliyandala","A.S, 78/8, Kumudu Mawatha, Nampamunuwa, Piliyandala",,,,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795431348909-735,0158,Jayapathi Hardware,,"Kandy Road, Theldeniya
+0727510120
+0812374892","Kandy Road, Theldeniya
+0727510120
+0812374892",,0727510120/0812374892,,EMP-261113162312-332,W.K.Y. Pamuditha Karunarathna,,
+CUST-1795579531127-144,0214,Makenzi space pvt ltd,,"No. 700/B 
+Undugoda Road,
+Wewala junction, 
+Ranala.
+071 471 9971 
+011 241 5161","No. 700/B 
+Undugoda Road,
+Wewala junction, 
+Ranala.
+071 471 9971 
+011 241 5161",,071 471 9971,249999.98,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795579528586-497,0159,Kithsiri Hardware Stores,,"Litro Gas Dealer, No.525/6, Heenkenda, Ragama
+0112955085
+0112967347","Litro Gas Dealer, No.525/6, Heenkenda, Ragama
+0112955085
+0112967347",,0112955085/0112967347,,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUST-1795579614735-74,0215,Athula Hardware Stores,,"No-383/ A, 
+Kaduwela Road, 
+Battaramulla.
+077 744 3933","No-383/ A, 
+Kaduwela Road, 
+Battaramulla.
+077 744 3933",,077 744 3933,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUST-1795579670247-515,0216,Muthuhettigama Hardware Stores,,"Maint Street, 
+Udugama. 
+091 493 2601","Maint Street, 
+Udugama. 
+091 493 2601",,091 493 2601,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795579849328-250,0160,Brilliant Paint,,"No.800, Main Street, Katukurunda, Kaluthara
+0342228160
+0770623667","No.800, Main Street, Katukurunda, Kaluthara
+0342228160
+0770623667",,0342228160/0770623667,,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUST-1795580392118-73,0161,Siripali Hardware,,"No.177/A3, Amunugoda, Imbulgoda
+0767692125
+0779552125","No.177/A3, Amunugoda, Imbulgoda
+0767692125
+0779552125",,0767692125/0779552125,,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUST-1795581059350-549,0162,City Enterprises,,"No.336, Main Street, Rathnapura","No.336, Main Street, Rathnapura",,,,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUS-0084,CUS-0084,Mr. Sampath,,,,,,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-20
+CUS-0091,CUS-0091,Madushanka Hardware,,"No. 434/D, 
+Nilpanagoda Minuwangoda.
+077 910 7639","No. 434/D, 
+Nilpanagoda Minuwangoda.
+077 910 7639",,077 910 7639,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-20
+CUS-0080,CUS-0080,Mallikarachci itimber,,"Malabe
+077 734 3274","Malabe
+077 734 3274",,077 734 3274,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-19
+CUS-0089,CUS-0089,Aruna Furniture,,"No. 260,
+Weligampitiya
+Ja-Ela,
+071 413 4955","No. 260,
+Weligampitiya
+Ja-Ela,
+071 413 4955",,071 413 4955,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-20
+CUS-0002,CUS-0002,Akrams Hardware,,"No. 17,
+Old Matara Road,
+Galle.
+077 970 0188","No. 17,
+Old Matara Road,
+Galle.
+077 970 0188",,077 970 0188,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-19
+CUS-0057,CUS-0057,Shangri - La Hotel,,"Shangri - La hotel
+Hambanthota","Shangri - La hotel
+Hambanthota",,,500000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-19
+CUS-0061,CUS-0061,St.Mary's Color Center,,"No.150,
+Old Negombo Road ,
+Kanuwana , 
+Ja Ela .
+077 727 3609
+077 197 5821","No.150,
+Old Negombo Road ,
+Kanuwana , 
+Ja Ela .
+077 727 3609
+077 197 5821",,077 727 3609,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-25
+CUS-0097,CUS-0097,New H.D. Hardware,,"Keppitigala Road, 
+Hunugalkadulla 
+076 058 7166
+070 172 0400","Keppitigala Road, 
+Hunugalkadulla 
+076 058 7166
+070 172 0400",,076 0587166,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-20
+CUS-0125,CUS-0125,Saman Traders,,"No.35, Negombo Road, Yakkala
+0332223722","No.35, Negombo Road, Yakkala
+0332223722",,332223722,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-22
+CUS-0014,CUS-0014,Eagle Hardware,,"No. 11,
+Cemetery Road,
+Kudapaduwa,
+Negambo.
+077 225 2063","No. 11,
+Cemetery Road,
+Kudapaduwa,
+Negambo.
+077 225 2063",,077 225 2063,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-19
+CUS-0144,CUS-0144,Madusha Hardware,,"No.665, Mankada Road, Mawaramandiya, Kadawatha
+0727657724","No.665, Mankada Road, Mawaramandiya, Kadawatha
+0727657724",,727657724,0,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-22
+CUS-0068,CUS-0068,Welarathna Hardware,,"Babaralla,
+Meegahathanna.
+076 452 6801","Babaralla,
+Meegahathanna.
+076 452 6801",,076 452 6801,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-19
+CUS-0161,CUS-0161,Siripali Hardware,,"No.177/A3, Amunugoda, Imbulgoda
+0767692125
+0779552125","No.177/A3, Amunugoda, Imbulgoda
+0767692125
+0779552125",,0767692125/0779552125,0,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-24
+CUS-0101,CUS-0101,Pannala AR Hardware,,,,,,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-20
+CUS-0193,CUS-0193,Senanayaka Traders,,"No. 366
+Wigoda Road,
+Daranagoda,
+Demmulla
+071 752 9625","No. 366
+Wigoda Road,
+Daranagoda,
+Demmulla
+071 752 9625",,071 752 9625,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-22
+CUS-0093,CUS-0093,M.K Hardware,,"Pamburana, 
+Matara 
+041 223 3668","Pamburana, 
+Matara 
+041 223 3668",,041 223 3668,300000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-20
+CUS-0023,CUS-0023,Jayarathna Hardware,,"Nebada Road,
+Thebuwana
+077 327 9078","Nebada Road,
+Thebuwana
+077 327 9078",,077 327 9078,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-19
+CUS-0054,CUS-0054,Samarakoon Hardware,,"No. 347/A,
+Colombo Road,
+bokundara,
+Piliyandala.
+077 765 3907","No. 347/A,
+Colombo Road,
+bokundara,
+Piliyandala.
+077 765 3907",,077 765 3907,500000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-19
+CUS-0120,CUS-0120,Crystal Glass,,Eheliyagoda,Eheliyagoda,,,1000000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-22
+CUS-0129,CUS-0129,City Glass,,Kuruwita,Kuruwita,,,1000000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-25
+CUS-0121,CUS-0121,Rajarathna Hardware,,"Colombo Road,
+Bulugolla, 
+Pothuhara 
+077 251 2605","Colombo Road,
+Bulugolla, 
+Pothuhara 
+077 251 2605",,077 251 2605,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-25
+CUS-0044,CUS-0044,Pabora Paint,,"No.51,
+Siriwardana Road,
+Ragama,
+011 295 8441","No.51,
+Siriwardana Road,
+Ragama,
+011 295 8441",,011 295 8441,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-25
+CUS-0047,CUS-0047,R.A.M Suppliers,,,,,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-19
+CUS-0027,CUS-0027,Jaya Sri Hardware,,"No 80,
+Galle Road ,
+Balapitiya
+091 225 3759","No 80,
+Galle Road ,
+Balapitiya
+091 225 3759",,091 225 3759,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-25
+CUS-0196,CUS-0196,Brightway International,,"Director/Consultant,
+Brightway International,
+Business Solution & Consultant (pvt) Ltd
+No. 698/3, 
+Panagoda,
+Homagama,
+077 720 2901","Director/Consultant,
+Brightway International,
+Business Solution & Consultant (pvt) Ltd
+No. 698/3, 
+Panagoda,
+Homagama,
+077 720 2901",,077 720 2901,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-22
+CUS-0105,CUS-0105,Wevlanda Hardware,,"Colombo Road,
+Malpitiya,
+Boyagane 
+037 223 2362","Colombo Road,
+Malpitiya,
+Boyagane 
+037 223 2362",,037 223 2362,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-25
+CUS-0136,CUS-0136,Big Win Holdings,,"No. 457,
+Tewatta Road,
+Ragama 
+071 810 1856","No. 457,
+Tewatta Road,
+Ragama 
+071 810 1856",,071 810 1856,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-25
+CUS-0197,CUS-0197,Dalumurugama Hardware,,"Dematagedara, 
+Kolambage Ara. 
+076 709 2814
+071 066 4410","Dematagedara, 
+Kolambage Ara. 
+076 709 2814
+071 066 4410",,076 709 2814,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-22
+CUS-0153,CUS-0153,Vishwa Hardware,,"No.369, Main Street, Panadura
+0707963100","No.369, Main Street, Panadura
+0707963100",,707963100,0,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-22
+CUS-0166,CUS-0166,J.I.L Hardware,,"Hunugalkadulla, Moraththa
+0725411873","Hunugalkadulla, Moraththa
+0725411873",,725411873,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-25
+CUS-0211,CUS-0211,Happy Hardware.,,"Balangoda Road, 
+Udawela.
+070 608 0538","Balangoda Road, 
+Udawela.
+070 608 0538",,070 608 0538,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-25
+CUS-0176,CUS-0176,Sadik & Sons,,"No.81, Old Tangalle Road, Kottuwegoda, Matara
+0432234622","No.81, Old Tangalle Road, Kottuwegoda, Matara
+0432234622",,0432234622,,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUS-0222,CUS-0222,Siripali Hardware,,"No.177/A3, Amunugoda, Imbulgoda
+0767692125
+0779552125","No.177/A3, Amunugoda, Imbulgoda
+0767692125
+0779552125",,0767692125/0779552125,0,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-25
+CUS-0173,CUS-0173,Wickrama Enterprises,,"No.14/A,1, Horana Road, Kesbawa
+0112702454
+0716449340","No.14/A,1, Horana Road, Kesbawa
+0112702454
+0716449340",,0112702454/0716449340,,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUS-0126,CUS-0126,Siyara Gardens,,"Ambalammulla, Seeduwa
+0774137040","Ambalammulla, Seeduwa
+0774137040",,774137040,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-22
+CUS-0185,CUS-0185,Dissanayaka Hardware,,,,,,0,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-25
+CUS-0115,CUS-0115,A.S. International,,"No. 4/5/2
+Ragama Road, 
+Kadwatha","No. 4/5/2
+Ragama Road, 
+Kadwatha",,,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-22
+CUS-0179,CUS-0179,Jayamini Hardware,,"No.32, Akurassa Road, Matara
+0718185269","No.32, Akurassa Road, Matara
+0718185269",,718185269,0,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-25
+CUS-0113,CUS-0113,Rathnayaka Paint Shop,,Maggona,Maggona,,,1000000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-22
+CUS-0189,CUS-0189,D Max Enterprises,,"N0-31/C 
+T.B, Junction,
+Minuwangoda Road, 
+Ekala.
+077 830 7818","N0-31/C 
+T.B, Junction,
+Minuwangoda Road, 
+Ekala.
+077 830 7818",,077 830 7818,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-25
+CUS-0177,CUS-0177,Ajantha Hardware Stores,,"No.31, Rambukkana Road, Mawanella
+0777574656","No.31, Rambukkana Road, Mawanella
+0777574656",,777574656,0,EMP-261113162312-332,W.K.Y. Pamuditha Karunarathna,,2026-11-25
+CUS-0024,CUS-0024,K.L.J Enterprices,,"No.467/F, 
+Highlevel Road, 
+Pannipitiya.
+076 375 2011
+011 283 7478
+077 262 2710","No.467/F, 
+Highlevel Road, 
+Pannipitiya.
+076 375 2011
+011 283 7478
+077 262 2710",,076 375 2011,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-25
+CUS-0146,CUS-0146,Sadik & Sons,,"No.81, Old Tangalle Road, Kottuwegoda, Matara
+0432234622","No.81, Old Tangalle Road, Kottuwegoda, Matara
+0432234622",,432234622,0,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-22
+CUS-0045,CUS-0045,Prasanna Paint Center,,"No,127,
+Main Road,
+Attidiya,
+Dehiwala.
+011 465 5563 
+075 376 0655","No,127,
+Main Road,
+Attidiya,
+Dehiwala.
+011 465 5563 
+075 376 0655",,011 465 5563,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-19
+CUS-0109,CUS-0109,Dadugama Hardware,,"No. 238, 
+Dadugama","No. 238, 
+Dadugama",,,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-22
+CUS-0104,CUS-0104,Saman Hardware,,"Kellmune, 
+Mahakeliya.
+076 006 5561","Kellmune, 
+Mahakeliya.
+076 006 5561",,076 006 5561,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-25
+CUS-0017,CUS-0017,Furnicraft Manufacting (pvt) Ltd,,"No. 73/B ,
+Negambo Road,
+Wattala,
+011 294 1604","No. 73/B ,
+Negambo Road,
+Wattala,
+011 294 1604",,011 294 1604,300000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-19
+CUS-0031,CUS-0031,Mawathagama Hardware,,"No. 08,
+Kandy Road,
+Mawathagama
+037 229 9592 
+076 655 0425","No. 08,
+Kandy Road,
+Mawathagama
+037 229 9592 
+076 655 0425",,037 229 9592,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-25
+CUS-0072,CUS-0072,Unique Paint House,,"No. 166/A,
+Makola Road,
+Kiribathgoda.
+077 793 3829","No. 166/A,
+Makola Road,
+Kiribathgoda.
+077 793 3829",,077 793 3829,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-25
+CUS-0183,CUS-0183,Vishwa Hardware,,"No.369, Main Street, Panadura
+0707963100","No.369, Main Street, Panadura
+0707963100",,0707963100,,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUS-0086,CUS-0086,Lakjaya Enterprises,,,,,,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-20
+CUS-0107,CUS-0107,Manamperi Hardware,,,,,,300000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-22
+CUS-0152,CUS-0152,Al Faaz Hardware,,"Balangoda Road, Pelmadulla
+0718946545","Balangoda Road, Pelmadulla
+0718946545",,718946545,0,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-22
+CUS-0128,CUS-0128,Mr.Sanjeewa,,,,,,250000,,,,2026-11-22
+CUS-0178,CUS-0178,Akurugoda Paint House,,,,,,,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUS-0070,CUS-0070,Wimalarathna Hardware,,"No. 213/1/D 
+Oppasite the Hospital ,
+Dompe .
+077 868 3489","No. 213/1/D 
+Oppasite the Hospital ,
+Dompe .
+077 868 3489",,077 863 3489,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-19
+CUS-0171,CUS-0171,W.C Homes,,"No 68/86, Suramaya Sewana, Putupagala, Mandawala
+0112192953","No 68/86, Suramaya Sewana, Putupagala, Mandawala
+0112192953",,0112192953,,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUS-0022,CUS-0022,Jaya Sri Hardware,,"No 80,
+Galle Road ,
+Balapitiya
+091 225 3759","No 80,
+Galle Road ,
+Balapitiya
+091 225 3759",,091 225 3759,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-19
+CUS-0127,CUS-0127,Rose Hardware,,"Seeduwa
+0727111123","Seeduwa
+0727111123",,727111123,0,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-22
+CUS-0184,CUS-0184,Watex Lanka Engineering (Pvt) Ltd,,"No.269, Tangalle Road, Kotuwegoda, Matara","No.269, Tangalle Road, Kotuwegoda, Matara",,,,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUS-0040,CUS-0040,New Wayamba Hardware,,"No 495,
+Dambulla Road,
+Melsiripura
+077 885 5533","No 495,
+Dambulla Road,
+Melsiripura
+077 885 5533",,077 885 5533,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-19
+CUS-0209,CUS-0209,Gamage Enterpricess,,"No.10/2, 
+St Michel Road, 
+Suwarapola,
+Piliyandala.","No.10/2, 
+St Michel Road, 
+Suwarapola,
+Piliyandala.",,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-22
+CUS-0200,CUS-0200,Widu Hardware,,"Mapitigama, 
+Malwana. 
+074 133 1954","Mapitigama, 
+Malwana. 
+074 133 1954",,074 133 1954,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-22
+CUS-0158,CUS-0158,Jayapathi Hardware,,"Kandy Road, Theldeniya
+0727510120
+0812374892","Kandy Road, Theldeniya
+0727510120
+0812374892",,0727510120/0812374892,0,EMP-261113162312-332,W.K.Y. Pamuditha Karunarathna,,2026-11-22
+CUS-0078,CUS-0078,Soliwood enterprises,,Athurugiriya,Athurugiriya,,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-19
+CUS-0138,CUS-0138,Amarajeewa Home Hardware,,"Keppetigala Road, Mahiella, Kurunegala
+0760584008
+0716174920","Keppetigala Road, Mahiella, Kurunegala
+0760584008
+0716174920",,0760584008/0716174920,0,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-22
+CUS-0036,CUS-0036,New Customer,,,,,,0,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-19
+CUS-0032,CUS-0032,Mr.Imesh Yasintha,,"Aluthwegedara
+Polpithigama
+071 039 1277","Aluthwegedara
+Polpithigama
+071 039 1277",,071 039 1277,750000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-19
+CUS-0051,CUS-0051,Rhino Roofing,,"Rhino Roofing 
+070 313 3060","Rhino Roofing 
+070 313 3060",,070 313 3060,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-19
+CUS-0010,CUS-0010,Deepthi Colour House,,"Kuliyapitiya Road,
+Narammala.
+076 568 2908","Kuliyapitiya Road,
+Narammala.
+076 568 2908",,076 568 2908,500000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-19
+CUS-0095,CUS-0095,Mr. Sunanda,,,,,,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-20
+CUS-0081,CUS-0081,Wijitha Hardware - Hikkaduwa,,"No-118 , 
+Baddegama Road , 
+Hikkaduwa,
+077 585 8853","No-118 , 
+Baddegama Road , 
+Hikkaduwa,
+077 585 8853",,077 585 8853,500000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-25
+CUS-0157,CUS-0157,Senanayaka Traders,,"No. 366
+Wigoda Road,
+Daranagoda,
+Demmulla
+071 752 9625","No. 366
+Wigoda Road,
+Daranagoda,
+Demmulla
+071 752 9625",,071 752 9625,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-25
+CUS-0060,CUS-0060,Sri Shine Colour House and Hardware,,"No. 28/2/A,
+Godagama Road,
+Athurugiriya,
+011 205 4051","No. 28/2/A,
+Godagama Road,
+Athurugiriya,
+011 205 4051",,011 205 4051,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-25
+CUS-0140,CUS-0140,Suduwella Concreate,,Kosgama,Kosgama,,,0,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-22
+CUS-0186,CUS-0186,Madusha Wood Works,,"Makilangamuwa, 
+Ganemulla","Makilangamuwa, 
+Ganemulla",,,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-25
+CUS-0066,CUS-0066,Wadduwa Paint Center,,"No.44 
+Walekade Junction,
+Galle Rd,Wadduwa.
+075 221 8823","No.44 
+Walekade Junction,
+Galle Rd,Wadduwa.
+075 221 8823",,075 221 8823,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-25
+CUS-0201,CUS-0201,Lanka Hardware,,"No. 118/A,
+Sri Sumanathissa Mawatha, 
+Colombo 12.
+077 766 6572","No. 118/A,
+Sri Sumanathissa Mawatha, 
+Colombo 12.
+077 766 6572",,077 766 6572,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-22
+CUS-0130,CUS-0130,New Shan Enterprises,,"No. 293/4,
+Makola North, 
+Makola","No. 293/4,
+Makola North, 
+Makola",,,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-25
+CUS-0182,CUS-0182,Al Faaz Hardware,,"Balangoda Road, Pelmadulla
+0718946545","Balangoda Road, Pelmadulla
+0718946545",,0718946545,,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUS-0169,CUS-0169,Suduwella Concreate,,Kosgama,Kosgama,,,0,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-25
+CUS-0083,CUS-0083,Saman Hardware,,"Kellmune, 
+Mahakeliya.
+076 006 5561","Kellmune, 
+Mahakeliya.
+076 006 5561",,076 006 5561,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-25
+CUS-0214,CUS-0214,Makenzi space pvt ltd,,"No. 700/B 
+Undugoda Road,
+Wewala junction, 
+Ranala.
+071 471 9971 
+011 241 5161","No. 700/B 
+Undugoda Road,
+Wewala junction, 
+Ranala.
+071 471 9971 
+011 241 5161",,071 471 9971,249999.98,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-24
+CUS-0206,CUS-0206,Induka Hardware,,"Higgashena, 
+Kuruwita,
+071 278 7878  
+045 226 1278","Higgashena, 
+Kuruwita,
+071 278 7878  
+045 226 1278",,071 278 7878,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-22
+CUS-0191,CUS-0191,Mahanama Paint Center - Nawinna,,"N0. 181/1 
+Old Kottawa Road, 
+Nawinna.
+011 284 5456","N0. 181/1 
+Old Kottawa Road, 
+Nawinna.
+011 284 5456",,011 284 5456,500000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-22
+CUS-0175,CUS-0175,Colombo Trade Center,,"No.164, Beliatta Road, Dikwella
+0777944575","No.164, Beliatta Road, Dikwella
+0777944575",,777944575,0,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-25
+CUS-0008,CUS-0008,Colombo Colour Center,,"No. 68,
+Galle Road,
+Dehiwala (south)
+077 778 6017","No. 68,
+Galle Road,
+Dehiwala (south)
+077 778 6017",,077 778 6017,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-19
+CUS-0006,CUS-0006,Buddhika Hardware,,"No. 122/5,
+Indolamulla,
+Dompe.
+077 963 6967","No. 122/5,
+Indolamulla,
+Dompe.
+077 963 6967",,077 963 6967,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-25
+CUS-0077,CUS-0077,HD Hardware,,"Kurunegala Road
+School junction
+Uhumeeya
+077 706 6104","Kurunegala Road
+School junction
+Uhumeeya
+077 706 6104",,077 706 6104,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-19
+CUS-0049,CUS-0049,Rathna Lime Store,,"No.160,
+Temple Road, 
+Galkissa.
+011 271 8567","No.160,
+Temple Road, 
+Galkissa.
+011 271 8567",,011 271 8567,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-25
+CUS-0042,CUS-0042,Nimro Paint Industries (Pvt) Ltd,,"Heraliyawala Industrial Park, Kurunegala.
+077 728 1290
+037 469 0517","Heraliyawala Industrial Park, Kurunegala.
+077 728 1290
+037 469 0517",,037 469 0517,1000000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-19
+CUS-0034,CUS-0034,Mahajana Hardware & Electricals Dematagoda,,"No.114, 
+Kolonnawa Road, 
+Dematagoda.
+Colombo - 09.","No.114, 
+Kolonnawa Road, 
+Dematagoda.
+Colombo - 09.",,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-25
+CUS-0007,CUS-0007,Autogroup International (pvt) Ltd,,"No. 308,
+Awissawella,
+Colombo Road,
+Hewagama,
+Kaduwela,
+077 960 7773","No. 308,
+Awissawella,
+Colombo Road,
+Hewagama,
+Kaduwela,
+077 960 7773",,077 960 7773,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-25
+CUS-0019,CUS-0019,Gunasiri Hardware Stores,,"No.188 , 
+Galahitiyawa , 
+Ganemulla .
+033 226 0303
+077 317 9219","No.188 , 
+Galahitiyawa , 
+Ganemulla .
+033 226 0303
+077 317 9219",,033 226 0303,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-19
+CUS-0064,CUS-0064,Thimbiri Hardware,,"No. 156,
+Havelock Road,
+Thimbirigasyaya, Junction,
+Colombo-05
+072 028 8330","No. 156,
+Havelock Road,
+Thimbirigasyaya, Junction,
+Colombo-05
+072 028 8330",,072 028 8330,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-19
+CUS-0090,CUS-0090,Country Floors,,"No. 151,
+Kaduwela Road,
+Battaramulla","No. 151,
+Kaduwela Road,
+Battaramulla",,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-20
+CUS-0118,CUS-0118,New Lucky Trade Center,,"No,8/1 B 
+Sathsara Uyana ,
+Ballapitiya,
+077 735 0866","No,8/1 B 
+Sathsara Uyana ,
+Ballapitiya,
+077 735 0866",,077 735 0866,2000000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-25
+CUS-0020,CUS-0020,Isali Traders,,"Makubura Road, 
+Imaduwa 
+077 665 7303","Makubura Road, 
+Imaduwa 
+077 665 7303",,077 665 7303,500000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-19
+CUS-0145,CUS-0145,Central Hardware - Dalupotha,,"No 119/A, 
+Prisan Road,
+Dalupotha,
+Negombo, 
+077 712 2245.","No 119/A, 
+Prisan Road,
+Dalupotha,
+Negombo, 
+077 712 2245.",,077 712 2245,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-25
+CUS-0143,CUS-0143,Wickrama Enterprises,,"No.14/A,1, Horana Road, Kesbawa
+0112702454
+0716449340","No.14/A,1, Horana Road, Kesbawa
+0112702454
+0716449340",,0112702454/0716449340,0,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-22
+CUS-0195,CUS-0195,COTTA PAINTS & HARDWARE (PVT) LTD,,"No. 135, 
+Cotta Road, 
+Borella, 
+Colombo - 08.
+077 714 4977","No. 135, 
+Cotta Road, 
+Borella, 
+Colombo - 08.
+077 714 4977",,077 714 4977,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-25
+CUS-0198,CUS-0198,U.G STORES,,"Camp Road, 
+Udawalawa. 
+047 223 3335","Camp Road, 
+Udawalawa. 
+047 223 3335",,047 223 3335,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-22
+CUS-0188,CUS-0188,J M C  Floorning,,"Hanwella 
+071 122 2679",,,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-22
+CUS-0204,CUS-0204,Multy Trade Center,,"Kumbukgete Road,
+Hiripitiya 
+077 006 2726","Kumbukgete Road,
+Hiripitiya 
+077 006 2726",,077 006 2726,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-25
+CUS-0124,CUS-0124,Crescent Hardware Stores,,"No 108,
+Gall Road,
+Mount leveniya,
+077 453 0189.","No 108,
+Gall Road,
+Mount leveniya,
+077 453 0189.",,077 453 0189,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-22
+CUS-0110,CUS-0110,Mr. Amila,,"Devipahala,
+Kuruwita
+076 582 2549","Devipahala,
+Kuruwita
+076 582 2549",,076 582 2549,250000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-25
+CUS-0111,CUS-0111,Iduwara Furniture,,"No. 24/C, 
+Kurunagala Road,
+Thalakiriyagama
+071 062 8865","No. 24/C, 
+Kurunagala Road,
+Thalakiriyagama
+071 062 8865",,071 062 8865,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-22
+CUS-0106,CUS-0106,New Kalaniwali Hardware,,"No. 16 
+New Kandy Road, 
+Waliweriya.
+076 337 0032","No. 16 
+New Kandy Road, 
+Waliweriya.
+076 337 0032",,076 337 0032,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-22
+CUS-0052,CUS-0052,Rohana Hardware,,"No. 9 Mail Post,
+Meewewa,
+Kalugamuwa.
+071 942 8191","No. 9 Mail Post,
+Meewewa,
+Kalugamuwa.
+071 942 8191",,071 942 8191,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-19
+CUS-0013,CUS-0013,Dr. Sachi De Silva,,"Dr. Sachi De Silva
+Athulkotte","Dr. Sachi De Silva
+Athulkotte",,,0,EMP-1795150895114-998,L.S.C. De Silva,,2026-11-19
+CUS-0055,CUS-0055,Rathna Lime Store,,"No.160,
+Temple Road, 
+Galkissa.
+011 271 8567","No.160,
+Temple Road, 
+Galkissa.
+011 271 8567",,011 271 8567,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-25
+CUS-0092,CUS-0092,Kodikara Distributor,,"No. 372, 
+Borakanda, 
+Karandeniya.","No. 372, 
+Borakanda, 
+Karandeniya.",,,500000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-20
+CUS-0030,CUS-0030,Mahajana Hardware & Electricals Dematagoda,,"No.114, 
+Kolonnawa Road, 
+Dematagoda.
+Colombo - 09.","No.114, 
+Kolonnawa Road, 
+Dematagoda.
+Colombo - 09.",,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-19
+CUS-0050,CUS-0050,Rathnayaka Paint Center,,"No. 149,
+Udawela,
+Ibbagamuwa.
+076 663 9155","No. 149,
+Udawela,
+Ibbagamuwa.
+076 663 9155",,076 663 9155,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-19
+CUS-0085,CUS-0085,K.B Stores,,,,,,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-25
+CUS-0114,CUS-0114,Big Win Holdings,,"No. 457,
+Tewatta Road,
+Ragama 
+071 810 1856","No. 457,
+Tewatta Road,
+Ragama 
+071 810 1856",,071 810 1856,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-22
+CUS-0096,CUS-0096,DM Colour House (PVT) Ltd.,,"No - 20/7, 
+Ganemulla Road, 
+Surigama,
+Kadawatha.
+077 866 7725
+071 866 7725","No - 20/7, 
+Ganemulla Road, 
+Surigama,
+Kadawatha.
+077 866 7725
+071 866 7725",,077 866 7725,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-20
+CUS-0123,CUS-0123,Mr. Mahesh Premarathna,,"Galahitiyawa, 
+Gsnemulla.","Galahitiyawa, 
+Gsnemulla.",,,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-22
+CUS-0223,CUS-0223,City Enterprises,,"No.336, Main Street, Rathnapura","No.336, Main Street, Rathnapura",,,0,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-25
+CUS-0088,CUS-0088,S & N Holding Pvt Ltd,,"Wattala
+077 359 5329 
+Mr. Sampath","Wattala
+077 359 5329 
+Mr. Sampath",,077 359 5329,300000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-20
+CUS-0005,CUS-0005,Autogroup International (pvt) Ltd,,"No. 308,
+Awissawella,
+Colombo Road,
+Hewagama,
+Kaduwela,
+077 960 7773","No. 308,
+Awissawella,
+Colombo Road,
+Hewagama,
+Kaduwela,
+077 960 7773",,077 960 7773,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-25
+CUS-0181,CUS-0181,Global Hardware,,"Neluwa Road, Kodikaragoda, Morawaka
+0774068033","Neluwa Road, Kodikaragoda, Morawaka
+0774068033",,0774068033,,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUS-0141,CUS-0141,W.C Homes,,"No 68/86, Suramaya Sewana, Putupagala, Mandawala
+0112192953","No 68/86, Suramaya Sewana, Putupagala, Mandawala
+0112192953",,112192953,0,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-25
+CUS-0137,CUS-0137,J.I.L Hardware,,"Hunugalkadulla, Moraththa
+0725411873","Hunugalkadulla, Moraththa
+0725411873",,725411873,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-22
+CUS-0156,CUS-0156,New Mahanama Paint Center,,"119, Main Street, Moratuwa
+0759772009","119, Main Street, Moratuwa
+0759772009",,759772009,0,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-22
+CUS-0062,CUS-0062,Sudilana Hardware,,"No. 125 B, 
+Old Road, 
+Nawala,
+Rajagiriya","No. 125 B, 
+Old Road, 
+Nawala,
+Rajagiriya",,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-19
+CUS-0134,CUS-0134,Palanda Hardware,,Kuruwita,Kuruwita,,,250000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-22
+CUS-0203,CUS-0203,Kumarathunga Hardware,,Pallebadda.,Pallebadda.,,,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-22
+CUS-0011,CUS-0011,D K Construction,,"No. 163/1,
+Siridhamma Mawatha,
+Colombo 10","No. 163/1,
+Siridhamma Mawatha,
+Colombo 10",,,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-19
+CUS-0131,CUS-0131,Chethana Stores,,"Chethana Stores, Katapala, Ganegoda
+0912290754
+0767978158","Chethana Stores, Katapala, Ganegoda
+0912290754
+0767978158",,767978158,500000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-22
+CUS-0025,CUS-0025,Kamal Hardware,,"No. 68/1/D,
+Main Street,
+Malwana.
+011 257 0230
+076 772 2789","No. 68/1/D,
+Main Street,
+Malwana.
+011 257 0230
+076 772 2789",,011 257 0230,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-19
+CUS-0012,CUS-0012,DL Wasantha,,"Sadhdhathissa Road,
+Rajagawaththa,
+Walgama,
+Mathara.
+071 358 0105","Sadhdhathissa Road,
+Rajagawaththa,
+Walgama,
+Mathara.
+071 358 0105",,071 358 0105,1000000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-19
+CUS-0041,CUS-0041,Nimal Hardware,,"No.67/4
+Main Street, Malwana.
+011 247 6416","No.67/4
+Main Street, Malwana.
+011 247 6416",,011 247 6416,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-19
+CUS-0037,CUS-0037,New M K B Hardware,,"Katupotha Road ,
+Bamunukotuwa .
+075 677 2250","Katupotha Road ,
+Bamunukotuwa .
+075 677 2250",,075 677 2250,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-25
+CUS-0069,CUS-0069,Wijitha Hardware - Hikkaduwa,,"No-118 , 
+Baddegama Road , 
+Hikkaduwa,
+077 585 8853","No-118 , 
+Baddegama Road , 
+Hikkaduwa,
+077 585 8853",,077 585 8853,500000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-19
+CUS-0073,CUS-0073,Gayan Agro Chemical,,"Athkandura Junction, 
+Athkandura.
+077 748 9841
+077 531 2558
+091 229 0927","Athkandura Junction, 
+Athkandura.
+077 748 9841
+077 531 2558
+091 229 0927",,077 748 9841,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-25
+CUS-0094,CUS-0094,Nippon Hardware,,"No:32 
+Main Street,
+Giriulla.
+077 767 5733","No:32 
+Main Street,
+Giriulla.
+077 767 5733",,077 767 5733,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-25
+CUS-0119,CUS-0119,Central Hardware - Yatiyanthota,,Yatiyanthota,Yatiyanthota,,,1000000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-25
+CUS-0139,CUS-0139,Mahajan Hardaware Dambulla,,"Dambulla Road, Thalgodapitiya","Dambulla Road, Thalgodapitiya",,,0,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-22
+CUS-0133,CUS-0133,Wishwa Enterprises,,Avissawella,Avissawella,,,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-25
+CUS-0194,CUS-0194,Fox Resort,,"No. 257, KKS Road,
+Kokkuvil, 
+Jaffna.","No. 257, KKS Road,
+Kokkuvil, 
+Jaffna.",,,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-25
+CUS-0205,CUS-0205,ORIENT TRADING,,Eheliyagoda,Eheliyagoda,,,500000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-22
+CUS-0208,CUS-0208,Gamage Hardware,,"Deniyaya Road, 
+Morawaka. 
+076 843 1078.","Deniyaya Road, 
+Morawaka. 
+076 843 1078.",,076 843 1078,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-22
+CUS-0218,CUS-0218,Kithsiri Hardware Stores,,"Litro Gas Dealer, No.525/6, Heenkenda, Ragama
+0112955085
+0112967347","Litro Gas Dealer, No.525/6, Heenkenda, Ragama
+0112955085
+0112967347",,0112955085/0112967347,,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUS-0135,CUS-0135,Rathnayaka Paint Shop,,Maggona,Maggona,,,1000000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-25
+CUS-0147,CUS-0147,Madusadi Furniture,,"No. 50/A,
+Mile Post,
+Batawala, Padukka.
+077 077 5325","No. 50/A,
+Mile Post,
+Batawala, Padukka.
+077 077 5325",,077 077 5325,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-25
+CUS-0154,CUS-0154,Rose Hardware,,"Seeduwa
+0727111123","Seeduwa
+0727111123",,727111123,0,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-25
+CUS-0172,CUS-0172,Lakmini Hardware,,"38/B , Kirindawita Road, Udugampola
+0332232956","38/B , Kirindawita Road, Udugampola
+0332232956",,03332232956,,EMP-261113154746-142,L.A.S.L. Athukorala,,
+CUS-0163,CUS-0163,Palanda Hardware,,Kuruwita,Kuruwita,,,250000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUS-0074,CUS-0074,Thurusiri pvt ltd,,"366/3A
+Waikkiya watta,
+Ihala Bomiriya, 
+Kaduwela
+077 345 7722,
+076 885 1436","366/3A
+Waikkiya watta,
+Ihala Bomiriya, 
+Kaduwela
+077 345 7722,
+076 885 1436",,077 345 7722,300000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-25
+CUS-0215,CUS-0215,AS International,,"A.S, 78/8, Kumudu Mawatha, Nampamunuwa, Piliyandala","A.S, 78/8, Kumudu Mawatha, Nampamunuwa, Piliyandala",,,0,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-25
+CUS-0164,CUS-0164,Popular Stores,,"X637+373, Avissawella - Hatton - Nuwara Eliya Hwy, Avissawella
+0362 230 470","X637+373, Avissawella - Hatton - Nuwara Eliya Hwy, Avissawella
+0362 230 470",,0362 230 470,,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,
+CUS-0142,CUS-0142,Lakmini Hardware,,"38/B , Kirindawita Road, Udugampola
+0332232956","38/B , Kirindawita Road, Udugampola
+0332232956",,3332232956,0,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-22
+CUS-0048,CUS-0048,P J S Electric & Hardware,,"No, 324/5
+Kottunna Road,
+Biyagama
+077 163 1767","No, 324/5
+Kottunna Road,
+Biyagama
+077 163 1767",,077 163 1767,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-25
+CUS-0100,CUS-0100,Sandaruwan Construction,,"Wellampitiya
+Warakapola
+076 427 3231","Wellampitiya
+Warakapola
+076 427 3231",,076 427 3231,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-25
+CUS-0151,CUS-0151,Global Hardware,,"Neluwa Road, Kodikaragoda, Morawaka
+0774068033","Neluwa Road, Kodikaragoda, Morawaka
+0774068033",,774068033,0,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-22
+CUS-0053,CUS-0053,Sandaruwan Construction,,"Wellampitiya
+Warakapola
+076 427 3231","Wellampitiya
+Warakapola
+076 427 3231",,076 427 3231,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-20
+CUS-0039,CUS-0039,New Shakthi Hardware,,"Kalugamuwa Road,
+Imiyanngoda.
+077 967 9267 
+076 666 9306","Kalugamuwa Road,
+Imiyanngoda.
+077 967 9267 
+076 666 9306",,077 967 9267,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-25
+CUS-0038,CUS-0038,Nesitha Hardware,,"No. 12/1A,
+Horana Road,
+Polgasowita
+077 967 5617
+077 940 5617","No. 12/1A,
+Horana Road,
+Polgasowita
+077 967 5617
+077 940 5617",,077 967 5617,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-25
+CUS-0021,CUS-0021,J.N.Construction,,"No. 69/1/B, 
+Kahalwila Road,, 
+Kelaniya.","No. 69/1/B, 
+Kahalwila Road,, 
+Kelaniya.",,,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-19
+CUS-0063,CUS-0063,Surangi Paint Center,,"No. 86 / 6 / A,
+Negambo Road, 
+Kandana.
+ 077 771 4633","No. 86 / 6 / A,
+Negambo Road, 
+Kandana.
+ 077 771 4633",,077 771 4633,1000000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-19
+CUS-0018,CUS-0018,Gonawala Hardware,,"No. 203/3,
+Kohawila Road ,
+Gonawala, Kelaniya.
+011 291 0458","No. 203/3,
+Kohawila Road ,
+Gonawala, Kelaniya.
+011 291 0458",,011 291 0458,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-19
+CUS-0015,CUS-0015,El Toro Roofing Products Ltd.,,"No:752 Baseline Rd, Colombo 09.
+077-9215075
+011-2674212
+011-2674214","No:752 Baseline Rd, Colombo 09.
+077-9215075
+011-2674212
+011-2674214",,077-9215075,500000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-19
+CUS-0116,CUS-0116,Mr. Sunanda,,,,,,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-25
+CUS-0199,CUS-0199,Mahanama Paint Center,,"Hospitel Road , 
+Dehiwala,
+Mount - Lavinia.
+011 276 6474","Hospitel Road , 
+Dehiwala,
+Mount - Lavinia.
+011 276 6474",,011 276 6474,1500000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-22
+CUS-0159,CUS-0159,Hameediya Hardware,,"No.30, Dambulla Road, Galewala
+0776014190
+0778426005","No.30, Dambulla Road, Galewala
+0776014190
+0778426005",,0776014190/0778426005,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-25
+CUS-0167,CUS-0167,Amarajeewa Home Hardware,,"Keppetigala Road, Mahiella, Kurunegala
+0760584008
+0716174920","Keppetigala Road, Mahiella, Kurunegala
+0760584008
+0716174920",,0760584008/0716174920,,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,
+CUS-0148,CUS-0148,Akurugoda Paint House,,,,,,0,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-22
+CUS-0217,CUS-0217,Makenzi space pvt ltd,,"No. 700/B 
+Undugoda Road,
+Wewala junction, 
+Ranala.
+071 471 9971 
+011 241 5161","No. 700/B 
+Undugoda Road,
+Wewala junction, 
+Ranala.
+071 471 9971 
+011 241 5161",,071 471 9971,249999.98,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUS-0075,CUS-0075,Wadduwa Paint Center,,"No.44 
+Walekade Junction,
+Galle Rd,Wadduwa.
+075 221 8823","No.44 
+Walekade Junction,
+Galle Rd,Wadduwa.
+075 221 8823",,075 221 8823,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-25
+CUS-0059,CUS-0059,Southern Wood Fashion,,"No. 662/E,
+Athurugiriya Road,
+Kaduwela
+011 254 8148","No. 662/E,
+Athurugiriya Road,
+Kaduwela
+011 254 8148",,011 254 8148,500000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-19
+CUS-0067,CUS-0067,Weerakkodi Suppliers,,"No.504,
+Pilapitiya, 
+Kelaniya.
+011 291 4436","No.504,
+Pilapitiya, 
+Kelaniya.
+011 291 4436",,011 291 4436,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-19
+CUS-0213,CUS-0213,Ruthra Hardware & Electricals,,"No.26 
+Old Negambo Road, 
+Wattala.
+077 265 6433 
+077 603 4293","No.26 
+Old Negambo Road, 
+Wattala.
+077 265 6433 
+077 603 4293",,077 265 6433,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-25
+CUS-0168,CUS-0168,Mahajan Hardaware Dambulla,,"Dambulla Road, Thalgodapitiya","Dambulla Road, Thalgodapitiya",,,,EMP-261113162550-888,A.M. Shehan Sumudika,,
+CUS-0170,CUS-0170,Ranlihini Hardware.,,"N0-69, 
+Kegalle Road, 
+Ruwanwella.
+077 168 2068 
+077 345 2068","N0-69, 
+Kegalle Road, 
+Ruwanwella.
+077 168 2068 
+077 345 2068",,077 168 2068,300000,EMP-261113162312-332,W.K.Y. Pamuditha Karunarathna,,
+CUS-0220,CUS-0220,Muthuhettigama Hardware Stores,,"Maint Street, 
+Udugama. 
+091 493 2601","Maint Street, 
+Udugama. 
+091 493 2601",,091 493 2601,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,
+CUS-0056,CUS-0056,Sevenray Paint Shop & Hardware,,"Four way junction,
+Gonapinuwala 
+077 959 4737","Four way junction,
+Gonapinuwala 
+077 959 4737",,077 959 4737,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-19
+CUS-0212,CUS-0212,Ranlihini Hardware.,,"N0-69, 
+Kegalle Road, 
+Ruwanwella.
+077 168 2068 
+077 345 2068","N0-69, 
+Kegalle Road, 
+Ruwanwella.
+077 168 2068 
+077 345 2068",,077 168 2068,300000,EMP-261113162312-332,W.K.Y. Pamuditha Karunarathna,,2026-11-22
+CUS-0026,CUS-0026,Jade Coatings (pvt) Ltd,,"No. 424/1/B
+Kottunna Road,
+Biyagama.
+076 867 9500","No. 424/1/B
+Kottunna Road,
+Biyagama.
+076 867 9500",,076 867 9500,0,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-19
+CUS-0004,CUS-0004,Auto Paint Center,,"Main Street,
+Kaduruwela,
+Polonnaruwa
+077 887 8732
+077 220 8868","Main Street,
+Kaduruwela,
+Polonnaruwa
+077 887 8732
+077 220 8868",,077 887 8732,500000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-19
+CUS-0003,CUS-0003,Apparel Technologies (pvt) Ltd,,"No. 543
+Galle Road,
+Mount Lavinia
+M - +94 076 359 0918
+P - +94 11 273 5391-6 (Ext 223)
+F - + 94 11 273 5390","No. 543
+Galle Road,
+Mount Lavinia
+M - +94 076 359 0918
+P - +94 11 273 5391-6 (Ext 223)
+F - + 94 11 273 5390",,076 359 0918,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-19
+CUS-0058,CUS-0058,263	Siyara Soliwood,,"No. 509/5,
+Hokandara Road,
+Arangala,
+077 254 3319","No. 509/5,
+Hokandara Road,
+Arangala,
+077 254 3319",,077 254 3319,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-19
+CUS-0028,CUS-0028,M K B Hardware,,"Kurunegala Road , 
+Katupotha. 
+037 224 7112","Kurunegala Road , 
+Katupotha. 
+037 224 7112",,037 224 7112,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-19
+CUS-0043,CUS-0043,P J S Electric & Hardware,,"No, 324/5
+Kottunna Road,
+Biyagama
+077 163 1767","No, 324/5
+Kottunna Road,
+Biyagama
+077 163 1767",,077 163 1767,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-19
+CUS-0202,CUS-0202,KANDY STEEL PAINT HOUSE,,"No. 150/2, 
+Kurunagala Road,
+Katugastota
+077 100 1066","No. 150/2, 
+Kurunagala Road,
+Katugastota
+077 100 1066",,077 100 1066,500000,EMP-261113162312-332,W.K.Y. Pamuditha Karunarathna,,2026-11-22
+CUS-0065,CUS-0065,Thurusiri pvt ltd,,"366/3A
+Waikkiya watta,
+Ihala Bomiriya, 
+Kaduwela
+077 345 7722,
+076 885 1436","366/3A
+Waikkiya watta,
+Ihala Bomiriya, 
+Kaduwela
+077 345 7722,
+076 885 1436",,077 345 7722,300000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-19
+CUS-0103,CUS-0103,Paramount Hardware,,"N0-03 
+Sri Piyarathna Road,
+Thumman Handiye,
+Kaluthara Road, 
+Bandaragama.
+077 332 2566","N0-03 
+Sri Piyarathna Road,
+Thumman Handiye,
+Kaluthara Road, 
+Bandaragama.
+077 332 2566",,077 332 2566,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-20
+CUS-0102,CUS-0102,Muthugala Enterprises,,"No. 476/1,
+Eriyawatiya, 
+Kelaniya.
+072 214 3355","No. 476/1,
+Eriyawatiya, 
+Kelaniya.
+072 214 3355",,072 214 3355,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-25
+CUS-0150,CUS-0150,Ahamed Hardware,,"Main Street, Kannaththota
+0362269129","Main Street, Kannaththota
+0362269129",,362269129,0,EMP-261113162312-332,W.K.Y. Pamuditha Karunarathna,,2026-11-25
+CUS-0192,CUS-0192,Vipul Paint & Hire Center,,"No. 531/A, 
+Polpitimookalane, 
+Kadana.
+011 493 3524 
+077 751 2185 
+075 794 3943","No. 531/A, 
+Polpitimookalane, 
+Kadana.
+011 493 3524 
+077 751 2185 
+075 794 3943",,011 493 3524,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-22
+CUS-0165,CUS-0165,Nirvi Interior (pvt) Ltd,,"No.120, Nadurupitiya, Kadana","No.120, Nadurupitiya, Kadana",,,0,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-25
+CUS-0087,CUS-0087,Pepiliyana Timber Dealers,,"No. 406 C, 
+Sunethradevi Road, 
+Pepiliyana, 
+Nugegoda.
+011 282 9323 
+077 772 4724","No. 406 C, 
+Sunethradevi Road, 
+Pepiliyana, 
+Nugegoda.
+011 282 9323 
+077 772 4724",,011 282 9323,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-20
+CUS-0219,CUS-0219,Athula Hardware Stores,,"No-383/ A, 
+Kaduwela Road, 
+Battaramulla.
+077 744 3933","No-383/ A, 
+Kaduwela Road, 
+Battaramulla.
+077 744 3933",,077 744 3933,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,
+CUS-0216,CUS-0216,Jayapathi Hardware,,"Kandy Road, Theldeniya
+0727510120
+0812374892","Kandy Road, Theldeniya
+0727510120
+0812374892",,0727510120/0812374892,0,EMP-261113162312-332,W.K.Y. Pamuditha Karunarathna,,2026-11-25
+CUS-0210,CUS-0210,L.T.L PAINT CENTER NEW,,"No. 124, 
+Agalawatta Road, 
+Mathugama.
+034 224 1231","No. 124, 
+Agalawatta Road, 
+Mathugama.
+034 224 1231",,034 224 1231,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-22
+CUS-0112,CUS-0112,Palawatta Paint Shop,,,,,,250000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-22
+CUS-0071,CUS-0071,Sudilana Hardware,,"No. 125 B, 
+Old Road, 
+Nawala,
+Rajagiriya","No. 125 B, 
+Old Road, 
+Nawala,
+Rajagiriya",,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-25
+CUS-0108,CUS-0108,New Shan Enterprises,,"No. 293/4,
+Makola North, 
+Makola","No. 293/4,
+Makola North, 
+Makola",,,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-22
+CUS-0207,CUS-0207,Gamini Enterprises,,,,,,300000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-22
+CUS-0162,CUS-0162,City Enterprises,,"No.336, Main Street, Rathnapura","No.336, Main Street, Rathnapura",,,0,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-24
+CUS-0149,CUS-0149,Jayamini Hardware,,"No.32, Akurassa Road, Matara
+0718185269","No.32, Akurassa Road, Matara
+0718185269",,718185269,0,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-22
+CUS-0029,CUS-0029,M M G S Architects,,"26/A, 
+Alwis Place, 
+Colombo","26/A, 
+Alwis Place, 
+Colombo",,,250000,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-19
+CUS-0046,CUS-0046,Priyantha Enterprices,,"149/3,A,
+Ulukade Junction, 
+Ganemulla.
+077 726 0461","149/3,A,
+Ulukade Junction, 
+Ganemulla.
+077 726 0461",,077 726 0461,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-19
+CUS-0076,CUS-0076,U.B. Traders,,"Torawathura, 
+Kohilagedara, 
+Kurunegala. 
+071 809 5531","Torawathura, 
+Kohilagedara, 
+Kurunegala. 
+071 809 5531",,071 809 5531,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-19
+CUS-0016,CUS-0016,Eshana colour lab,,"Pitawala Road, 
+Elpitiya.
+071 825 0344","Pitawala Road, 
+Elpitiya.
+071 825 0344",,071 825 0344,1500000,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-19
+CUS-0001,CUS-0001,A H M Hardware,,"Hameedia Building,
+Dambulla Road,
+Galewela.
+071 705 8589","Hameedia Building,
+Dambulla Road,
+Galewela.
+071 705 8589",,071 705 8589,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-25
+CUS-0009,CUS-0009,Dammika Hardware,,"No. 93/C,
+Udupilawaththa,
+Meegahawaththa,
+Delgoda.
+077 962 4003","No. 93/C,
+Udupilawaththa,
+Meegahawaththa,
+Delgoda.
+077 962 4003",,077 962 4003,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-25
+CUS-0033,CUS-0033,Mr.Nishan Rajapaksha,,,,,,0,EMP-261113114553-685,R.D.N.I. Rajapaksha,,2026-11-25
+CUS-0079,CUS-0079,Sunila Wooden Arts,,"Hokandara 
+075 165 4198","Hokandara 
+075 165 4198",,075 165 4198,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-19
+CUS-0082,CUS-0082,Wimalarathna Hardware,,"No. 213/1/D 
+Oppasite the Hospital ,
+Dompe .
+077 868 3489","No. 213/1/D 
+Oppasite the Hospital ,
+Dompe .
+077 868 3489",,077 863 3489,250000,EMP-261113154746-142,L.A.S.L. Athukorala,,2026-11-25
+CUS-0122,CUS-0122,Madusadi Furniture,,"No. 50/A,
+Mile Post,
+Batawala, Padukka.
+077 077 5325","No. 50/A,
+Mile Post,
+Batawala, Padukka.
+077 077 5325",,077 077 5325,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-22
+CUS-0132,CUS-0132,Hameediya Hardware,,"No.30, Dambulla Road, Galewala
+0776014190
+0778426005","No.30, Dambulla Road, Galewala
+0776014190
+0778426005",,0776014190/0778426005,250000,EMP-261113162550-888,A.M. Shehan Sumudika,,2026-11-22
+CUS-0190,CUS-0190,Isuru Paint Shop,,"Negambo Road,
+Maradaghamula.
+031 224 8802","Negambo Road,
+Maradaghamula.
+031 224 8802",,031 224 8802,500000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-22
+CUS-0117,CUS-0117,Sri Sheelawantha Dharma Vidyalaya,,Suriyagama,Suriyagama,,,250000,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-25
+CUS-0187,CUS-0187,Lanka Trading Enterprises,,"No.355, 
+Main Street 
+Negambo 
+077 280 7965 
+071 272 1685","No.355, 
+Main Street 
+Negambo 
+077 280 7965 
+071 272 1685",,077 280 7965,250000,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-25
+CUS-0099,CUS-0099,Mallikarachci itimber,,"Malabe
+077 734 3274","Malabe
+077 734 3274",,077 734 3274,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-25
+CUS-0221,CUS-0221,Brilliant Paint,,"No.800, Main Street, Katukurunda, Kaluthara
+0342228160
+0770623667","No.800, Main Street, Katukurunda, Kaluthara
+0342228160
+0770623667",,0342228160/0770623667,0,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-25
+CUS-0180,CUS-0180,Ahamed Hardware,,"Main Street, Kannaththota
+0362269129","Main Street, Kannaththota
+0362269129",,0362269129,,EMP-261113162312-332,W.K.Y. Pamuditha Karunarathna,,
+CUS-0155,CUS-0155,Dissanayaka Hardware,,,,,,0,EMP-261113153011-609,C.M.A. Nilupul Chandrasekara,,2026-11-22
+CUS-0035,CUS-0035,New City Hardware,,"No. 88,
+S.D.S. Jayasinghe Road,
+Kohuwala","No. 88,
+S.D.S. Jayasinghe Road,
+Kohuwala",,,250000,EMP-261113153641-339,C.U.S. Dissanayaka,,2026-11-19
+CUS-0174,CUS-0174,Madusha Hardware,,"No.665, Mankada Road, Mawaramandiya, Kadawatha
+0727657724","No.665, Mankada Road, Mawaramandiya, Kadawatha
+0727657724",,727657724,0,EMP-261113162059-891,K.D.D. Prasanna Samaraweera,,2026-11-25
+CUS-0160,CUS-0160,Brilliant Paint,,"No.800, Main Street, Katukurunda, Kaluthara
+0342228160
+0770623667","No.800, Main Street, Katukurunda, Kaluthara
+0342228160
+0770623667",,0342228160/0770623667,0,EMP-261113155042-670,R.D.N. Madushan Upathissa,,2026-11-24

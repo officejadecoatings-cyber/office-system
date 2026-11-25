@@ -1,0 +1,44 @@
+PcId,VoucherNo,Date,Type,Category,Description,PaidTo,ReceiptNo,Amount,RecordedBy
+PC-261117113120-164,PCV-1010,2026-11-14,Out,Petty Cash Out,Salary advance-November,Mr. Ishara,82,5000,Rashini Fernando
+PC-261117113241-588,PCV-1011,2026-11-14,In,Petty Cash In,Invoice payment,Rashini Fernando,PZ 0959,20420,Rashini Fernando
+PC-261117113343-821,PCV-1012,2026-11-14,Out,Petty Cash Out,Vehicle repair (LC-3713),Mr. Akila,82,1600,Rashini Fernando
+PC-261113093121-378,PCV-1001,2026-11-12,In,Petty Cash In,,Staff Member 1,,9593,Staff Member 1
+PC-261113152442-696,PCV-1002,2026-11-13,In,Petty Cash In,Invoice payment,Rashini Fernando,"PZ 415, 591,689,JDI 8592",106200,Rashini Fernando
+PC-261113152902-748,PCV-1004,2026-11-13,Out,Petty Cash Out,USB Mouse,Mr. Imesh,81,1500,Rashini Fernando
+PC-261113152952-591,PCV-1005,2026-11-13,Out,Petty Cash Out,Tax payment,Office,81,19000,Rashini Fernando
+PC-261113153040-200,PCV-1006,2026-11-13,Out,Petty Cash Out,Advance payment for display rack,,81,50000,Rashini Fernando
+PC-261113153118-937,PCV-1007,2026-11-13,Out,Petty Cash Out,Travel expenses,Mr. Akila,81,700,Rashini Fernando
+PC-261113153228-271,PCV-1008,2026-11-13,Out,Petty Cash Out,Fan blade,Mr. Imesh,81,975,Rashini Fernando
+PC-261113153532-176,PCV-1009,2026-11-13,Out,Petty Cash Out,Advance payment for X'mas gifts (wine bottles),Miss. Rashini,81,30000,Rashini Fernando
+PC-261113163250-248,PCV-1009,2026-11-13,Out,Petty Cash Out,Evening transport - Pickme,Office,81,1000,Admin User
+PC-261117113418-386,PCV-1013,2026-11-14,Out,Petty Cash Out,Annual trip advance,Mr. Imesh,82,25000,Rashini Fernando
+PC-261117113457-147,PCV-1014,2026-11-14,Out,Petty Cash Out,Vehicle repair (LC-3713),Mr. Sachintha,82,400,Rashini Fernando
+PC-261117113606-366,PCV-1015,2026-11-16,In,Petty Cash In,Invoice payment,Rashini Fernando,"PZ 0975, 0952",102840,Rashini Fernando
+PC-261117113629-158,PCV-1016,2026-11-16,In,Petty Cash In,Invoice payment,Rashini Fernando,PZ 0977,19250,Rashini Fernando
+PC-261117113742-767,PCV-1017,2026-11-16,Out,Petty Cash Out,Sales promotion - Office,Office,83,5655,Rashini Fernando
+PC-261117113821-635,PCV-1018,2026-11-16,Out,Petty Cash Out,Fuel expenses,Mr. Akila,83,1000,Rashini Fernando
+PC-261117113921-574,PCV-1019,2026-11-16,Out,Petty Cash Out,Vehicle repair (PC-8946),Mr. Danuka,83,30000,Rashini Fernando
+PC-261117114001-445,PCV-1020,2026-11-16,Out,Petty Cash Out,Glass cutter machine,Mr. Akila,83,680,Rashini Fernando
+PC-261117114049-568,PCV-1021,2026-11-16,Out,Petty Cash Out,Sales promotion - Kandy area visit,Mr. Nilupul,83,10000,Rashini Fernando
+PC-261117114124-713,PCV-1022,2026-11-16,Out,Petty Cash Out,Evening transport - Pickme,Office,83,1000,Rashini Fernando
+PC-261117114204-432,PCV-1023,2026-11-16,Out,Petty Cash Out,AC Repair item,Mr. Imesh,83,2000,Rashini Fernando
+PC-261117114345-276,PCV-1024,2026-11-16,Out,Petty Cash Out,Gave to payment account,Payment Account,83,63000,Rashini Fernando
+PC-261117114449-200,PCV-1029,2026-11-17,Out,Petty Cash Out,Evening transport - Pickme (To nawagamuwa & Kelaniya),Office,122,2000,N.D.R. Minoshika Fernando
+PC-261117154853-466,PCV-1029,2026-11-17,Out,Petty Cash Out,Fuel expenses (BHV-0726),Mr. Sachintha,84,1500,Rashini Fernando
+PC-1794911702961-762,PCV-1033,2026-11-17,Out,Petty Cash Out,Elpity travel expenses,Mr. Sachintha,84,1750,N.D.R. Minoshika Fernando
+PC-1795065475809-96,PCV-1033,2026-11-19,In,Petty Cash In,Invoice payment,N.D.R. Minoshika Fernando,PZ 0428,30000,N.D.R. Minoshika Fernando
+PC-1795072260523-614,PCV-1037,2026-11-19,Out,Petty Cash Out,PE Plus payment,Mr. Imesh,,144000,N.D.R. Minoshika Fernando
+PC-1795072327803-55,PCV-1037,2026-11-19,Out,Petty Cash Out,Bank deposit,,85,420620,N.D.R. Minoshika Fernando
+PC-1795072215539-98,PCV-1038,2026-11-19,In,Petty Cash In,Invoice payment,N.D.R. Minoshika Fernando,Check No: 227612,564632,N.D.R. Minoshika Fernando
+PC-1795065538241-630,PCV-1038,2026-11-19,Out,Petty Cash Out,Coconut Oil bottle,Office,85,340,N.D.R. Minoshika Fernando
+PC-1795151171977-882,PCV-1038,2026-11-19,Out,Petty Cash Out,C.D. Work,C.D,85,1000,N.D.R. Minoshika Fernando
+PC-1795151206985-722,PCV-1039,2026-11-19,Out,Petty Cash Out,Bike repair,Mr. Danuka,85,1000,N.D.R. Minoshika Fernando
+PC-1795151260521-165,PCV-1040,2026-11-19,Out,Petty Cash Out,Fuel balance for November,Mr. Manjula,85,5000,N.D.R. Minoshika Fernando
+PC-1795151283969-389,PCV-1041,2026-11-19,Out,Petty Cash Out,Gave to payment account,Payment Account,85,13000,N.D.R. Minoshika Fernando
+PC-261117154811-438,PCV-1041,2026-11-17,Out,Petty Cash Out,For pickme,Mr. Akila,84,400,N.D.R. Minoshika Fernando
+PC-1794911481257-358,PCV-1041,2026-11-17,Out,Petty Cash Out,Oil (PC-8946) & Highway Expenses,Mr. Danuka,84,4240,N.D.R. Minoshika Fernando
+PC-1795167023072-456,PCV-1039,2026-11-20,Out,Petty Cash Out,Elpity travel expenses,Mr. Akila,86,4380,N.D.R. Minoshika Fernando
+PC-1795167072432-356,PCV-1040,2026-11-20,Out,Petty Cash Out,Extra fuel expenses - November,Mr. Nipun,86,2500,N.D.R. Minoshika Fernando
+PC-1795167099647-806,PCV-1041,2026-11-20,Out,Petty Cash Out,Sales Promotion - Office,Office,86,400,N.D.R. Minoshika Fernando
+PC-1795168424118-582,PCV-1042,2026-11-20,Out,Petty Cash Out,Water Expenses,Office,86,3600,N.D.R. Minoshika Fernando
+PC-1795168492542-278,PCV-1044,2026-11-20,Out,Petty Cash Out,Sales promotion - Office,C.D,86,1500,N.D.R. Minoshika Fernando
