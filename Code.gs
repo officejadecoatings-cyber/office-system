@@ -61,6 +61,7 @@ function doPost(e) {
     const args = payload.args || [];
     const allowed = {
       getLoginUsers, authenticateUser, getAppData,
+      migrateCustomerIds: migrateCustomerIds_,
       saveCustomer, deleteCustomer,
       saveSupplier, deleteSupplier,
       saveCompanyProfile, deleteCompanyProfile,
@@ -246,8 +247,144 @@ function ensureDatabase_() {
     ]);
   }
 
+  migrateCustomerIds_();
+
   _dbEnsured = true;
   return ss;
+}
+
+function migrateCustomerIds_() {
+  const ss = getSpreadsheet_();
+  const custSheet = ss.getSheetByName('Customers');
+  if (!custSheet || custSheet.getLastRow() <= 1) return;
+
+  const data = custSheet.getDataRange().getValues();
+  const headers = data[0];
+  const idIdx = headers.indexOf('CustomerId');
+  const codeIdx = headers.indexOf('CustomerCode');
+  if (idIdx === -1) return;
+
+  const idMap = {};
+  let maxSeq = 0;
+  const usedNums = {};
+  let hasChanges = false;
+
+  for (let i = 1; i < data.length; i++) {
+    const curId = String(data[i][idIdx] || '').trim();
+    const m = curId.match(/^CUS-(\d+)$/i);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      usedNums[n] = true;
+      if (n > maxSeq) maxSeq = n;
+    }
+  }
+
+  let candidateSeq = 1;
+  function getNextSeq() {
+    while (usedNums[candidateSeq]) {
+      candidateSeq++;
+    }
+    usedNums[candidateSeq] = true;
+    if (candidateSeq > maxSeq) maxSeq = candidateSeq;
+    return candidateSeq;
+  }
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const oldId = String(row[idIdx] || '').trim();
+    const oldCode = codeIdx >= 0 ? String(row[codeIdx] || '').trim() : '';
+
+    if (!oldId.match(/^CUS-\d+$/i)) {
+      let targetNum = null;
+      const codeNum = parseInt(oldCode, 10);
+      if (!isNaN(codeNum) && codeNum > 0 && codeNum < 10000 && !usedNums[codeNum]) {
+        targetNum = codeNum;
+        usedNums[targetNum] = true;
+        if (targetNum > maxSeq) maxSeq = targetNum;
+      } else {
+        targetNum = getNextSeq();
+      }
+      const newId = 'CUS-' + String(targetNum).padStart(4, '0');
+      if (oldId) idMap[oldId] = newId;
+      if (oldCode) idMap[oldCode] = newId;
+      row[idIdx] = newId;
+      if (codeIdx >= 0) row[codeIdx] = newId;
+      hasChanges = true;
+    }
+  }
+
+  if (hasChanges) {
+    custSheet.getDataRange().setValues(data);
+
+    const settingsSheet = ss.getSheetByName('Settings');
+    if (settingsSheet) {
+      const sData = settingsSheet.getDataRange().getValues();
+      let foundRow = -1;
+      for (let i = 1; i < sData.length; i++) {
+        if (sData[i][0] === 'NextCustomerSeq') {
+          foundRow = i + 1;
+          break;
+        }
+      }
+      const nextSeqVal = maxSeq + 1;
+      if (foundRow > 0) {
+        settingsSheet.getRange(foundRow, 2).setValue(nextSeqVal);
+      } else {
+        settingsSheet.appendRow(['NextCustomerSeq', nextSeqVal]);
+      }
+    }
+
+    const invSheet = ss.getSheetByName('Invoices');
+    if (invSheet && invSheet.getLastRow() > 1) {
+      const invData = invSheet.getDataRange().getValues();
+      const invCustIdx = invData[0].indexOf('CustomerId');
+      if (invCustIdx >= 0) {
+        let changed = false;
+        for (let j = 1; j < invData.length; j++) {
+          const cur = String(invData[j][invCustIdx] || '').trim();
+          if (idMap[cur]) {
+            invData[j][invCustIdx] = idMap[cur];
+            changed = true;
+          }
+        }
+        if (changed) invSheet.getDataRange().setValues(invData);
+      }
+    }
+
+    const qSheet = ss.getSheetByName('Quotations');
+    if (qSheet && qSheet.getLastRow() > 1) {
+      const qData = qSheet.getDataRange().getValues();
+      const qCustIdx = qData[0].indexOf('CustomerId');
+      if (qCustIdx >= 0) {
+        let changed = false;
+        for (let j = 1; j < qData.length; j++) {
+          const cur = String(qData[j][qCustIdx] || '').trim();
+          if (idMap[cur]) {
+            qData[j][qCustIdx] = idMap[cur];
+            changed = true;
+          }
+        }
+        if (changed) qSheet.getDataRange().setValues(qData);
+      }
+    }
+
+    const ordSheet = ss.getSheetByName('OrderForms');
+    if (ordSheet && ordSheet.getLastRow() > 1) {
+      const ordData = ordSheet.getDataRange().getValues();
+      const ordCustIdx = ordData[0].indexOf('CustomerId');
+      if (ordCustIdx >= 0) {
+        let changed = false;
+        for (let j = 1; j < ordData.length; j++) {
+          const cur = String(ordData[j][ordCustIdx] || '').trim();
+          if (idMap[cur]) {
+            ordData[j][ordCustIdx] = idMap[cur];
+            changed = true;
+          }
+        }
+        if (changed) ordSheet.getDataRange().setValues(ordData);
+      }
+    }
+  }
 }
 
 /* ============================================================================
@@ -438,6 +575,7 @@ function authenticateUser(userId, pin) {
 
 function getAppData() {
   ensureDatabase_();
+  migrateCustomerIds_();
   const ss = getSpreadsheet_();
   const allSheets = ss.getSheets();
   const sheetsMap = {};

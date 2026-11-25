@@ -1364,7 +1364,15 @@
 
       // Standard entity save
       if (payload && typeof payload === 'object') {
-        payload[mapping.key] = payload[mapping.key] || (mapping.prefix + '-' + Date.now() + '-' + Math.floor(Math.random() * 1000));
+        if (!payload[mapping.key]) {
+          if (mapping.key === 'CustomerId') {
+            payload[mapping.key] = generateNextCustomerId();
+          } else if (mapping.key === 'SupplierId') {
+            payload[mapping.key] = generateNextSupplierId();
+          } else {
+            payload[mapping.key] = mapping.prefix + '-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+          }
+        }
         await this.upsert(mapping.table, payload);
 
         if (state && state.data && mapping.prop) {
@@ -3757,6 +3765,7 @@
   function ensureDataDefaults() {
     if (state.data) syncOrderFormsWithInvoices(state.data);
     if (state.data) cleanDataRedundancy(state.data);
+    if (state.data) migrateCustomerIdsClientSide_();
     if (!state.data.painterParticipants || !Array.isArray(state.data.painterParticipants)) {
       state.data.painterParticipants = [];
     }
@@ -5736,6 +5745,104 @@
       candidate = 'JD-' + String(nextNum).padStart(3, '0');
     }
     return candidate;
+  }
+
+  function migrateCustomerIdsClientSide_() {
+    if (!state.data || !Array.isArray(state.data.customers) || state.data.customers.length === 0) return;
+
+    let maxSeq = 0;
+    const usedNums = new Set();
+    const needsMigration = [];
+
+    state.data.customers.forEach(c => {
+      const curId = String(c.CustomerId || '').trim();
+      const m = curId.match(/^CUS-(\d+)$/i);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        usedNums.add(n);
+        if (n > maxSeq) maxSeq = n;
+      } else {
+        needsMigration.push(c);
+      }
+    });
+
+    if (needsMigration.length === 0) {
+      const currentNext = parseInt(state.data.settings?.NextCustomerSeq, 10) || 1;
+      if (currentNext <= maxSeq) {
+        state.data.settings = state.data.settings || {};
+        state.data.settings.NextCustomerSeq = String(maxSeq + 1);
+      }
+      return;
+    }
+
+    const idMap = {};
+    let candidateSeq = 1;
+
+    function getNextSeq() {
+      while (usedNums.has(candidateSeq)) {
+        candidateSeq++;
+      }
+      usedNums.add(candidateSeq);
+      if (candidateSeq > maxSeq) maxSeq = candidateSeq;
+      return candidateSeq;
+    }
+
+    needsMigration.forEach(c => {
+      const oldId = String(c.CustomerId || '').trim();
+      const oldCode = String(c.CustomerCode || '').trim();
+      let targetNum = null;
+
+      const codeNum = parseInt(oldCode, 10);
+      if (!isNaN(codeNum) && codeNum > 0 && codeNum < 10000 && !usedNums.has(codeNum)) {
+        targetNum = codeNum;
+        usedNums.add(targetNum);
+        if (targetNum > maxSeq) maxSeq = targetNum;
+      } else {
+        targetNum = getNextSeq();
+      }
+
+      const newId = 'CUS-' + String(targetNum).padStart(4, '0');
+      if (oldId) idMap[oldId] = newId;
+      if (oldCode) idMap[oldCode] = newId;
+
+      c.CustomerId = newId;
+      c.CustomerCode = newId;
+    });
+
+    if (Array.isArray(state.data.invoices)) {
+      state.data.invoices.forEach(inv => {
+        const cur = String(inv.CustomerId || '').trim();
+        if (idMap[cur]) inv.CustomerId = idMap[cur];
+      });
+    }
+
+    if (Array.isArray(state.data.quotations)) {
+      state.data.quotations.forEach(q => {
+        const cur = String(q.CustomerId || '').trim();
+        if (idMap[cur]) q.CustomerId = idMap[cur];
+      });
+    }
+
+    if (Array.isArray(state.data.orderForms)) {
+      state.data.orderForms.forEach(o => {
+        const cur = String(o.CustomerId || '').trim();
+        if (idMap[cur]) o.CustomerId = idMap[cur];
+      });
+    }
+
+    state.data.settings = state.data.settings || {};
+    state.data.settings.NextCustomerSeq = String(maxSeq + 1);
+
+    try {
+      localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data));
+    } catch (e) {}
+
+    if (typeof gas === 'function') {
+      gas('saveSettings', { Key: 'NextCustomerSeq', Value: String(maxSeq + 1) }).catch(() => {});
+      needsMigration.forEach(c => {
+        gas('saveCustomer', c).catch(err => console.warn('Customer migration sync error:', err));
+      });
+    }
   }
 
   function generateNextCustomerId() {
