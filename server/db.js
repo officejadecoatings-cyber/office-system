@@ -1,6 +1,5 @@
 const path = require('path');
 const fs = require('fs');
-const Database = require('better-sqlite3');
 
 // Resolve database directory
 const defaultDataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -11,7 +10,49 @@ if (!fs.existsSync(defaultDataDir)) {
 const dbPath = process.env.DB_PATH || path.join(defaultDataDir, 'office_system.db');
 console.log(`[DB] Opening SQLite database at: ${dbPath}`);
 
-const db = new Database(dbPath);
+let db;
+let isNodeSqlite = false;
+
+try {
+  const Database = require('better-sqlite3');
+  db = new Database(dbPath);
+  console.log('[DB] SQLite Engine: better-sqlite3');
+} catch (err) {
+  console.warn(`[DB] better-sqlite3 unavailable (${err.message}). Using Node.js built-in node:sqlite engine...`);
+  try {
+    const { DatabaseSync } = require('node:sqlite');
+    db = new DatabaseSync(dbPath);
+    isNodeSqlite = true;
+    console.log('[DB] SQLite Engine: node:sqlite (100% built-in, no external native binaries)');
+  } catch (err2) {
+    console.error('[DB] Critical error: failed to initialize both better-sqlite3 and node:sqlite:', err2);
+    throw err2;
+  }
+}
+
+if (isNodeSqlite) {
+  db.pragma = function(str) {
+    try {
+      return db.exec('PRAGMA ' + str);
+    } catch (e) {
+      return null;
+    }
+  };
+
+  db.transaction = function(fn) {
+    return function(...args) {
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const res = fn(...args);
+        db.exec('COMMIT');
+        return res;
+      } catch (e) {
+        db.exec('ROLLBACK');
+        throw e;
+      }
+    };
+  };
+}
 
 // Enable WAL mode for high concurrency multi-user performance
 db.pragma('journal_mode = WAL');
@@ -630,7 +671,14 @@ async function backupDatabase(destPath) {
   if (!fs.existsSync(targetDir)) {
     fs.mkdirSync(targetDir, { recursive: true });
   }
-  return db.backup(destPath);
+  if (typeof db.backup === 'function') {
+    return db.backup(destPath);
+  } else {
+    // Atomic safe snapshot via SQLite VACUUM INTO
+    const safeDest = destPath.replace(/'/g, "''");
+    db.exec(`VACUUM INTO '${safeDest}'`);
+    return true;
+  }
 }
 
 // Initialize on require
