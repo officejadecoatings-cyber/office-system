@@ -1500,6 +1500,10 @@
     });
   }
 
+  function gas(fnName, ...args) {
+    return callGasDirect(fnName, args);
+  }
+
   function showToast(msg) {
     const el = document.getElementById('toast');
     el.textContent = msg;
@@ -17224,13 +17228,26 @@ CREATE TABLE IF NOT EXISTS "Transactions" (
   /* ==========================================================================
    * Desktop Client - LAN Server Communication Bridge
    * ======================================================================== */
+  function normalizeServerUrl(input) {
+    let url = String(input || '').trim().replace(/\/+$/, '');
+    if (!url) return 'http://localhost:3000';
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'http://' + url;
+    }
+    const cleanHost = url.replace(/^https?:\/\//, '').split('/')[0];
+    if (!cleanHost.includes(':')) {
+      url = url.replace(cleanHost, cleanHost + ':3000');
+    }
+    return url;
+  }
+
   function getServerBaseUrl() {
-    let url = localStorage.getItem('OFFICE_SERVER_IP') || '';
+    let url = localStorage.getItem('OFFICE_SERVER_IP');
     if (!url) {
       url = 'http://localhost:3000';
       localStorage.setItem('OFFICE_SERVER_IP', url);
     }
-    return url.replace(/\/+$/, '');
+    return normalizeServerUrl(url);
   }
 
   function updateServerDisplayBadges() {
@@ -17258,19 +17275,21 @@ CREATE TABLE IF NOT EXISTS "Transactions" (
   async function testServerConnection() {
     const input = document.getElementById('txtServerIpInput');
     const status = document.getElementById('serverTestStatus');
-    let target = (input ? input.value : '').trim().replace(/\/+$/, '');
-    if (!target) {
-      status.textContent = 'Please enter a server IP or URL';
-      status.style.color = '#ef4444';
+    let raw = (input ? input.value : '').trim();
+    if (!raw) {
+      if (status) {
+        status.textContent = 'Please enter a server IP (e.g. 192.168.1.11)';
+        status.style.color = '#ef4444';
+      }
       return;
     }
-    if (!target.startsWith('http://') && !target.startsWith('https://')) {
-      target = 'http://' + target;
-      if (input) input.value = target;
-    }
+    const target = normalizeServerUrl(raw);
+    if (input) input.value = target;
 
-    status.textContent = 'Testing connection...';
-    status.style.color = '#0284c7';
+    if (status) {
+      status.textContent = 'Testing connection to ' + target + '...';
+      status.style.color = '#0284c7';
+    }
 
     const t0 = Date.now();
     try {
@@ -17278,34 +17297,78 @@ CREATE TABLE IF NOT EXISTS "Transactions" (
       const data = await res.json();
       const latency = Date.now() - t0;
       if (data && data.ok) {
-        status.textContent = `✓ Connected! Server online (${latency}ms latency)`;
-        status.style.color = '#059669';
+        if (status) {
+          status.textContent = `✓ Connected! Server online (${latency}ms latency)`;
+          status.style.color = '#059669';
+        }
       } else {
-        status.textContent = '✗ Server responded with an invalid response';
-        status.style.color = '#ef4444';
+        if (status) {
+          status.textContent = '✗ Server responded with an invalid response';
+          status.style.color = '#ef4444';
+        }
       }
     } catch (err) {
-      status.textContent = '✗ Connection failed: ' + (err.message || 'Cannot reach server');
-      status.style.color = '#ef4444';
+      if (status) {
+        status.textContent = '✗ Connection failed to ' + target + ' (Check if Server is running and Firewall Port 3000 is open)';
+        status.style.color = '#ef4444';
+      }
     }
   }
 
   async function saveServerConnection() {
     const input = document.getElementById('txtServerIpInput');
-    let target = (input ? input.value : '').trim().replace(/\/+$/, '');
-    if (!target) return;
-    if (!target.startsWith('http://') && !target.startsWith('https://')) {
-      target = 'http://' + target;
-    }
-    localStorage.setItem('OFFICE_SERVER_IP', target);
-    updateServerDisplayBadges();
-    closeServerConnectModal();
-    showToast('Connected to Server: ' + target);
+    const status = document.getElementById('serverTestStatus');
+    let raw = (input ? input.value : '').trim();
+    if (!raw) return;
+    const target = normalizeServerUrl(raw);
     
-    // Re-fetch data from the new server address
-    if (typeof fetchAppData === 'function') {
-      fetchAppData();
+    if (status) {
+      status.textContent = 'Connecting to ' + target + '...';
+      status.style.color = '#0284c7';
     }
+
+    try {
+      const res = await fetch(target + '/api/ping', { method: 'GET', cache: 'no-store' });
+      const data = await res.json();
+      if (!data || !data.ok) throw new Error('Invalid response');
+      
+      localStorage.setItem('OFFICE_SERVER_IP', target);
+      updateServerDisplayBadges();
+      closeServerConnectModal();
+      showToast('Connected to Server: ' + target);
+
+      // Reload Login Users immediately
+      loadLoginUsersNow();
+      
+      // Re-fetch data from the new server address if logged in
+      if (typeof fetchAppData === 'function') {
+        fetchAppData();
+      }
+    } catch (err) {
+      if (status) {
+        status.textContent = '✗ Could not connect to ' + target + '. Please check server IP and Firewall.';
+        status.style.color = '#ef4444';
+      }
+      showToast('Connection failed: ' + target);
+    }
+  }
+
+  function loadLoginUsersNow() {
+    const sel = document.getElementById('loginUser');
+    if (sel) sel.innerHTML = '<option value="">Connecting & loading users...</option>';
+    gas('getLoginUsers').then(users => {
+      if (sel && Array.isArray(users) && users.length) {
+        sel.innerHTML = users.map(u => `<option value="${esc(u.UserId)}">${esc(u.Name)} (${esc(u.Role)})</option>`).join('');
+        try { localStorage.setItem('cached_login_users_v1', JSON.stringify(users)); } catch (e) {}
+      } else if (sel) {
+        sel.innerHTML = '<option value="">No users found in database</option>';
+      }
+    }).catch(err => {
+      console.warn('Failed to load login users:', err);
+      if (sel) {
+        sel.innerHTML = '<option value="">⚠️ Server not reached (Click Server Address below)</option>';
+      }
+    });
   }
 
   // Intercept window.print for Electron native printing
@@ -17325,6 +17388,7 @@ CREATE TABLE IF NOT EXISTS "Transactions" (
   // Check server connection on startup
   window.addEventListener('DOMContentLoaded', () => {
     updateServerDisplayBadges();
+    loadLoginUsersNow();
     setTimeout(() => {
       const serverUrl = getServerBaseUrl();
       fetch(serverUrl + '/api/ping', { method: 'GET', cache: 'no-store' })
@@ -17333,17 +17397,16 @@ CREATE TABLE IF NOT EXISTS "Transactions" (
           if (!d || !d.ok) openServerConnectModal(true);
         })
         .catch(() => {
-          // If first time or cannot connect, prompt user
           openServerConnectModal(true);
         });
-    }, 1200);
+    }, 1500);
   });
 
 </script>
 
   <!-- Server Connection Modal -->
   <div id="serverConnectModal" class="modal-backdrop hidden" style="z-index:999999;">
-    <div class="modal" style="max-width:440px; border-radius:12px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);">
+    <div class="modal" style="max-width:460px; border-radius:12px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);">
       <div class="modal-header" style="border-bottom:1px solid #e2e8f0; padding:14px 18px;">
         <h3 style="margin:0; font-size:16px; color:#0f172a; display:flex; align-items:center; gap:8px;">
           <span>🔌</span> Connect to Office Server
@@ -17352,16 +17415,16 @@ CREATE TABLE IF NOT EXISTS "Transactions" (
       </div>
       <div class="modal-body" style="padding:18px;">
         <p style="font-size:13px; color:#64748b; margin-top:0; line-height:1.5;">
-          Enter the IP address of the main office Server PC (displayed on the Server Control console):
+          Enter the IP address of the main office Server PC (e.g. <code>192.168.1.11</code>):
         </p>
         <div class="form-group" style="margin-bottom:14px;">
-          <label style="font-weight:700; display:block; margin-bottom:6px; font-size:13px; color:#1e293b;">Server URL / IP</label>
-          <input id="txtServerIpInput" placeholder="http://192.168.1.100:3000" 
+          <label style="font-weight:700; display:block; margin-bottom:6px; font-size:13px; color:#1e293b;">Server IP / URL</label>
+          <input id="txtServerIpInput" placeholder="192.168.1.11 or localhost" 
                  style="width:100%; box-sizing:border-box; font-family:monospace; font-size:14px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-weight:600; color:#0f766e;" 
                  value="http://localhost:3000">
-          <div style="font-size:11.5px; color:#94a3b8; margin-top:4px;">Example: <code>http://192.168.1.100:3000</code> or <code>http://localhost:3000</code></div>
+          <div style="font-size:11.5px; color:#94a3b8; margin-top:4px;">Type the Server PC's IP, e.g. <code>192.168.1.11</code> or <code>localhost</code></div>
         </div>
-        <div id="serverTestStatus" style="font-size:12.5px; margin-bottom:14px; min-height:20px; font-weight:600;"></div>
+        <div id="serverTestStatus" style="font-size:12.5px; margin-bottom:14px; min-height:22px; font-weight:600; word-break:break-all;"></div>
         <div style="display:flex; gap:10px;">
           <button class="btn btn-secondary" style="flex:1;" onclick="testServerConnection()">🔍 Test Connection</button>
           <button class="btn btn-primary" style="flex:1;" onclick="saveServerConnection()">💾 Save & Connect</button>
