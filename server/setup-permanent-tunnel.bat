@@ -29,11 +29,25 @@ if "%TUNNEL_TOKEN%"=="" (
     exit /b
 )
 
+set CLOUDFLARED_EXE="%~dp0server\cloudflared.exe"
+if not exist %CLOUDFLARED_EXE% set CLOUDFLARED_EXE="%~dp0cloudflared.exe"
+
+if not exist %CLOUDFLARED_EXE% (
+    echo Error: cloudflared.exe not found!
+    pause
+    exit /b
+)
+
 echo.
 echo Installing Cloudflare Tunnel as a Windows Background Service...
-"%~dp0cloudflared.exe" service install %TUNNEL_TOKEN%
+%CLOUDFLARED_EXE% service install %TUNNEL_TOKEN%
 echo.
-echo Cloudflare Tunnel service installed successfully!
-echo It will now run automatically on Windows boot.
+echo Starting the Cloudflare Tunnel Service...
+net start cloudflared >nul 2>&1
+echo.
+echo ========================================================
+echo Cloudflare Tunnel service installed and started!
+echo It will now run automatically in the background on boot.
+echo ========================================================
 echo.
 pause

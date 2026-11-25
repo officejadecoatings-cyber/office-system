@@ -17,3 +17,5 @@ write_bats.py
 
 
 server/cloudflared.exe
+server/ngrok.exe
+server/config.yml

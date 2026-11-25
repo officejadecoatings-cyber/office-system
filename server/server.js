@@ -295,10 +295,38 @@ const RPC_HANDLERS = {
     o.OrderId = o.OrderId || ('ORD-' + Date.now());
     o.OrderDate = o.OrderDate || new Date().toISOString().slice(0, 10);
     o.Total = Number(o.Total) || 0;
+    
+    // Resolve items array if passed
+    const items = payload.items || o.items || (typeof o.ItemsJson === 'string' ? JSON.parse(o.ItemsJson || '[]') : o.ItemsJson);
     if (o.ItemsJson && typeof o.ItemsJson === 'object') {
       o.ItemsJson = JSON.stringify(o.ItemsJson);
+    } else if (Array.isArray(items) && !o.ItemsJson) {
+      o.ItemsJson = JSON.stringify(items);
     }
+    
     upsert('OrderForms', o, 'OrderId');
+
+    // Save line items into OrderFormItems
+    if (Array.isArray(items) && items.length > 0) {
+      try {
+        deleteRow('OrderFormItems', 'OrderId', o.OrderId);
+        items.forEach((it, idx) => {
+          const line = {
+            LineId: it.LineId || (o.OrderId + '-L' + (idx + 1)),
+            OrderId: o.OrderId,
+            ItemId: it.ItemId || '',
+            ItemName: it.ItemName || '',
+            Qty: Number(it.Qty || it.Quantity || 0),
+            UnitPrice: Number(it.UnitPrice || 0),
+            LineTotal: Number(it.LineTotal || it.Total || 0),
+            DiscountPercent: Number(it.DiscountPercent || it.Discount || 0)
+          };
+          upsert('OrderFormItems', line, 'LineId');
+        });
+      } catch (err) {
+        console.warn('[OrderFormItems] Error saving line items:', err.message);
+      }
+    }
     return o;
   },
 
@@ -553,6 +581,17 @@ app.post('/api/rpc', (req, res) => {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Serve Web Client App (for mobile browsers, preview, and web users)
+// ---------------------------------------------------------------------------
+const clientRendererDir = path.join(__dirname, '../client-desktop/renderer');
+if (fs.existsSync(clientRendererDir)) {
+  app.use('/app', express.static(clientRendererDir));
+  app.get('/app', (req, res) => {
+    res.sendFile(path.join(clientRendererDir, 'index.html'));
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Server Control & Status Dashboard (Web UI for Server PC)
