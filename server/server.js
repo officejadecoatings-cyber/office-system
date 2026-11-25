@@ -133,7 +133,21 @@ const RPC_HANDLERS = {
   },
 
   saveCustomer: (customer) => {
-    customer.CustomerId = customer.CustomerId || ('CUS-' + Date.now());
+    const custName = String(customer.Name || '').trim();
+    if (!customer.CustomerId || !/^CUS-\d+$/i.test(customer.CustomerId)) {
+      // Check if a customer with the same name already exists to prevent duplication
+      const existing = db.prepare("SELECT CustomerId, CustomerCode FROM Customers WHERE LOWER(TRIM(Name)) = LOWER(TRIM(?))").get(custName);
+      if (existing) {
+        customer.CustomerId = existing.CustomerId;
+        customer.CustomerCode = existing.CustomerCode || existing.CustomerId;
+      } else {
+        const nextSeqRow = db.prepare("SELECT Value FROM Settings WHERE Key = 'NextCustomerSeq'").get();
+        let nextSeq = parseInt(nextSeqRow ? nextSeqRow.Value : '194', 10) || 194;
+        customer.CustomerId = 'CUS-' + String(nextSeq).padStart(4, '0');
+        customer.CustomerCode = customer.CustomerId;
+        db.prepare("INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('NextCustomerSeq', ?)").run(String(nextSeq + 1));
+      }
+    }
     customer.CustomerCode = customer.CustomerCode || customer.CustomerId;
     customer.CreditLimit = Number(customer.CreditLimit) || 0;
     customer.CreatedAt = customer.CreatedAt || new Date().toISOString().slice(0, 10);

@@ -3545,8 +3545,28 @@
       data.invoices = data.invoices.filter(i => !isRecordDeleted(i.InvoiceId) && !isRecordDeleted(i.InvoiceNo));
     }
     if (Array.isArray(data.customers)) {
-      data.customers = dedupe(data.customers, c => (c.CustomerId || '').toString().trim().toLowerCase());
-      data.customers = data.customers.filter(c => !isRecordDeleted(c.CustomerId));
+      const seenCustIds = new Set();
+      const seenCustNames = new Set();
+      const cleanCusts = [];
+      const sorted = [...data.customers].sort((a, b) => {
+        const aCus = /^CUS-\d+$/i.test(a.CustomerId || '');
+        const bCus = /^CUS-\d+$/i.test(b.CustomerId || '');
+        if (aCus && !bCus) return -1;
+        if (!aCus && bCus) return 1;
+        return 0;
+      });
+      for (const c of sorted) {
+        if (!c) continue;
+        const cid = (c.CustomerId || '').toString().trim().toLowerCase();
+        const cname = (c.Name || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+        if (isRecordDeleted(c.CustomerId) || isRecordDeleted(c.CustomerCode)) continue;
+        if (cid && seenCustIds.has(cid)) continue;
+        if (cname && seenCustNames.has(cname)) continue;
+        if (cid) seenCustIds.add(cid);
+        if (cname) seenCustNames.add(cname);
+        cleanCusts.push(c);
+      }
+      data.customers = cleanCusts;
     }
     if (Array.isArray(data.quotations)) {
       data.quotations = dedupe(data.quotations, q => (q.QuotationId || q.QuoteNo || '').toString().trim().toLowerCase());
@@ -5813,12 +5833,7 @@
       localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(state.data));
     } catch (e) {}
 
-    if (typeof gas === 'function') {
-      gas('saveSettings', { Key: 'NextCustomerSeq', Value: String(maxSeq + 1) }).catch(() => {});
-      needsMigration.forEach(c => {
-        gas('saveCustomer', c).catch(err => console.warn('Customer migration sync error:', err));
-      });
-    }
+    // In-memory sequence update only; do not flood backend with automated bulk saves on load
   }
 
   function generateNextCustomerId() {
