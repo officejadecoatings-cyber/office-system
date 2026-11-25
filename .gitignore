@@ -15,3 +15,5 @@ installers/
 *.zip
 write_bats.py
 
+
+server/cloudflared.exe
